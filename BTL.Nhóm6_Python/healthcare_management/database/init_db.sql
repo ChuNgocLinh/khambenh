@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS Users (
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CHECK (role IN ('admin','doctor','patient'))
 );
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS Patients (
     phone VARCHAR(20),
     address VARCHAR(255),
     user_id INT UNIQUE,
+    is_active BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
@@ -35,6 +37,7 @@ CREATE TABLE IF NOT EXISTS Doctors (
     phone VARCHAR(20),
     email VARCHAR(100),
     user_id INT UNIQUE,
+    is_active BOOLEAN DEFAULT TRUE,
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
 
@@ -45,7 +48,8 @@ CREATE TABLE IF NOT EXISTS Services (
     service_id INT AUTO_INCREMENT PRIMARY KEY,
     service_name VARCHAR(100),
     price DECIMAL(10,2),
-    description VARCHAR(255)
+    description VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE
 );
 
 -- ========================================
@@ -56,7 +60,7 @@ CREATE TABLE IF NOT EXISTS Appointments (
     patient_id INT,
     doctor_id INT,
     appointment_date DATETIME,
-    status VARCHAR(20),
+    status VARCHAR(20) DEFAULT 'pending',
     note VARCHAR(255),
     FOREIGN KEY (patient_id) REFERENCES Patients(patient_id),
     FOREIGN KEY (doctor_id) REFERENCES Doctors(doctor_id),
@@ -87,7 +91,8 @@ CREATE TABLE IF NOT EXISTS Medicines (
     name VARCHAR(100),
     quantity INT,
     price DECIMAL(10,2),
-    description VARCHAR(255)
+    description VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE
 );
 
 -- ========================================
@@ -110,7 +115,7 @@ CREATE TABLE IF NOT EXISTS Payments (
     patient_id INT,
     appointment_id INT,
     total_amount DECIMAL(10,2),
-    status VARCHAR(20),
+    status VARCHAR(20) DEFAULT 'unpaid',
     payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patient_id) REFERENCES Patients(patient_id),
     FOREIGN KEY (appointment_id) REFERENCES Appointments(appointment_id),
@@ -136,6 +141,13 @@ CREATE TABLE IF NOT EXISTS Invoices (
 -- ========================================
 CREATE INDEX idx_patient_name ON Patients(name);
 CREATE INDEX idx_appointment_date ON Appointments(appointment_date);
+CREATE INDEX idx_appt_patient_id ON Appointments(patient_id);
+CREATE INDEX idx_appt_doctor_id ON Appointments(doctor_id);
+CREATE INDEX idx_record_appointment_id ON MedicalRecords(appointment_id);
+CREATE INDEX idx_prescription_record_id ON Prescriptions(record_id);
+CREATE INDEX idx_payment_patient_id ON Payments(patient_id);
+CREATE INDEX idx_payment_appointment_id ON Payments(appointment_id);
+CREATE INDEX idx_invoice_payment_id ON Invoices(payment_id);
 
 -- ========================================
 -- 11. INSERT DỮ LIỆU MẪU
@@ -169,6 +181,6 @@ INSERT IGNORE INTO MedicalRecords (patient_id, doctor_id, diagnosis, treatment) 
 (1,1,'Sốt','Uống thuốc'),
 (2,2,'Đau bụng','Nghỉ ngơi');
 
-INSERT IGNORE INTO Payments (patient_id, total_amount, status) VALUES
-(1,200000,'paid'),
-(2,150000,'unpaid');
+INSERT IGNORE INTO Payments (patient_id, appointment_id, total_amount, status) VALUES
+(1, 1, 200000,'paid'),
+(2, 2, 150000,'unpaid');

@@ -17,6 +17,7 @@ def create_tables():
             username NVARCHAR(50) UNIQUE NOT NULL,
             password NVARCHAR(255) NOT NULL,
             role NVARCHAR(20) CHECK (role IN ('admin','doctor','patient')) NOT NULL,
+            is_active BIT DEFAULT 1,
             created_at DATETIME DEFAULT GETDATE()
         )
         """)
@@ -32,6 +33,7 @@ def create_tables():
             phone NVARCHAR(20),
             address NVARCHAR(255),
             user_id INT UNIQUE,
+            is_active BIT DEFAULT 1,
             created_at DATETIME DEFAULT GETDATE(),
             FOREIGN KEY (user_id) REFERENCES Users(user_id)
         )
@@ -46,6 +48,7 @@ def create_tables():
             specialty NVARCHAR(100),
             phone NVARCHAR(20),
             user_id INT UNIQUE,
+            is_active BIT DEFAULT 1,
             FOREIGN KEY (user_id) REFERENCES Users(user_id)
         )
         """)
@@ -58,7 +61,7 @@ def create_tables():
             patient_id INT NOT NULL,
             doctor_id INT NOT NULL,
             appointment_date DATETIME,
-            status NVARCHAR(20) CHECK (status IN ('pending','confirmed','done','cancelled')),
+            status NVARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending','confirmed','done','cancelled')),
             FOREIGN KEY (patient_id) REFERENCES Patients(patient_id),
             FOREIGN KEY (doctor_id) REFERENCES Doctors(doctor_id)
         )
