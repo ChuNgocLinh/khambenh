@@ -38,6 +38,15 @@ class MainView(QtWidgets.QMainWindow):
             self.init_patient_ui()
 
     def init_patient_ui(self):
+        # Tạo StackedWidget để quản lý các trang
+        self.patient_stack = QtWidgets.QStackedWidget()
+        self.main_layout.addWidget(self.patient_stack)
+
+        # --- TRANG 0: DASHBOARD ---
+        self.page_dashboard = QtWidgets.QWidget()
+        dashboard_layout = QtWidgets.QVBoxLayout(self.page_dashboard)
+        dashboard_layout.setContentsMargins(0, 0, 0, 0)
+        
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
@@ -229,7 +238,33 @@ class MainView(QtWidgets.QMainWindow):
 
         container_layout.addWidget(main_content_widget)
         scroll.setWidget(container)
-        self.main_layout.addWidget(scroll)
+        dashboard_layout.addWidget(scroll)
+        
+        self.patient_stack.addWidget(self.page_dashboard) # Index 0
+
+        # --- CÁC TRANG KHÁC ---
+        from views.patient_view import ServicePage, HistoryPage, ProfilePage
+        
+        # Wrapper cho các trang khác để có navbar
+        def create_page_with_navbar(page_content):
+            page = QtWidgets.QWidget()
+            layout = QtWidgets.QVBoxLayout(page)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.addWidget(self.create_navbar())
+            layout.addWidget(page_content)
+            layout.addStretch()
+            return page
+
+        self.page_service = create_page_with_navbar(ServicePage())
+        self.page_history = create_page_with_navbar(HistoryPage(self.user_data.get("patient_id")))
+        self.page_profile = create_page_with_navbar(ProfilePage(self.user_data.get("patient_id")))
+
+        self.patient_stack.addWidget(self.page_service) # Index 1
+        self.patient_stack.addWidget(self.page_history) # Index 2
+        self.patient_stack.addWidget(self.page_profile) # Index 3
+
+    def switch_patient_page(self, index):
+        self.patient_stack.setCurrentIndex(index)
 
     def create_navbar(self):
         nav = QtWidgets.QWidget(); nav.setFixedHeight(80); nav.setStyleSheet("background: white; border-bottom: 1px solid #eee;")
@@ -239,7 +274,11 @@ class MainView(QtWidgets.QMainWindow):
         for text in ["Trang chủ", "Dịch vụ", "Bác sĩ", "Tin tức"]:
             btn = QtWidgets.QPushButton(text)
             btn.setStyleSheet("QPushButton { border: none; padding: 10px 15px; color: #555; font-size: 15px; }")
-            if text == "Trang chủ": btn.setStyleSheet("color: #69c0a5; font-weight: bold; border: none;")
+            if text == "Trang chủ": 
+                btn.setStyleSheet("color: #69c0a5; font-weight: bold; border: none;")
+                btn.clicked.connect(lambda _, t=0: self.switch_patient_page(t))
+            elif text == "Dịch vụ":
+                btn.clicked.connect(lambda _, t=1: self.switch_patient_page(t))
             nav_layout.addWidget(btn)
         nav_layout.addStretch()
         
@@ -259,7 +298,17 @@ class MainView(QtWidgets.QMainWindow):
     def show_menu(self):
         menu = QtWidgets.QMenu(self)
         menu.setStyleSheet("QMenu { background: white; color: #333; border: 1px solid #eee; } QMenu::item { padding: 10px 30px; } QMenu::item:selected { background: #f8faff; color: #69c0a5; }")
-        menu.addAction("📅 Đặt lịch khám"); menu.addAction("📋 Lịch sử khám"); menu.addAction("👤 Hồ sơ cá nhân")
+        
+        act_booking = menu.addAction("📅 Đặt lịch khám")
+        act_history = menu.addAction("📋 Lịch sử khám")
+        act_profile = menu.addAction("👤 Hồ sơ cá nhân")
+        act_service = menu.addAction("🩺 Dịch vụ")
+        
+        act_booking.triggered.connect(lambda: self.switch_patient_page(0))
+        act_service.triggered.connect(lambda: self.switch_patient_page(1))
+        act_history.triggered.connect(lambda: self.switch_patient_page(2))
+        act_profile.triggered.connect(lambda: self.switch_patient_page(3))
+        
         menu.addSeparator()
         logout_act = menu.addAction("🚪 Đăng xuất")
         logout_act.triggered.connect(self.logout)

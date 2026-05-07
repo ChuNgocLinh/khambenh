@@ -1,5 +1,8 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from controllers.appointment_controller import AppointmentController
+from controllers.service_controller import ServiceController
+from controllers.patient_controller import PatientController
+from database.db import fetch_all
 
 # --- TRANG DỊCH VỤ (VIEW MỚI) ---
 class ServicePage(QtWidgets.QWidget):
@@ -33,21 +36,125 @@ class ServicePage(QtWidgets.QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         
-        services = [
-            ("Khám tổng quát", "500,000 VND", "Kiểm tra sức khỏe toàn diện"),
-            ("Xét nghiệm máu", "350,000 VND", "Tầm soát các chỉ số cơ bản"),
-            ("Siêu âm ổ bụng", "400,000 VND", "Chẩn đoán hình ảnh nội soi"),
-            ("Chụp X-Quang", "250,000 VND", "Kiểm tra xương khớp và phổi")
-        ]
-        
-        self.table.setRowCount(len(services))
-        for i, (name, price, desc) in enumerate(services):
-            self.table.setItem(i, 0, QtWidgets.QTableWidgetItem(name))
-            self.table.setItem(i, 1, QtWidgets.QTableWidgetItem(price))
-            self.table.setItem(i, 2, QtWidgets.QTableWidgetItem(desc))
+        services_data = ServiceController.get_all()
+        self.table.setRowCount(len(services_data))
+        for i, s in enumerate(services_data):
+            self.table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(s.get("service_name", ""))))
+            self.table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(s.get("price", ""))))
+            self.table.setItem(i, 2, QtWidgets.QTableWidgetItem(str(s.get("description", ""))))
             self.table.setRowHeight(i, 50)
             
         layout.addWidget(self.table)
+        layout.addStretch()
+
+# --- TRANG LỊCH SỬ KHÁM ---
+class HistoryPage(QtWidgets.QWidget):
+    def __init__(self, patient_id):
+        super().__init__()
+        self.patient_id = patient_id
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(40, 20, 40, 20)
+        
+        title = QtWidgets.QLabel("Lịch sử khám bệnh")
+        title.setStyleSheet("font-size: 26px; font-weight: 800; color: #2c3e50; margin-bottom: 15px;")
+        layout.addWidget(title)
+
+        self.table = QtWidgets.QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Ngày khám", "Bác sĩ", "Chẩn đoán", "Điều trị"])
+        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.table.setStyleSheet("""
+            QTableWidget { background: white; border-radius: 12px; border: 1px solid #eef0f2; font-size: 14px; }
+            QHeaderView::section { background-color: #f8f9fa; padding: 12px; font-weight: bold; border: none; border-bottom: 2px solid #69c0a5; }
+            QTableWidget::item { padding: 15px; border-bottom: 1px solid #f1f5f9; }
+        """)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setShowGrid(False)
+        
+        records = fetch_all("""
+            SELECT r.*, d.name as doctor_name
+            FROM MedicalRecords r
+            JOIN Doctors d ON r.doctor_id = d.doctor_id
+            WHERE r.patient_id = ?
+            ORDER BY r.created_at DESC
+        """, (self.patient_id,))
+        
+        self.table.setRowCount(len(records))
+        for i, r in enumerate(records):
+            self.table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(r.get("created_at", ""))))
+            self.table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(r.get("doctor_name", ""))))
+            self.table.setItem(i, 2, QtWidgets.QTableWidgetItem(str(r.get("diagnosis", ""))))
+            self.table.setItem(i, 3, QtWidgets.QTableWidgetItem(str(r.get("treatment", ""))))
+            self.table.setRowHeight(i, 50)
+            
+        layout.addWidget(self.table)
+        layout.addStretch()
+
+# --- TRANG HỒ SƠ CÁ NHÂN ---
+class ProfilePage(QtWidgets.QWidget):
+    def __init__(self, patient_id):
+        super().__init__()
+        self.patient_id = patient_id
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(40, 20, 40, 20)
+        
+        title = QtWidgets.QLabel("Hồ sơ cá nhân")
+        title.setStyleSheet("font-size: 26px; font-weight: 800; color: #2c3e50; margin-bottom: 15px;")
+        layout.addWidget(title)
+        
+        form_widget = QtWidgets.QWidget()
+        form_widget.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #eef0f2; padding: 20px;")
+        form_layout = QtWidgets.QFormLayout(form_widget)
+        
+        self.name_input = QtWidgets.QLineEdit()
+        self.dob_input = QtWidgets.QDateEdit()
+        self.dob_input.setCalendarPopup(True)
+        self.gender_input = QtWidgets.QComboBox()
+        self.gender_input.addItems(["Nam", "Nữ"])
+        self.phone_input = QtWidgets.QLineEdit()
+        self.address_input = QtWidgets.QLineEdit()
+        
+        for w in [self.name_input, self.dob_input, self.gender_input, self.phone_input, self.address_input]:
+            w.setStyleSheet("padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px;")
+        
+        form_layout.addRow("Họ tên:", self.name_input)
+        form_layout.addRow("Ngày sinh:", self.dob_input)
+        form_layout.addRow("Giới tính:", self.gender_input)
+        form_layout.addRow("SĐT:", self.phone_input)
+        form_layout.addRow("Địa chỉ:", self.address_input)
+        
+        self.load_data()
+        
+        save_btn = QtWidgets.QPushButton("Cập nhật thông tin")
+        save_btn.setStyleSheet("background: #69c0a5; color: white; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 14px;")
+        save_btn.clicked.connect(self.save_data)
+        
+        layout.addWidget(form_widget)
+        layout.addWidget(save_btn, 0, QtCore.Qt.AlignmentFlag.AlignLeft)
+        layout.addStretch()
+        
+    def load_data(self):
+        from models.patient_model import PatientModel
+        p = PatientModel.get_by_id(self.patient_id)
+        if p:
+            self.name_input.setText(str(p.get("name", "")))
+            self.phone_input.setText(str(p.get("phone", "")))
+            self.address_input.setText(str(p.get("address", "")))
+            self.gender_input.setCurrentText(str(p.get("gender", "Nam")))
+            if p.get("dob"):
+                self.dob_input.setDate(QtCore.QDate.fromString(str(p.get("dob")), "yyyy-MM-dd"))
+                
+    def save_data(self):
+        from models.patient_model import PatientModel
+        PatientModel.update(
+            self.patient_id,
+            self.name_input.text(),
+            self.dob_input.date().toString("yyyy-MM-dd"),
+            self.gender_input.currentText(),
+            self.phone_input.text(),
+            self.address_input.text()
+        )
+        QtWidgets.QMessageBox.information(self, "Thành công", "Đã cập nhật thông tin cá nhân!")
         layout.addStretch()
 
 # --- TRANG CHỦ (GIỮ NGUYÊN NỘI DUNG CỦA BẠN) ---

@@ -244,13 +244,19 @@ class DashboardView(QtWidgets.QWidget):
         self.content_stack.addWidget(self.page_dashboard)
 
         # Các trang placeholder khác
-        from views.doctor_management_views import MedicalRecordView, PrescriptionView
+        from views.doctor_management_views import MedicalRecordView, PrescriptionView, DoctorPatientListView, DoctorAppointmentView
         
+        self.page_patient_list = DoctorPatientListView(self.user_data.get("doctor_id"))
+        self.page_doctor_appts = DoctorAppointmentView(self.user_data.get("doctor_id"))
         self.page_medical_record = MedicalRecordView(self.user_data.get("doctor_id"))
         self.page_prescription = PrescriptionView(self.user_data.get("doctor_id"))
         
         for i in range(1, 7):
-            if i == 3:
+            if i == 1:
+                self.content_stack.addWidget(self.page_patient_list)
+            elif i == 2:
+                self.content_stack.addWidget(self.page_doctor_appts)
+            elif i == 3:
                 self.content_stack.addWidget(self.page_medical_record)
             elif i == 4:
                 self.content_stack.addWidget(self.page_prescription)
@@ -400,14 +406,30 @@ class AdminDashboardView(QtWidgets.QWidget):
         self.content_stack.addWidget(self.page_dashboard)
 
         # Các trang placeholder khác
-        from views.admin_management_views import PatientManagementView, DoctorManagementView
+        from views.admin_management_views import (
+            PatientManagementView, DoctorManagementView, 
+            AppointmentManagementView, ServiceManagementView, 
+            MedicineManagementView, PaymentManagementView,
+            ReportStatsView
+        )
         self.page_patient_mgmt = PatientManagementView()
         self.page_doctor_mgmt = DoctorManagementView()
+        self.page_appt_mgmt = AppointmentManagementView()
+        self.page_service_mgmt = ServiceManagementView()
+        self.page_med_mgmt = MedicineManagementView()
+        self.page_pay_mgmt = PaymentManagementView()
+        self.page_report = ReportStatsView()
         
         self.content_stack.addWidget(self.page_patient_mgmt) # Index 1: Quản lý bệnh nhân
         self.content_stack.addWidget(self.page_doctor_mgmt) # Index 2: Quản lý bác sĩ
+        self.content_stack.addWidget(self.page_appt_mgmt) # Index 3: Quản lý lịch hẹn
+        self.content_stack.addWidget(self.page_service_mgmt) # Index 4: Quản lý dịch vụ
+        self.content_stack.addWidget(self.page_med_mgmt) # Index 5: Quản lý thuốc
+        self.content_stack.addWidget(self.page_pay_mgmt) # Index 6: Quản lý doanh thu
+        self.content_stack.addWidget(self.page_report) # Index 7: Báo cáo thống kê
         
-        for i in range(3, 9):
+        # Các trang còn lại (Cấu hình)
+        for i in range(8, 9):
             page = QtWidgets.QWidget()
             layout = QtWidgets.QVBoxLayout(page)
             lbl = QtWidgets.QLabel(f"Trang đang phát triển: {menu_items[i][1]}")
