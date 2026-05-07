@@ -7,8 +7,10 @@ class MedicalRecordController:
         return MedicalRecordModel.get_by_patient(patient_id)
 
     @staticmethod
-    def create(appointment_id, diagnosis, treatment):
+    def create(patient_id, doctor_id, appointment_id, diagnosis, treatment):
         return MedicalRecordModel.create(
+            patient_id,
+            doctor_id,
             appointment_id,
             diagnosis,
             treatment

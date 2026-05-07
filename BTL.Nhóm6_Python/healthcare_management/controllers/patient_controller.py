@@ -1,4 +1,4 @@
-from healthcare_management.models.patient_model import PatientModel
+from models.patient_model import PatientModel
 
 
 class PatientController:

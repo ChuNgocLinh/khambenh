@@ -7,8 +7,8 @@ class PaymentController:
         return PaymentModel.get_all()
 
     @staticmethod
-    def create(appointment_id, total_amount):
-        return PaymentModel.create(appointment_id, total_amount)
+    def create(patient_id, appointment_id, total_amount):
+        return PaymentModel.create(patient_id, appointment_id, total_amount)
 
     @staticmethod
     def update_status(payment_id, status):

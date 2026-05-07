@@ -11,12 +11,12 @@ class PaymentModel:
         """)
 
     @staticmethod
-    def create(appointment_id, total_amount):
+    def create(patient_id, appointment_id, total_amount):
         query = """
-        INSERT INTO Payments (appointment_id, total_amount, status)
-        VALUES (?, ?, 'unpaid')
+        INSERT INTO Payments (patient_id, appointment_id, total_amount, status)
+        VALUES (?, ?, ?, 'unpaid')
         """
-        return execute(query, (appointment_id, total_amount))
+        return execute(query, (patient_id, appointment_id, total_amount))
 
     @staticmethod
     def update_status(payment_id, status):

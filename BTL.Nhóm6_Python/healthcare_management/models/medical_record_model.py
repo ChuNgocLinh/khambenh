@@ -9,9 +9,9 @@ class MedicalRecordModel:
         """, (patient_id,)) 
 
     @staticmethod
-    def create(appointment_id, diagnosis, treatment):
+    def create(patient_id, doctor_id, appointment_id, diagnosis, treatment):
         query = """
-        INSERT INTO MedicalRecords (appointment_id, diagnosis, treatment)
-        VALUES (?, ?, ?)
+        INSERT INTO MedicalRecords (patient_id, doctor_id, appointment_id, diagnosis, treatment)
+        VALUES (?, ?, ?, ?, ?)
         """
-        return execute(query, (appointment_id, diagnosis, treatment))
+        return execute(query, (patient_id, doctor_id, appointment_id, diagnosis, treatment))

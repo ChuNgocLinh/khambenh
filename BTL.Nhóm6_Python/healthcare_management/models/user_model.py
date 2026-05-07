@@ -1,11 +1,17 @@
 from database.db import fetch_one, execute
+import hashlib
 
 class UserModel:
 
     @staticmethod
+    def hash_password(password):
+        return hashlib.sha256(password.encode()).hexdigest()
+
+    @staticmethod
     def login(username, password):
+        hashed_password = UserModel.hash_password(password)
         query = "SELECT user_id, username, password, role FROM Users WHERE username=? AND password=?"
-        row = fetch_one(query, (username, password))
+        row = fetch_one(query, (username, hashed_password))
         
         if not row:
             return None
@@ -47,7 +53,8 @@ class UserModel:
             return False, "Tài khoản đã tồn tại"
             
         # Thêm user
-        success = execute("INSERT INTO Users (username, password, role) VALUES (?, ?, 'patient')", (username, password))
+        hashed_password = UserModel.hash_password(password)
+        success = execute("INSERT INTO Users (username, password, role) VALUES (?, ?, 'patient')", (username, hashed_password))
         if not success:
             return False, "Lỗi tạo tài khoản"
             
