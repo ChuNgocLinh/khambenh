@@ -1,4 +1,5 @@
-from PyQt6 import QtWidgets, QtCore
+from datetime import date, datetime
+from PyQt6 import QtWidgets, QtCore, QtGui
 from controllers.medical_record_controller import MedicalRecordController
 from controllers.prescription_controller import PrescriptionController
 from controllers.appointment_controller import AppointmentController
@@ -53,6 +54,173 @@ class BaseDoctorView(QtWidgets.QWidget):
         
     def add_new(self):
         pass
+
+
+class PatientCreateDialog(QtWidgets.QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Thêm Bệnh Nhân")
+        self.setMinimumWidth(460)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        form = QtWidgets.QFormLayout()
+        form.setLabelAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
+
+        self.name_input = QtWidgets.QLineEdit()
+        self.name_input.setPlaceholderText("Nhập họ tên bệnh nhân")
+
+        self.dob_input = QtWidgets.QDateEdit()
+        self.dob_input.setCalendarPopup(True)
+        self.dob_input.setDisplayFormat("dd/MM/yyyy")
+        self.dob_input.setDate(QtCore.QDate.currentDate().addYears(-18))
+
+        self.gender_input = QtWidgets.QComboBox()
+        self.gender_input.addItems(["Nam", "Nữ"])
+
+        self.phone_input = QtWidgets.QLineEdit()
+        self.phone_input.setPlaceholderText("VD: 0912345678")
+
+        self.address_input = QtWidgets.QLineEdit()
+        self.address_input.setPlaceholderText("Địa chỉ liên hệ")
+
+        self.email_input = QtWidgets.QLineEdit()
+        self.email_input.setPlaceholderText("email@example.com")
+
+        self.bhyt_input = QtWidgets.QLineEdit()
+        self.bhyt_input.setPlaceholderText("Mã BHYT (nếu có)")
+
+        widgets = [
+            self.name_input,
+            self.dob_input,
+            self.gender_input,
+            self.phone_input,
+            self.address_input,
+            self.email_input,
+            self.bhyt_input,
+        ]
+        for widget in widgets:
+            widget.setStyleSheet(
+                "padding: 8px; border-radius: 6px; border: 1px solid #dbe2ea; font-size: 13px;"
+            )
+
+        form.addRow("Họ tên:", self.name_input)
+        form.addRow("Ngày sinh:", self.dob_input)
+        form.addRow("Giới tính:", self.gender_input)
+        form.addRow("SĐT:", self.phone_input)
+        form.addRow("Địa chỉ:", self.address_input)
+        form.addRow("Email:", self.email_input)
+        form.addRow("BHYT:", self.bhyt_input)
+        layout.addLayout(form)
+
+        note = QtWidgets.QLabel(
+            "Lưu ý: Email và BHYT là thông tin bổ sung trong form để đồng bộ nghiệp vụ tiếp nhận bệnh nhân."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #64748b; font-size: 12px;")
+        layout.addWidget(note)
+
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+
+        cancel_btn = QtWidgets.QPushButton("Hủy")
+        cancel_btn.setStyleSheet("padding: 8px 14px; border-radius: 6px; background: #f1f5f9;")
+        cancel_btn.clicked.connect(self.reject)
+
+        save_btn = QtWidgets.QPushButton("Lưu bệnh nhân")
+        save_btn.setStyleSheet(
+            "padding: 8px 14px; border-radius: 6px; background: #69c0a5; color: white; font-weight: 700;"
+        )
+        save_btn.clicked.connect(self._validate_and_accept)
+
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        layout.addLayout(btn_layout)
+
+    def _validate_and_accept(self):
+        name = self.name_input.text().strip()
+        phone = self.phone_input.text().strip()
+        email = self.email_input.text().strip()
+        bhyt = self.bhyt_input.text().strip()
+
+        if not name:
+            QtWidgets.QMessageBox.warning(self, "Thiếu dữ liệu", "Vui lòng nhập họ tên bệnh nhân.")
+            return
+
+        if not phone:
+            QtWidgets.QMessageBox.warning(self, "Thiếu dữ liệu", "Vui lòng nhập số điện thoại.")
+            return
+
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if len(digits) < 9 or len(digits) > 11:
+            QtWidgets.QMessageBox.warning(self, "SĐT không hợp lệ", "Số điện thoại cần từ 9 đến 11 chữ số.")
+            return
+
+        if email and ("@" not in email or email.startswith("@") or email.endswith("@")):
+            QtWidgets.QMessageBox.warning(self, "Email không hợp lệ", "Vui lòng nhập đúng định dạng email.")
+            return
+
+        if bhyt and len(bhyt) < 6:
+            QtWidgets.QMessageBox.warning(self, "BHYT không hợp lệ", "Mã BHYT quá ngắn, vui lòng kiểm tra lại.")
+            return
+
+        self.accept()
+
+    def get_data(self):
+        return {
+            "name": self.name_input.text().strip(),
+            "dob": self.dob_input.date().toString("yyyy-MM-dd"),
+            "gender": self.gender_input.currentText(),
+            "phone": self.phone_input.text().strip(),
+            "address": self.address_input.text().strip(),
+            "email": self.email_input.text().strip(),
+            "bhyt": self.bhyt_input.text().strip(),
+        }
+
+
+class PatientRecordDialog(QtWidgets.QDialog):
+    def __init__(self, title, rows, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(680)
+        self.resize(720, 420)
+
+        layout = QtWidgets.QVBoxLayout(self)
+
+        table = QtWidgets.QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["Ngày khám", "Chẩn đoán", "Điều trị", "Bác sĩ"])
+        table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setShowGrid(False)
+        table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setStyleSheet(
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
+            "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
+        )
+
+        table.setRowCount(len(rows))
+        for row_idx, item in enumerate(rows):
+            table.setItem(row_idx, 0, QtWidgets.QTableWidgetItem(str(item.get("visit_date", ""))))
+            table.setItem(row_idx, 1, QtWidgets.QTableWidgetItem(str(item.get("diagnosis", ""))))
+            table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(str(item.get("treatment", ""))))
+            table.setItem(row_idx, 3, QtWidgets.QTableWidgetItem(str(item.get("doctor_name", ""))))
+            table.setRowHeight(row_idx, 40)
+
+        if not rows:
+            empty = QtWidgets.QLabel("Chưa có dữ liệu hồ sơ bệnh án cho bệnh nhân này.")
+            empty.setStyleSheet("color: #64748b; font-size: 13px;")
+            layout.addWidget(empty)
+
+        layout.addWidget(table)
+
+        close_btn = QtWidgets.QPushButton("Đóng")
+        close_btn.setStyleSheet(
+            "background: #69c0a5; color: white; padding: 8px 14px; border-radius: 6px; font-weight: 700;"
+        )
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn, 0, QtCore.Qt.AlignmentFlag.AlignRight)
 
 
 class MedicalRecordDialog(QtWidgets.QDialog):
@@ -216,27 +384,494 @@ class PrescriptionView(BaseDoctorView):
 
 class DoctorPatientListView(BaseDoctorView):
     def __init__(self, doctor_id):
-        super().__init__("Danh Sách Bệnh Nhân", ["ID Bệnh Nhân", "Họ Tên", "Ngày Sinh", "SĐT", "Lượt Khám"], doctor_id)
-        self.btn_add.hide()
+        super().__init__(
+            "Danh Sách Bệnh Nhân",
+            [
+                "ID bệnh nhân",
+                "Họ tên",
+                "Giới tính",
+                "Ngày sinh",
+                "SĐT",
+                "Lần khám gần nhất",
+                "Hành động",
+            ],
+            doctor_id,
+        )
+
+        desc = QtWidgets.QLabel("Quản lý thông tin và lịch sử khám của bệnh nhân")
+        desc.setStyleSheet("color: #64748b; font-size: 13px; margin-bottom: 8px;")
+        self.layout.insertWidget(1, desc)
+
+        self.page_size = 8
+        self.current_page = 1
+        self.filtered_patients = []
+
+        self.search_input.setPlaceholderText("Tìm kiếm bệnh nhân...")
+        self.search_input.textChanged.connect(self._handle_filter_changed)
+
+        self.gender_filter = QtWidgets.QComboBox()
+        self.gender_filter.addItems(["Tất cả giới tính", "Nam", "Nữ"])
+        self.gender_filter.setStyleSheet(
+            "padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px;"
+        )
+        self.gender_filter.currentIndexChanged.connect(self._handle_filter_changed)
+
+        self.age_filter = QtWidgets.QComboBox()
+        self.age_filter.addItems(["Tất cả độ tuổi", "Trẻ em", "Người lớn", "Người cao tuổi"])
+        self.age_filter.setStyleSheet(
+            "padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px;"
+        )
+        self.age_filter.currentIndexChanged.connect(self._handle_filter_changed)
+
+        toolbar = self.layout.itemAt(2).layout()
+        toolbar.insertWidget(2, self.gender_filter)
+        toolbar.insertWidget(3, self.age_filter)
+
+        self.btn_add.setText("➕ Thêm Bệnh Nhân")
+
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setColumnWidth(6, 280)
+
+        self.pagination_layout = QtWidgets.QHBoxLayout()
+        self.pagination_layout.addStretch()
+
+        self.btn_prev = QtWidgets.QPushButton("← Trước")
+        self.btn_prev.setStyleSheet("padding: 6px 12px; border-radius: 6px; background: #f1f5f9;")
+        self.btn_prev.clicked.connect(self._prev_page)
+
+        self.page_label = QtWidgets.QLabel("Trang 1/1")
+        self.page_label.setStyleSheet("font-weight: 700; color: #334155; padding: 0 10px;")
+
+        self.btn_next = QtWidgets.QPushButton("Sau →")
+        self.btn_next.setStyleSheet("padding: 6px 12px; border-radius: 6px; background: #f1f5f9;")
+        self.btn_next.clicked.connect(self._next_page)
+
+        self.pagination_layout.addWidget(self.btn_prev)
+        self.pagination_layout.addWidget(self.page_label)
+        self.pagination_layout.addWidget(self.btn_next)
+        self.pagination_layout.addStretch()
+        self.layout.addLayout(self.pagination_layout)
+
+        self.stats_layout = QtWidgets.QHBoxLayout()
+        self.stats_layout.setSpacing(12)
+        self.layout.insertLayout(2, self.stats_layout)
+
+        self.total_patients_card = self._build_stat_card("👥", "Tổng bệnh nhân", "0")
+        self.today_card = self._build_stat_card("📅", "Hôm nay", "0")
+        self.follow_up_card = self._build_stat_card("🔁", "Tái khám", "0")
+
+        self.stats_layout.addWidget(self.total_patients_card)
+        self.stats_layout.addWidget(self.today_card)
+        self.stats_layout.addWidget(self.follow_up_card)
         self.load_data()
 
     def load_data(self):
         from database.db import fetch_all
-        patients = fetch_all("""
+
+        patients = fetch_all(
+            """
             SELECT p.patient_id, p.name, p.dob, p.phone, COUNT(a.appointment_id) as visits
+                   , p.gender
+                   , MAX(a.appointment_date) as last_visit
             FROM Patients p
             JOIN Appointments a ON p.patient_id = a.patient_id
-            WHERE a.doctor_id = ? AND a.status IN ('done', 'completed')
-            GROUP BY p.patient_id, p.name, p.dob, p.phone
-        """, (self.doctor_id,))
-        
-        self.table.setRowCount(len(patients))
-        for row, p in enumerate(patients):
-            self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(p["patient_id"])))
-            self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(str(p.get("name", ""))))
-            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(p.get("dob", ""))))
-            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(p.get("phone", ""))))
-            self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(str(p.get("visits", "1"))))
+            WHERE a.doctor_id = ?
+            GROUP BY p.patient_id, p.name, p.dob, p.phone, p.gender
+            ORDER BY MAX(a.appointment_date) DESC
+            """,
+            (self.doctor_id,),
+        )
+
+        self.filtered_patients = self._apply_filters(patients)
+        self._update_stats_cards(self.filtered_patients)
+        self._render_current_page()
+
+    def add_new(self):
+        dialog = PatientCreateDialog(self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+
+        data = dialog.get_data()
+        created = PatientController.create(data)
+        if not created:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Không thể thêm",
+                "Không thể tạo bệnh nhân mới. Vui lòng kiểm tra dữ liệu hoặc kết nối cơ sở dữ liệu.",
+            )
+            return
+
+        QtWidgets.QMessageBox.information(
+            self,
+            "Thành công",
+            "Đã thêm bệnh nhân mới. Bệnh nhân sẽ xuất hiện trong danh sách này khi có lịch hẹn với bác sĩ hiện tại.",
+        )
+        self.load_data()
+
+    def _build_stat_card(self, icon, title, value):
+        card = QtWidgets.QFrame()
+        card.setStyleSheet("background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;")
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(12, 10, 12, 10)
+        top = QtWidgets.QLabel(f"{icon} {title}")
+        top.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700;")
+        value_lbl = QtWidgets.QLabel(value)
+        value_lbl.setStyleSheet("font-size: 24px; font-weight: 900; color: #1e293b;")
+        layout.addWidget(top)
+        layout.addWidget(value_lbl)
+        card._value_label = value_lbl
+        return card
+
+    def _update_stats_cards(self, rows):
+        total = len(rows)
+        today = date.today()
+        today_count = 0
+        follow_up_count = 0
+
+        for patient in rows:
+            last_visit_date = self._parse_datetime(patient.get("last_visit"))
+            if last_visit_date and last_visit_date.date() == today:
+                today_count += 1
+            if int(patient.get("visits", 0) or 0) >= 2:
+                follow_up_count += 1
+
+        self.total_patients_card._value_label.setText(str(total))
+        self.today_card._value_label.setText(str(today_count))
+        self.follow_up_card._value_label.setText(str(follow_up_count))
+
+    def _apply_filters(self, rows):
+        keyword = self.search_input.text().strip().lower()
+        selected_gender = self.gender_filter.currentText()
+        selected_age = self.age_filter.currentText()
+
+        filtered = []
+        for item in rows:
+            patient_id_text = f"BN{int(item.get('patient_id', 0)):04d}"
+            name = str(item.get("name", "") or "")
+            phone = str(item.get("phone", "") or "")
+
+            if keyword:
+                # Include normalized patient code to support searching by business ID (BN0001 style).
+                haystack = f"{patient_id_text} {name} {phone}".lower()
+                if keyword not in haystack:
+                    continue
+
+            gender = str(item.get("gender", "") or "")
+            if selected_gender != "Tất cả giới tính" and gender != selected_gender:
+                continue
+
+            age = self._calculate_age(item.get("dob"))
+            if selected_age == "Trẻ em" and (age is None or age >= 18):
+                continue
+            if selected_age == "Người lớn" and (age is None or age < 18 or age >= 60):
+                continue
+            if selected_age == "Người cao tuổi" and (age is None or age < 60):
+                continue
+
+            filtered.append(item)
+
+        return filtered
+
+    def _render_current_page(self):
+        total_rows = len(self.filtered_patients)
+        total_pages = max(1, (total_rows + self.page_size - 1) // self.page_size)
+        self.current_page = max(1, min(self.current_page, total_pages))
+
+        start = (self.current_page - 1) * self.page_size
+        end = start + self.page_size
+        page_rows = self.filtered_patients[start:end]
+
+        self.table.setRowCount(len(page_rows))
+        for row, patient in enumerate(page_rows):
+            patient_id = int(patient.get("patient_id", 0) or 0)
+            patient_code = f"BN{patient_id:04d}"
+
+            self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(patient_code))
+            self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(str(patient.get("name", ""))))
+            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(patient.get("gender", ""))))
+
+            dob_text = self._format_dob(patient.get("dob"))
+            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(dob_text))
+            self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(str(patient.get("phone", ""))))
+
+            last_visit_text = self._format_last_visit(patient.get("last_visit"))
+            self.table.setItem(row, 5, QtWidgets.QTableWidgetItem(last_visit_text))
+
+            self.table.setCellWidget(row, 6, self._build_action_buttons(patient))
+            self.table.setRowHeight(row, 46)
+
+        self.page_label.setText(f"Trang {self.current_page}/{total_pages}")
+        self.btn_prev.setEnabled(self.current_page > 1)
+        self.btn_next.setEnabled(self.current_page < total_pages)
+
+    def _build_action_buttons(self, patient):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(4)
+
+        actions = [
+            ("👁 XEM", "#e2e8f0", lambda checked=False, p=patient: self._view_patient(p)),
+            ("📄 HỒ SƠ", "#d9f99d", lambda checked=False, p=patient: self._open_record(p)),
+            ("🗑 XÓA", "#fecaca", lambda checked=False, p=patient: self._delete_patient(p)),
+        ]
+
+        for text, color, callback in actions:
+            btn = QtWidgets.QPushButton(text)
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(
+                f"QPushButton {{ background: {color}; border: none; border-radius: 6px; padding: 5px 8px; font-weight: 700; font-size: 11px; }}"
+                "QPushButton:hover { opacity: 0.9; }"
+            )
+            btn.clicked.connect(callback)
+            layout.addWidget(btn)
+
+        return wrapper
+
+    def _view_patient(self, patient):
+        age = self._calculate_age(patient.get("dob"))
+        fields = [
+            ("Mã bệnh nhân", f"BN{int(patient.get('patient_id', 0) or 0):04d}"),
+            ("Họ tên", patient.get("name", "")),
+            ("Giới tính", patient.get("gender", "")),
+            ("Ngày sinh", self._format_dob(patient.get("dob"))),
+            ("Tuổi", "" if age is None else str(age)),
+            ("SĐT", patient.get("phone", "")),
+            ("Lần khám gần nhất", self._format_last_visit(patient.get("last_visit"))),
+            ("Số lượt khám", patient.get("visits", 0)),
+        ]
+
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Chi tiết bệnh nhân")
+        dialog.setMinimumWidth(520)
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+        form = QtWidgets.QFormLayout()
+        for key, value in fields:
+            label = QtWidgets.QLabel(str(value))
+            label.setStyleSheet("color: #1e293b;")
+            form.addRow(f"{key}:", label)
+        layout.addLayout(form)
+
+        close_btn = QtWidgets.QPushButton("Đóng")
+        close_btn.setStyleSheet(
+            "background: #69c0a5; color: white; padding: 8px 14px; border-radius: 6px; font-weight: 700;"
+        )
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+        dialog.exec()
+
+    def _open_record(self, patient):
+        from database.db import fetch_all
+
+        rows = fetch_all(
+            """
+            SELECT r.record_id,
+                   r.created_at as visit_date,
+                   r.diagnosis,
+                   r.treatment,
+                   d.name as doctor_name,
+                   a.note as appointment_note,
+                   a.status as appointment_status
+            FROM MedicalRecords r
+            JOIN Doctors d ON d.doctor_id = r.doctor_id
+            LEFT JOIN Appointments a ON a.appointment_id = r.appointment_id
+            WHERE r.patient_id = ?
+            ORDER BY r.created_at DESC
+            """,
+            (patient.get("patient_id"),),
+        )
+
+        detail_dialog = QtWidgets.QDialog(self)
+        detail_dialog.setWindowTitle("Hồ sơ bệnh án (toàn bộ bệnh sử)")
+        detail_dialog.resize(860, 560)
+
+        layout = QtWidgets.QVBoxLayout(detail_dialog)
+
+        header = QtWidgets.QLabel(
+            f"Bệnh nhân: {patient.get('name', '')} • Mã BN{int(patient.get('patient_id', 0) or 0):04d}"
+        )
+        header.setStyleSheet("font-size: 15px; font-weight: 800; color: #1e293b;")
+        layout.addWidget(header)
+
+        tabs = QtWidgets.QTabWidget()
+        tabs.setStyleSheet(
+            "QTabWidget::pane { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QTabBar::tab { padding: 8px 12px; background: #f8fafc; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px; }"
+            "QTabBar::tab:selected { background: #e2f7ef; font-weight: 700; }"
+        )
+
+        # Tab 1: Lịch sử khám
+        history_tab = QtWidgets.QWidget()
+        history_layout = QtWidgets.QVBoxLayout(history_tab)
+        history_table = QtWidgets.QTableWidget()
+        history_table.setColumnCount(6)
+        history_table.setHorizontalHeaderLabels(
+            ["Ngày khám", "Chẩn đoán", "Điều trị", "Bác sĩ", "Triệu chứng", "Trạng thái lịch hẹn"]
+        )
+        history_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        history_table.verticalHeader().setVisible(False)
+        history_table.setShowGrid(False)
+        history_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        history_table.setStyleSheet(
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
+            "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
+        )
+
+        history_table.setRowCount(len(rows))
+        prescription_lines = []
+        for idx, record in enumerate(rows):
+            record_id = record.get("record_id")
+            visit_text = self._format_last_visit(record.get("visit_date"))
+            history_table.setItem(idx, 0, QtWidgets.QTableWidgetItem(visit_text))
+            history_table.setItem(idx, 1, QtWidgets.QTableWidgetItem(str(record.get("diagnosis", ""))))
+            history_table.setItem(idx, 2, QtWidgets.QTableWidgetItem(str(record.get("treatment", ""))))
+            history_table.setItem(idx, 3, QtWidgets.QTableWidgetItem(str(record.get("doctor_name", ""))))
+            history_table.setItem(idx, 4, QtWidgets.QTableWidgetItem(str(record.get("appointment_note", ""))))
+            history_table.setItem(idx, 5, QtWidgets.QTableWidgetItem(str(record.get("appointment_status", ""))))
+            history_table.setRowHeight(idx, 42)
+
+            if record_id is not None:
+                prescriptions = fetch_all(
+                    """
+                    SELECT m.name as medicine_name, pr.quantity
+                    FROM Prescriptions pr
+                    JOIN Medicines m ON m.medicine_id = pr.medicine_id
+                    WHERE pr.record_id = ?
+                    """,
+                    (record_id,),
+                )
+                if prescriptions:
+                    meds = ", ".join(
+                        f"{item.get('medicine_name', '')} x{item.get('quantity', 0)}"
+                        for item in prescriptions
+                    )
+                    prescription_lines.append(f"• {visit_text}: {meds}")
+
+        if not rows:
+            empty_history = QtWidgets.QLabel("Chưa có dữ liệu lịch sử khám bệnh.")
+            empty_history.setStyleSheet("color: #64748b; font-size: 13px;")
+            history_layout.addWidget(empty_history)
+        history_layout.addWidget(history_table)
+
+        # Tab 2: Đơn thuốc và dữ liệu liên quan
+        prescription_tab = QtWidgets.QWidget()
+        prescription_layout = QtWidgets.QVBoxLayout(prescription_tab)
+
+        prescription_label = QtWidgets.QLabel("Danh sách đơn thuốc theo hồ sơ")
+        prescription_label.setStyleSheet("font-size: 14px; font-weight: 700; color: #1e293b;")
+        prescription_layout.addWidget(prescription_label)
+
+        prescription_text = QtWidgets.QTextEdit()
+        prescription_text.setReadOnly(True)
+        prescription_text.setStyleSheet(
+            "border: 1px solid #e2e8f0; border-radius: 10px; background: white; padding: 10px;"
+        )
+        if prescription_lines:
+            prescription_text.setPlainText("\n".join(prescription_lines))
+        else:
+            prescription_text.setPlainText("Chưa có dữ liệu đơn thuốc cho các lần khám hiện tại.")
+        prescription_layout.addWidget(prescription_text)
+
+        warning = QtWidgets.QLabel(
+            "Ghi chú: Dữ liệu xét nghiệm, hình ảnh và dị ứng thuốc chưa có bảng chuyên biệt trong phiên bản hiện tại."
+        )
+        warning.setWordWrap(True)
+        warning.setStyleSheet(
+            "color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px;"
+        )
+        prescription_layout.addWidget(warning)
+
+        tabs.addTab(history_tab, "Lịch sử khám")
+        tabs.addTab(prescription_tab, "Đơn thuốc")
+        layout.addWidget(tabs)
+
+        action_layout = QtWidgets.QHBoxLayout()
+        action_layout.addStretch()
+
+        print_btn = QtWidgets.QPushButton("In PDF (sắp có)")
+        print_btn.setEnabled(False)
+        print_btn.setStyleSheet("padding: 8px 14px; border-radius: 6px; background: #e2e8f0;")
+
+        close_btn = QtWidgets.QPushButton("Đóng")
+        close_btn.setStyleSheet(
+            "background: #69c0a5; color: white; padding: 8px 14px; border-radius: 6px; font-weight: 700;"
+        )
+        close_btn.clicked.connect(detail_dialog.accept)
+
+        action_layout.addWidget(print_btn)
+        action_layout.addWidget(close_btn)
+        layout.addLayout(action_layout)
+
+        detail_dialog.exec()
+
+    def _delete_patient(self, patient):
+        confirm = QtWidgets.QMessageBox.question(
+            self,
+            "Yêu cầu xóa",
+            f"Bạn đang yêu cầu xóa bệnh nhân {patient.get('name', '')}. Tiếp tục xem hướng dẫn quyền hạn?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+
+        QtWidgets.QMessageBox.information(
+            self,
+            "Giới hạn quyền",
+            "Theo nghiệp vụ hiện tại, chỉ quản trị viên mới được phép xóa bệnh nhân khỏi hệ thống.",
+        )
+
+    def _handle_filter_changed(self):
+        self.current_page = 1
+        self.load_data()
+
+    def _prev_page(self):
+        if self.current_page > 1:
+            self.current_page -= 1
+            self._render_current_page()
+
+    def _next_page(self):
+        total_pages = max(1, (len(self.filtered_patients) + self.page_size - 1) // self.page_size)
+        if self.current_page < total_pages:
+            self.current_page += 1
+            self._render_current_page()
+
+    @staticmethod
+    def _parse_datetime(value):
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(value, fmt)
+                except ValueError:
+                    continue
+        return None
+
+    def _calculate_age(self, dob_value):
+        parsed = self._parse_datetime(dob_value)
+        if not parsed:
+            return None
+        today = date.today()
+        years = today.year - parsed.date().year
+        if (today.month, today.day) < (parsed.date().month, parsed.date().day):
+            years -= 1
+        return max(0, years)
+
+    def _format_dob(self, dob_value):
+        parsed = self._parse_datetime(dob_value)
+        if parsed:
+            return parsed.strftime("%d/%m/%Y")
+        return ""
+
+    def _format_last_visit(self, last_visit_value):
+        parsed = self._parse_datetime(last_visit_value)
+        if parsed:
+            return parsed.strftime("%d/%m/%Y")
+        return ""
 
 
 class DoctorAppointmentView(BaseDoctorView):
