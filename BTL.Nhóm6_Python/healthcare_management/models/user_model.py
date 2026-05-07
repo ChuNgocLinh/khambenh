@@ -35,6 +35,8 @@ class UserModel:
                 d_dict = d_row if isinstance(d_row, dict) else {"doctor_id": d_row[0], "name": d_row[1]}
                 user_data["doctor_id"] = d_dict.get("doctor_id")
                 user_data["name"] = d_dict.get("name")
+        elif user_data["role"] == "admin":
+            user_data["name"] = "Admin"
                 
         return user_data
 

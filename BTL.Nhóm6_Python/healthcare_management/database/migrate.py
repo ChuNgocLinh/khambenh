@@ -110,15 +110,15 @@ def seed_data():
         # PATIENT
         cursor.execute("""
         IF NOT EXISTS (SELECT * FROM Patients)
-        INSERT INTO Patients (name, dob, gender, phone, address)
-        VALUES (N'Nguyễn Văn A','2000-01-01',N'Nam','0123456789',N'Hà Nội')
+        INSERT INTO Patients (name, dob, gender, phone, address, user_id)
+        VALUES (N'Nguyễn Văn A','2000-01-01',N'Nam','0123456789',N'Hà Nội', 3)
         """)
 
         # DOCTOR
         cursor.execute("""
         IF NOT EXISTS (SELECT * FROM Doctors)
-        INSERT INTO Doctors (name, specialty, phone)
-        VALUES (N'Bác sĩ Minh',N'Nội khoa','0900000001')
+        INSERT INTO Doctors (name, specialty, phone, user_id)
+        VALUES (N'Bác sĩ Minh',N'Nội khoa','0900000001', 2)
         """)
 
         conn.commit()

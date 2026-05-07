@@ -101,13 +101,16 @@ class DashboardView(QtWidgets.QWidget):
         self.sidebar_layout.addWidget(self.logo)
 
         menu_items = [("🏠", "Dashboard"), ("👥", "Bệnh nhân"), ("📅", "Lịch hẹn"), ("📂", "Hồ sơ bệnh án"), ("💊", "Đơn thuốc"), ("📊", "Báo cáo"), ("⚙️", "Cài đặt")]
-        for icon, text in menu_items:
+        self.nav_buttons = []
+        for i, (icon, text) in enumerate(menu_items):
             btn = QtWidgets.QPushButton(f"   {icon}     {text}")
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
             style = "QPushButton { border: none; text-align: left; padding: 13px 20px; border-radius: 12px; color: #333; font-size: 14px; font-weight: 600; }"
             if text == "Dashboard": style += "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
             else: style += "QPushButton:hover { background-color: #f8f9fa; }"
             btn.setStyleSheet(style)
+            btn.clicked.connect(lambda checked, idx=i: self.switch_page(idx))
+            self.nav_buttons.append(btn)
             self.sidebar_layout.addWidget(btn)
 
         self.sidebar_layout.addStretch()
@@ -140,20 +143,40 @@ class DashboardView(QtWidgets.QWidget):
         self.header_layout.addLayout(self.user_info_layout)
         self.content_layout.addLayout(self.header_layout)
 
+        # QStackedWidget cho các trang
+        self.content_stack = QtWidgets.QStackedWidget()
+        self.content_layout.addWidget(self.content_stack)
+
+        # ==========================================
+        # TRANG 0: DASHBOARD
+        # ==========================================
+        self.page_dashboard = QtWidgets.QWidget()
+        page_dashboard_layout = QtWidgets.QVBoxLayout(self.page_dashboard)
+        page_dashboard_layout.setContentsMargins(0, 0, 0, 0)
+        page_dashboard_layout.setSpacing(25)
+
         self.lbl_page_title = QtWidgets.QLabel("Dashboard")
         self.lbl_page_title.setStyleSheet("font-size: 30px; font-weight: 800; color: #2c3e50;")
-        self.content_layout.addWidget(self.lbl_page_title)
+        page_dashboard_layout.addWidget(self.lbl_page_title)
 
         from controllers.appointment_controller import AppointmentController
+        from database.db import fetch_one
         appointments = AppointmentController.get_by_doctor(self.user_data.get("doctor_id"))
         today_count = len(appointments)
+        
+        doctor_id = self.user_data.get("doctor_id")
+        tp_query = fetch_one("SELECT COUNT(DISTINCT patient_id) as c FROM Appointments WHERE doctor_id=?", (doctor_id,))
+        total_patients = tp_query["c"] if isinstance(tp_query, dict) else (tp_query[0] if tp_query else 0)
+        
+        ta_query = fetch_one("SELECT COUNT(*) as c FROM Appointments WHERE doctor_id=?", (doctor_id,))
+        total_appts = ta_query["c"] if isinstance(ta_query, dict) else (ta_query[0] if ta_query else 0)
 
         self.stats_layout = QtWidgets.QHBoxLayout(); self.stats_layout.setSpacing(25)
-        stats_data = [("📄", "Hẹn khám", f"{today_count:02d}", "#e6f2ff", "#007bff"), ("👥", "Bệnh nhân", "12", "#fff4e6", "#fd7e14"), ("🗓️", "Lịch tuần", "18", "#e6f9f1", "#28a745"), ("🔔", "Thông báo", "03", "#f9e6e6", "#dc3545")]
+        stats_data = [("📄", "Hẹn khám", f"{today_count:02d}", "#e6f2ff", "#007bff"), ("👥", "Bệnh nhân", f"{total_patients:02d}", "#fff4e6", "#fd7e14"), ("🗓️", "Tổng lịch hẹn", f"{total_appts:02d}", "#e6f9f1", "#28a745"), ("🔔", "Thông báo", "0", "#f9e6e6", "#dc3545")]
         for icon, title, value, bg, txt in stats_data:
             card = self.create_stat_card(icon, title, value, bg, txt)
             self.stats_layout.addWidget(card)
-        self.content_layout.addLayout(self.stats_layout)
+        page_dashboard_layout.addLayout(self.stats_layout)
 
         # Container bảng
         self.table_container = QtWidgets.QFrame()
@@ -215,8 +238,40 @@ class DashboardView(QtWidgets.QWidget):
 
         for i in range(self.table.rowCount()): self.table.setRowHeight(i, 55)
         self.table_main_layout.addWidget(self.table)
-        self.content_layout.addWidget(self.table_container)
-        self.content_layout.addStretch()
+        page_dashboard_layout.addWidget(self.table_container)
+        page_dashboard_layout.addStretch()
+
+        self.content_stack.addWidget(self.page_dashboard)
+
+        # Các trang placeholder khác
+        from views.doctor_management_views import MedicalRecordView, PrescriptionView
+        
+        self.page_medical_record = MedicalRecordView(self.user_data.get("doctor_id"))
+        self.page_prescription = PrescriptionView(self.user_data.get("doctor_id"))
+        
+        for i in range(1, 7):
+            if i == 3:
+                self.content_stack.addWidget(self.page_medical_record)
+            elif i == 4:
+                self.content_stack.addWidget(self.page_prescription)
+            else:
+                page = QtWidgets.QWidget()
+                layout = QtWidgets.QVBoxLayout(page)
+                lbl = QtWidgets.QLabel(f"Trang đang phát triển: {menu_items[i][1]}")
+                lbl.setStyleSheet("font-size: 24px; color: #888;")
+                lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(lbl)
+                self.content_stack.addWidget(page)
+            
+    def switch_page(self, index):
+        self.content_stack.setCurrentIndex(index)
+        for i, btn in enumerate(self.nav_buttons):
+            style = "QPushButton { border: none; text-align: left; padding: 13px 20px; border-radius: 12px; color: #333; font-size: 14px; font-weight: 600; }"
+            if i == index:
+                style += "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
+            else:
+                style += "QPushButton:hover { background-color: #f8f9fa; }"
+            btn.setStyleSheet(style)
 
     def create_stat_card(self, icon, title, value, bg_color, text_color):
         card = QtWidgets.QFrame(); card.setMinimumHeight(130); card.setStyleSheet(f"background-color: {bg_color}; border-radius: 20px; border: none;")
@@ -263,12 +318,15 @@ class AdminDashboardView(QtWidgets.QWidget):
             ("⚙️", "Cấu hình hệ thống", False)
         ]
 
-        for icon, text, is_active in menu_items:
+        self.nav_buttons = []
+        for i, (icon, text, is_active) in enumerate(menu_items):
             btn = QtWidgets.QPushButton(f"   {icon}     {text}")
             style = "QPushButton { border: none; text-align: left; padding: 12px 15px; border-radius: 10px; font-size: 14px; color: #1e293b; font-weight: 600; }"
             if is_active: style += "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
             else: style += "QPushButton:hover { background-color: #f1f5f9; }"
             btn.setStyleSheet(style)
+            btn.clicked.connect(lambda checked, idx=i: self.switch_page(idx))
+            self.nav_buttons.append(btn)
             sidebar_layout.addWidget(btn)
 
         sidebar_layout.addStretch()
@@ -278,12 +336,12 @@ class AdminDashboardView(QtWidgets.QWidget):
         self.main_layout.addWidget(self.sidebar)
 
         # Content Admin
-        self.content = QtWidgets.QWidget()
-        self.content.setStyleSheet("background-color: #f8fafc;")
-        content_layout = QtWidgets.QVBoxLayout(self.content)
+        self.content_container = QtWidgets.QWidget()
+        self.content_container.setStyleSheet("background-color: #f8fafc;")
+        content_layout = QtWidgets.QVBoxLayout(self.content_container)
         content_layout.setContentsMargins(35, 25, 35, 35)
         content_layout.setSpacing(25)
-        self.main_layout.addWidget(self.content)
+        self.main_layout.addWidget(self.content_container)
 
         # Header Admin
         header = QtWidgets.QHBoxLayout()
@@ -296,23 +354,35 @@ class AdminDashboardView(QtWidgets.QWidget):
         header.addWidget(name_lbl)
         content_layout.addLayout(header)
 
+        # QStackedWidget cho các trang
+        self.content_stack = QtWidgets.QStackedWidget()
+        content_layout.addWidget(self.content_stack)
+
+        # ==========================================
+        # TRANG 0: DASHBOARD
+        # ==========================================
+        self.page_dashboard = QtWidgets.QWidget()
+        page_dashboard_layout = QtWidgets.QVBoxLayout(self.page_dashboard)
+        page_dashboard_layout.setContentsMargins(0, 0, 0, 0)
+        page_dashboard_layout.setSpacing(25)
+
         # Stats Admin
         from database.db import fetch_one
         total_patients = fetch_one("SELECT COUNT(*) as c FROM Patients")
-        tp = total_patients["c"] if isinstance(total_patients, dict) else total_patients[0]
+        tp = total_patients["c"] if isinstance(total_patients, dict) else (total_patients[0] if total_patients else 0)
         
         total_doctors = fetch_one("SELECT COUNT(*) as c FROM Doctors")
-        td = total_doctors["c"] if isinstance(total_doctors, dict) else total_doctors[0]
+        td = total_doctors["c"] if isinstance(total_doctors, dict) else (total_doctors[0] if total_doctors else 0)
         
         total_appts = fetch_one("SELECT COUNT(*) as c FROM Appointments")
-        ta = total_appts["c"] if isinstance(total_appts, dict) else total_appts[0]
+        ta = total_appts["c"] if isinstance(total_appts, dict) else (total_appts[0] if total_appts else 0)
 
         stats_layout = QtWidgets.QHBoxLayout(); stats_layout.setSpacing(20)
         stats_data = [("👥", "Tổng bệnh nhân", str(tp), "#eff6ff", "#2563eb"), ("🩺", "Tổng bác sĩ", str(td), "#f0fdf4", "#16a34a"), ("📅", "Tổng lịch hẹn", str(ta), "#fff7ed", "#ea580c")]
         for icon, title, val, bg, color in stats_data:
             card = self.create_stat_card(icon, title, val, bg, color)
             stats_layout.addWidget(card)
-        content_layout.addLayout(stats_layout)
+        page_dashboard_layout.addLayout(stats_layout)
 
         # Biểu đồ Admin
         chart_frame = QtWidgets.QFrame()
@@ -324,8 +394,37 @@ class AdminDashboardView(QtWidgets.QWidget):
         chart_title.setStyleSheet("font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 10px;")
         chart_layout.addWidget(chart_title)
         chart_layout.addWidget(ChartWidget())
-        content_layout.addWidget(chart_frame)
-        content_layout.addStretch()
+        page_dashboard_layout.addWidget(chart_frame)
+        page_dashboard_layout.addStretch()
+
+        self.content_stack.addWidget(self.page_dashboard)
+
+        # Các trang placeholder khác
+        from views.admin_management_views import PatientManagementView, DoctorManagementView
+        self.page_patient_mgmt = PatientManagementView()
+        self.page_doctor_mgmt = DoctorManagementView()
+        
+        self.content_stack.addWidget(self.page_patient_mgmt) # Index 1: Quản lý bệnh nhân
+        self.content_stack.addWidget(self.page_doctor_mgmt) # Index 2: Quản lý bác sĩ
+        
+        for i in range(3, 9):
+            page = QtWidgets.QWidget()
+            layout = QtWidgets.QVBoxLayout(page)
+            lbl = QtWidgets.QLabel(f"Trang đang phát triển: {menu_items[i][1]}")
+            lbl.setStyleSheet("font-size: 24px; color: #888;")
+            lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(lbl)
+            self.content_stack.addWidget(page)
+            
+    def switch_page(self, index):
+        self.content_stack.setCurrentIndex(index)
+        for i, btn in enumerate(self.nav_buttons):
+            style = "QPushButton { border: none; text-align: left; padding: 12px 15px; border-radius: 10px; font-size: 14px; color: #1e293b; font-weight: 600; }"
+            if i == index:
+                style += "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
+            else:
+                style += "QPushButton:hover { background-color: #f1f5f9; }"
+            btn.setStyleSheet(style)
 
     def create_stat_card(self, icon, title, value, bg, color):
         card = QtWidgets.QFrame(); card.setStyleSheet(f"background-color: {bg}; border-radius: 15px; border: 1px solid #e2e8f0;")

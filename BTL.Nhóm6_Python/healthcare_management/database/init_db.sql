@@ -145,13 +145,13 @@ INSERT IGNORE INTO Users (username, password, role) VALUES
 ('doctor1','123456','doctor'),
 ('staff1','123456','patient');
 
-INSERT IGNORE INTO Patients (name, dob, gender, phone, address) VALUES
-('Nguyễn Văn A','2000-01-01','Nam','0123456789','Hà Nội'),
-('Trần Thị B','1995-05-10','Nữ','0987654321','HCM');
+INSERT IGNORE INTO Patients (name, dob, gender, phone, address, user_id) VALUES
+('Nguyễn Văn A','2000-01-01','Nam','0123456789','Hà Nội', 3),
+('Trần Thị B','1995-05-10','Nữ','0987654321','HCM', NULL);
 
-INSERT IGNORE INTO Doctors (name, specialty, phone, email) VALUES
-('Bác sĩ Minh','Nội khoa','0900000001','minh@gmail.com'),
-('Bác sĩ Hùng','Ngoại khoa','0900000002','hung@gmail.com');
+INSERT IGNORE INTO Doctors (name, specialty, phone, email, user_id) VALUES
+('Bác sĩ Minh','Nội khoa','0900000001','minh@gmail.com', 2),
+('Bác sĩ Hùng','Ngoại khoa','0900000002','hung@gmail.com', NULL);
 
 INSERT IGNORE INTO Services (service_name, price) VALUES
 ('Khám tổng quát',200000),
