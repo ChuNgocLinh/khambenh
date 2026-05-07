@@ -1,8 +1,42 @@
-from PyQt6 import QtWidgets, QtCore, QtGui
-from controllers.appointment_controller import AppointmentController
+from PyQt6 import QtWidgets, QtCore
 from controllers.service_controller import ServiceController
-from controllers.patient_controller import PatientController
+from controllers.doctor_controller import DoctorController
 from database.db import fetch_all
+
+
+class DetailDialog(QtWidgets.QDialog):
+    def __init__(self, title, fields, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(520)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        card = QtWidgets.QFrame()
+        card.setStyleSheet(
+            "background: white; border: 1px solid #e2e8f0; border-radius: 14px;"
+        )
+        form = QtWidgets.QFormLayout(card)
+        form.setContentsMargins(20, 20, 20, 20)
+        form.setHorizontalSpacing(24)
+        form.setVerticalSpacing(14)
+
+        for label, value in fields:
+            key_label = QtWidgets.QLabel(label)
+            key_label.setStyleSheet("font-weight: 700; color: #334155;")
+
+            val_label = QtWidgets.QLabel(str(value) if value is not None else "")
+            val_label.setWordWrap(True)
+            val_label.setStyleSheet("color: #0f172a;")
+            form.addRow(key_label, val_label)
+
+        layout.addWidget(card)
+
+        close_btn = QtWidgets.QPushButton("Đóng")
+        close_btn.setStyleSheet(
+            "background: #69c0a5; color: white; border-radius: 8px; padding: 8px 16px; font-weight: 700;"
+        )
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn, 0, QtCore.Qt.AlignmentFlag.AlignRight)
 
 # --- TRANG DỊCH VỤ (VIEW MỚI) ---
 class ServicePage(QtWidgets.QWidget):
@@ -14,6 +48,10 @@ class ServicePage(QtWidgets.QWidget):
         title = QtWidgets.QLabel("Danh sách dịch vụ y tế")
         title.setStyleSheet("font-size: 26px; font-weight: 800; color: #2c3e50; margin-bottom: 15px;")
         layout.addWidget(title)
+
+        desc = QtWidgets.QLabel("Nhấn vào từng dịch vụ để xem thông tin chi tiết.")
+        desc.setStyleSheet("color: #64748b; font-size: 14px; margin-bottom: 8px;")
+        layout.addWidget(desc)
 
         # Bảng danh sách dịch vụ
         self.table = QtWidgets.QTableWidget()
@@ -35,17 +73,170 @@ class ServicePage(QtWidgets.QWidget):
         """)
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
+        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         
         services_data = ServiceController.get_all()
+        self.services_data = services_data
         self.table.setRowCount(len(services_data))
         for i, s in enumerate(services_data):
             self.table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(s.get("service_name", ""))))
             self.table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(s.get("price", ""))))
             self.table.setItem(i, 2, QtWidgets.QTableWidgetItem(str(s.get("description", ""))))
             self.table.setRowHeight(i, 50)
+
+        self.table.cellDoubleClicked.connect(self.show_detail)
             
         layout.addWidget(self.table)
         layout.addStretch()
+
+    def show_detail(self, row, _col):
+        if row < 0 or row >= len(self.services_data):
+            return
+
+        service = self.services_data[row]
+        fields = [
+            ("Mã dịch vụ", service.get("service_id", "")),
+            ("Tên dịch vụ", service.get("service_name", "")),
+            ("Giá", service.get("price", "")),
+            ("Mô tả", service.get("description", "")),
+        ]
+        dialog = DetailDialog("Chi tiết dịch vụ", fields, self)
+        dialog.exec()
+
+
+class DoctorPage(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(40, 20, 40, 20)
+
+        title = QtWidgets.QLabel("Đội ngũ bác sĩ")
+        title.setStyleSheet("font-size: 26px; font-weight: 800; color: #2c3e50;")
+        layout.addWidget(title)
+
+        desc = QtWidgets.QLabel("Danh sách bác sĩ đang khám tại CarePlus. Nhấn đúp để xem chi tiết.")
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #64748b; font-size: 14px; margin-bottom: 10px;")
+        layout.addWidget(desc)
+
+        self.table = QtWidgets.QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["Họ tên", "Chuyên khoa", "SĐT"])
+        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setShowGrid(False)
+        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setStyleSheet(
+            """
+            QTableWidget { background: white; border-radius: 12px; border: 1px solid #eef0f2; font-size: 14px; }
+            QHeaderView::section { background-color: #f8f9fa; padding: 12px; font-weight: bold; border: none; border-bottom: 2px solid #69c0a5; }
+            QTableWidget::item { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+            """
+        )
+
+        doctors = DoctorController.get_all()
+        self.doctors_data = doctors
+        self.table.setRowCount(len(doctors))
+        for i, doctor in enumerate(doctors):
+            self.table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(doctor.get("name", ""))))
+            self.table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(doctor.get("specialty", ""))))
+            self.table.setItem(i, 2, QtWidgets.QTableWidgetItem(str(doctor.get("phone", ""))))
+            self.table.setRowHeight(i, 48)
+
+        self.table.cellDoubleClicked.connect(self.show_detail)
+        layout.addWidget(self.table)
+        layout.addStretch()
+
+    def show_detail(self, row, _col):
+        if row < 0 or row >= len(self.doctors_data):
+            return
+
+        doctor = self.doctors_data[row]
+        fields = [
+            ("Mã bác sĩ", doctor.get("doctor_id", "")),
+            ("Họ tên", doctor.get("name", "")),
+            ("Chuyên khoa", doctor.get("specialty", "")),
+            ("SĐT", doctor.get("phone", "")),
+            ("Email", doctor.get("email", "")),
+        ]
+        dialog = DetailDialog("Chi tiết bác sĩ", fields, self)
+        dialog.exec()
+
+
+class NewsPage(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(40, 20, 40, 20)
+
+        title = QtWidgets.QLabel("Tin tức & tư vấn sức khỏe")
+        title.setStyleSheet("font-size: 26px; font-weight: 800; color: #2c3e50;")
+        layout.addWidget(title)
+
+        self.news_items = [
+            {
+                "title": "5 dấu hiệu cần đi khám tổng quát định kỳ",
+                "summary": "Những biểu hiện cơ thể cảnh báo bạn nên kiểm tra sức khỏe sớm.",
+                "content": "Nếu bạn thường xuyên mệt mỏi, rối loạn giấc ngủ, giảm tập trung hoặc thay đổi cân nặng bất thường, hãy đi khám sớm để phát hiện nguy cơ tiềm ẩn.",
+            },
+            {
+                "title": "Lưu ý trước khi xét nghiệm máu",
+                "summary": "Chuẩn bị đúng giúp kết quả xét nghiệm chính xác hơn.",
+                "content": "Bạn nên nhịn ăn từ 8-12 giờ tùy loại xét nghiệm, ngủ đủ giấc và hạn chế dùng chất kích thích trước ngày khám.",
+            },
+            {
+                "title": "Chương trình tiêm chủng theo độ tuổi",
+                "summary": "Cập nhật lịch tiêm chủng giúp phòng bệnh hiệu quả.",
+                "content": "Người lớn cần tiêm nhắc một số vaccine định kỳ. Trẻ em cần bám sát lịch tiêm để tăng miễn dịch cộng đồng.",
+            },
+        ]
+
+        desc = QtWidgets.QLabel(
+            "Nhấn vào từng mục để xem chi tiết. Một số chuyên mục nâng cao đang được bổ sung nội dung."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #64748b; font-size: 14px; margin-bottom: 8px;")
+        layout.addWidget(desc)
+
+        self.list_widget = QtWidgets.QListWidget()
+        self.list_widget.setStyleSheet(
+            """
+            QListWidget { background: white; border: 1px solid #eef0f2; border-radius: 12px; padding: 6px; }
+            QListWidget::item { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+            QListWidget::item:selected { background: #e1f2ee; color: #1f2937; border-radius: 8px; }
+            """
+        )
+
+        for item in self.news_items:
+            self.list_widget.addItem(f"📰 {item['title']}\n{item['summary']}")
+
+        self.list_widget.itemDoubleClicked.connect(self.show_detail)
+        layout.addWidget(self.list_widget)
+
+        note = QtWidgets.QLabel(
+            "Chuyên mục video tư vấn và livestream bác sĩ đang trong quá trình phát triển."
+        )
+        note.setStyleSheet(
+            "color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px;"
+        )
+        layout.addWidget(note)
+        layout.addStretch()
+
+    def show_detail(self, item):
+        row = self.list_widget.row(item)
+        if row < 0 or row >= len(self.news_items):
+            return
+
+        news = self.news_items[row]
+        fields = [
+            ("Tiêu đề", news["title"]),
+            ("Tóm tắt", news["summary"]),
+            ("Nội dung", news["content"]),
+        ]
+        dialog = DetailDialog("Chi tiết tin tức", fields, self)
+        dialog.exec()
 
 # --- TRANG LỊCH SỬ KHÁM ---
 class HistoryPage(QtWidgets.QWidget):
@@ -146,7 +337,7 @@ class ProfilePage(QtWidgets.QWidget):
                 
     def save_data(self):
         from models.patient_model import PatientModel
-        PatientModel.update(
+        success = PatientModel.update(
             self.patient_id,
             self.name_input.text(),
             self.dob_input.date().toString("yyyy-MM-dd"),
@@ -154,8 +345,10 @@ class ProfilePage(QtWidgets.QWidget):
             self.phone_input.text(),
             self.address_input.text()
         )
-        QtWidgets.QMessageBox.information(self, "Thành công", "Đã cập nhật thông tin cá nhân!")
-        layout.addStretch()
+        if success:
+            QtWidgets.QMessageBox.information(self, "Thành công", "Đã cập nhật thông tin cá nhân!")
+        else:
+            QtWidgets.QMessageBox.warning(self, "Thất bại", "Không thể cập nhật thông tin. Vui lòng thử lại.")
 
 # --- TRANG CHỦ (GIỮ NGUYÊN NỘI DUNG CỦA BẠN) ---
 class HomePage(QtWidgets.QWidget):
@@ -315,10 +508,8 @@ class PatientView(QtWidgets.QWidget):
         page.selected_time = btn.text()
 
     def book(self, page):
-        doctor = page.doctor.currentText()
-        date = page.date.date().toString("yyyy-MM-dd")
-        if not page.selected_time:
-            QtWidgets.QMessageBox.warning(self, "Lỗi", "Vui lòng chọn khung giờ khám!")
-            return
-        AppointmentController.book(doctor, date, page.selected_time, self.username)
-        QtWidgets.QMessageBox.information(self, "Thành công", f"Đã đặt lịch khám với {doctor} vào {page.selected_time} ngày {date}")
+        QtWidgets.QMessageBox.information(
+            self,
+            "Thông báo",
+            "Luồng đặt lịch đã được nâng cấp trên giao diện bệnh nhân chính. Vui lòng sử dụng menu mới để đặt lịch chính xác.",
+        )
