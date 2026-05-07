@@ -5,6 +5,7 @@ from controllers.prescription_controller import PrescriptionController
 from controllers.appointment_controller import AppointmentController
 from controllers.patient_controller import PatientController
 from controllers.medicine_controller import MedicineController
+from controllers.service_controller import ServiceController
 
 class BaseDoctorView(QtWidgets.QWidget):
     def __init__(self, title_text, headers, doctor_id, parent=None):
@@ -874,26 +875,806 @@ class DoctorPatientListView(BaseDoctorView):
         return ""
 
 
+class AppointmentUpsertDialog(QtWidgets.QDialog):
+    def __init__(self, doctor_id, appointment=None, parent=None):
+        super().__init__(parent)
+        self.doctor_id = doctor_id
+        self.appointment = appointment or {}
+        self.setWindowTitle("Chỉnh sửa lịch hẹn" if appointment else "Thêm lịch hẹn")
+        self.setMinimumWidth(520)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        form = QtWidgets.QFormLayout()
+        form.setLabelAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
+
+        self.patient_input = QtWidgets.QComboBox()
+        self.patients = PatientController.get_all()
+        for patient in self.patients:
+            label = f"{patient.get('name', 'N/A')} - {patient.get('phone', '')}"
+            self.patient_input.addItem(label, patient)
+
+        self.date_input = QtWidgets.QDateEdit()
+        self.date_input.setCalendarPopup(True)
+        self.date_input.setDisplayFormat("dd/MM/yyyy")
+
+        self.time_input = QtWidgets.QTimeEdit()
+        self.time_input.setDisplayFormat("HH:mm")
+
+        self.service_input = QtWidgets.QComboBox()
+        self.services = ServiceController.get_all()
+        self.service_input.addItem("", "")
+        for service in self.services:
+            name = str(service.get("service_name", "")).strip()
+            if name:
+                self.service_input.addItem(name, name)
+
+        self.status_input = QtWidgets.QComboBox()
+        self.status_input.addItems([
+            "pending",
+            "confirmed",
+            "in_progress",
+            "done",
+            "cancelled",
+        ])
+
+        self.note_input = QtWidgets.QTextEdit()
+        self.note_input.setPlaceholderText("Ghi chú (triệu chứng, tái khám, khám lần đầu...)")
+        self.note_input.setFixedHeight(90)
+
+        for widget in [
+            self.patient_input,
+            self.date_input,
+            self.time_input,
+            self.service_input,
+            self.status_input,
+            self.note_input,
+        ]:
+            widget.setStyleSheet(
+                "padding: 8px; border-radius: 6px; border: 1px solid #dbe2ea; font-size: 13px;"
+            )
+
+        form.addRow("Bệnh nhân:", self.patient_input)
+        form.addRow("Ngày khám:", self.date_input)
+        form.addRow("Giờ khám:", self.time_input)
+        form.addRow("Dịch vụ:", self.service_input)
+        form.addRow("Trạng thái:", self.status_input)
+        form.addRow("Ghi chú:", self.note_input)
+        layout.addLayout(form)
+
+        btn_row = QtWidgets.QHBoxLayout()
+        btn_row.addStretch()
+
+        btn_cancel = QtWidgets.QPushButton("Hủy")
+        btn_cancel.setStyleSheet("padding: 8px 14px; border-radius: 6px; background: #f1f5f9;")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_save = QtWidgets.QPushButton("Lưu")
+        btn_save.setStyleSheet(
+            "padding: 8px 14px; border-radius: 6px; background: #69c0a5; color: white; font-weight: 700;"
+        )
+        btn_save.clicked.connect(self._validate_and_accept)
+
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_save)
+        layout.addLayout(btn_row)
+
+        self._prefill_data()
+
+    def _prefill_data(self):
+        if not self.appointment:
+            now = datetime.now()
+            self.date_input.setDate(QtCore.QDate(now.year, now.month, now.day))
+            # Round to the next 30-minute slot to avoid preselecting past times.
+            if now.minute < 30:
+                minute = 30
+                hour = now.hour
+            else:
+                minute = 0
+                hour = min(now.hour + 1, 23)
+            self.time_input.setTime(QtCore.QTime(hour, minute))
+            self.status_input.setCurrentText("pending")
+            return
+
+        patient_id = int(self.appointment.get("patient_id", 0) or 0)
+        for idx in range(self.patient_input.count()):
+            patient = self.patient_input.itemData(idx) or {}
+            if int(patient.get("patient_id", 0) or 0) == patient_id:
+                self.patient_input.setCurrentIndex(idx)
+                break
+
+        dt_value = self._parse_datetime(self.appointment.get("appointment_date"))
+        if dt_value:
+            self.date_input.setDate(QtCore.QDate(dt_value.year, dt_value.month, dt_value.day))
+            self.time_input.setTime(QtCore.QTime(dt_value.hour, dt_value.minute))
+
+        status_value = str(self.appointment.get("status", "pending"))
+        self.status_input.setCurrentText(status_value)
+
+        service_name = self._extract_service(self.appointment.get("note"))
+        if service_name:
+            idx = self.service_input.findData(service_name)
+            if idx >= 0:
+                self.service_input.setCurrentIndex(idx)
+
+        self.note_input.setPlainText(self._extract_plain_note(self.appointment.get("note")))
+
+    @staticmethod
+    def _parse_datetime(value):
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(value, fmt)
+                except ValueError:
+                    continue
+        return None
+
+    @staticmethod
+    def _extract_service(note):
+        if not note:
+            return ""
+        text = str(note)
+        if not text.startswith("Dịch vụ:"):
+            return ""
+        payload = text.replace("Dịch vụ:", "", 1).strip()
+        parts = payload.split("|", 1)
+        return parts[0].strip()
+
+    @staticmethod
+    def _extract_plain_note(note):
+        if not note:
+            return ""
+        text = str(note).strip()
+        if not text.startswith("Dịch vụ:"):
+            return text
+        payload = text.replace("Dịch vụ:", "", 1).strip()
+        parts = payload.split("|", 1)
+        if len(parts) == 2:
+            return parts[1].strip()
+        return ""
+
+    def _validate_and_accept(self):
+        patient = self.patient_input.currentData() or {}
+        if not patient.get("patient_id"):
+            QtWidgets.QMessageBox.warning(self, "Thiếu dữ liệu", "Vui lòng chọn bệnh nhân.")
+            return
+
+        selected_datetime = datetime(
+            self.date_input.date().year(),
+            self.date_input.date().month(),
+            self.date_input.date().day(),
+            self.time_input.time().hour(),
+            self.time_input.time().minute(),
+            0,
+        )
+
+        # Keep active appointments in the future to avoid accidental backdated slots.
+        selected_status = self.status_input.currentText()
+        if selected_datetime < datetime.now() and selected_status in {"pending", "confirmed", "in_progress"}:
+            QtWidgets.QMessageBox.warning(self, "Dữ liệu không hợp lệ", "Không thể tạo lịch trong quá khứ.")
+            return
+
+        self.accept()
+
+    def get_payload(self):
+        patient = self.patient_input.currentData() or {}
+        date_value = self.date_input.date().toString("yyyy-MM-dd")
+        time_value = self.time_input.time().toString("HH:mm")
+        return {
+            "patient_id": patient.get("patient_id"),
+            "doctor_id": self.doctor_id,
+            "date": date_value,
+            "time": time_value,
+            "service_name": self.service_input.currentData() or "",
+            "status": self.status_input.currentText(),
+            "note": self.note_input.toPlainText().strip(),
+        }
+
+
 class DoctorAppointmentView(BaseDoctorView):
+    STATUS_LABELS = {
+        "pending": "Chờ xác nhận",
+        "confirmed": "Đã xác nhận",
+        "in_progress": "Đang khám",
+        "done": "Đã khám",
+        "cancelled": "Đã hủy",
+    }
+
+    STATUS_COLORS = {
+        "pending": "#f59f00",
+        "confirmed": "#2b8a3e",
+        "in_progress": "#5f3dc4",
+        "done": "#0c8599",
+        "cancelled": "#e03131",
+    }
+
     def __init__(self, doctor_id):
-        super().__init__("Tất Cả Lịch Hẹn", ["ID", "Ngày Khám", "Bệnh Nhân", "SĐT", "Trạng Thái"], doctor_id)
-        self.btn_add.hide()
+        super().__init__(
+            "Quản lý lịch hẹn",
+            [
+                "Thời gian",
+                "Bệnh nhân",
+                "Dịch vụ",
+                "Trạng thái",
+                "Ghi chú",
+                "Mức ưu tiên",
+                "Thao tác",
+            ],
+            doctor_id,
+        )
+        self.page_size = 6
+        self.current_page = 1
+        self.filtered_rows = []
+        self.all_rows = []
+
+        self.btn_add.setText("+ Thêm lịch hẹn")
+        self.btn_search.setText("Áp dụng lọc")
+        self.search_input.setPlaceholderText("Tìm theo tên hoặc SDT")
+        self.search_input.textChanged.connect(self._on_filter_changed)
+
+        self.description = QtWidgets.QLabel("Xem và quản lý các lịch hẹn khám của bệnh nhân")
+        self.description.setStyleSheet("color: #64748b; font-size: 13px; margin-bottom: 8px;")
+        self.layout.insertWidget(1, self.description)
+
+        self._setup_filters()
+        self._setup_stats()
+        self._setup_reminder()
+        self._setup_pagination()
+
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setColumnWidth(1, 260)
+        self.table.setColumnWidth(4, 220)
+        self.table.setColumnWidth(6, 300)
+
         self.load_data()
 
+    def _setup_filters(self):
+        today = QtCore.QDate.currentDate()
+        self.from_date = QtWidgets.QDateEdit(today)
+        self.from_date.setCalendarPopup(True)
+        self.from_date.setDisplayFormat("dd/MM/yyyy")
+
+        self.to_date = QtWidgets.QDateEdit(today.addMonths(1))
+        self.to_date.setCalendarPopup(True)
+        self.to_date.setDisplayFormat("dd/MM/yyyy")
+
+        self.status_filter = QtWidgets.QComboBox()
+        self.status_filter.addItems(
+            [
+                "Tất cả trạng thái",
+                "Chờ xác nhận",
+                "Đã xác nhận",
+                "Đang khám",
+                "Đã khám",
+                "Đã hủy",
+            ]
+        )
+
+        self.specialty_filter = QtWidgets.QComboBox()
+        self.specialty_filter.addItems(["Tất cả chuyên khoa", "Nội khoa", "Tim mạch", "Thần kinh", "Tiêu hóa"])
+
+        filter_row = QtWidgets.QHBoxLayout()
+        filter_row.setSpacing(10)
+
+        for title, widget in [
+            ("Từ ngày", self.from_date),
+            ("Đến ngày", self.to_date),
+            ("Trạng thái", self.status_filter),
+            ("Chuyên khoa", self.specialty_filter),
+        ]:
+            group = QtWidgets.QVBoxLayout()
+            label = QtWidgets.QLabel(title)
+            label.setStyleSheet("color: #475569; font-size: 12px; font-weight: 700;")
+            widget.setStyleSheet(
+                "padding: 7px 8px; border-radius: 6px; border: 1px solid #dbe2ea; background: white;"
+            )
+            group.addWidget(label)
+            group.addWidget(widget)
+            holder = QtWidgets.QWidget()
+            holder.setLayout(group)
+            filter_row.addWidget(holder)
+
+        filter_row.addStretch()
+        self.layout.insertLayout(2, filter_row)
+
+        self.from_date.dateChanged.connect(self._on_filter_changed)
+        self.to_date.dateChanged.connect(self._on_filter_changed)
+        self.status_filter.currentIndexChanged.connect(self._on_filter_changed)
+        self.specialty_filter.currentIndexChanged.connect(self._on_filter_changed)
+
+    def _setup_stats(self):
+        self.stats_row = QtWidgets.QHBoxLayout()
+        self.stats_row.setSpacing(10)
+        self.layout.insertLayout(3, self.stats_row)
+
+        self.total_card = self._build_stat_card("📋 Tổng lịch", "0", "#eff6ff", "#1d4ed8")
+        self.pending_card = self._build_stat_card("⏳ Chờ xác nhận", "0", "#fff7ed", "#c2410c")
+        self.confirmed_card = self._build_stat_card("✅ Đã xác nhận", "0", "#ecfdf3", "#15803d")
+        self.done_card = self._build_stat_card("🩺 Đã khám", "0", "#ecfeff", "#0e7490")
+        self.cancelled_card = self._build_stat_card("❌ Đã hủy", "0", "#fef2f2", "#b91c1c")
+
+        for card in [
+            self.total_card,
+            self.pending_card,
+            self.confirmed_card,
+            self.done_card,
+            self.cancelled_card,
+        ]:
+            self.stats_row.addWidget(card)
+
+    def _setup_reminder(self):
+        self.reminder_banner = QtWidgets.QLabel("Không có lịch hẹn gần giờ khám")
+        self.reminder_banner.setStyleSheet(
+            "padding: 8px 10px; border-radius: 8px; background: #fffbea; color: #92400e; border: 1px solid #fde68a;"
+        )
+        self.layout.insertWidget(4, self.reminder_banner)
+
+    def _setup_pagination(self):
+        self.pagination_row = QtWidgets.QHBoxLayout()
+        self.pagination_row.setSpacing(6)
+        self.layout.addLayout(self.pagination_row)
+
+    def _build_stat_card(self, title, value, bg_color, text_color):
+        card = QtWidgets.QFrame()
+        card.setStyleSheet(f"background: {bg_color}; border: 1px solid #e2e8f0; border-radius: 10px;")
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(10, 8, 10, 8)
+
+        title_lbl = QtWidgets.QLabel(title)
+        title_lbl.setStyleSheet("font-size: 12px; color: #475569; font-weight: 700;")
+        value_lbl = QtWidgets.QLabel(value)
+        value_lbl.setStyleSheet(f"font-size: 24px; color: {text_color}; font-weight: 900;")
+
+        layout.addWidget(title_lbl)
+        layout.addWidget(value_lbl)
+        card._value_label = value_lbl
+        return card
+
+    def _extract_service(self, note):
+        if not note:
+            return "Khám tổng quát"
+        text = str(note)
+        if text.startswith("Dịch vụ:"):
+            payload = text.replace("Dịch vụ:", "", 1).strip()
+            parts = payload.split("|", 1)
+            return parts[0].strip() or "Khám tổng quát"
+        return "Khám tổng quát"
+
+    def _extract_plain_note(self, note):
+        if not note:
+            return ""
+        text = str(note).strip()
+        if not text.startswith("Dịch vụ:"):
+            return text
+        payload = text.replace("Dịch vụ:", "", 1).strip()
+        parts = payload.split("|", 1)
+        if len(parts) == 2:
+            return parts[1].strip()
+        return ""
+
+    @staticmethod
+    def _parse_datetime(value):
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(value, fmt)
+                except ValueError:
+                    continue
+        return None
+
+    def _calculate_age_text(self, dob_value):
+        parsed = self._parse_datetime(dob_value)
+        if not parsed:
+            return "N/A"
+        today = date.today()
+        years = today.year - parsed.date().year
+        if (today.month, today.day) < (parsed.date().month, parsed.date().day):
+            years -= 1
+        return str(max(0, years))
+
+    def _status_code_from_filter(self):
+        selected = self.status_filter.currentText()
+        mapping = {
+            "Chờ xác nhận": "pending",
+            "Đã xác nhận": "confirmed",
+            "Đang khám": "in_progress",
+            "Đã khám": "done",
+            "Đã hủy": "cancelled",
+        }
+        return mapping.get(selected)
+
+    def _compute_priority(self, row):
+        status = str(row.get("status", "pending"))
+        if status == "cancelled":
+            return "Bình thường", "#64748b"
+
+        dt_value = self._parse_datetime(row.get("appointment_date"))
+        if not dt_value:
+            return "Bình thường", "#16a34a"
+
+        delta_minutes = (dt_value - datetime.now()).total_seconds() / 60
+        if delta_minutes < 0 and status in {"pending", "confirmed"}:
+            return "Khẩn cấp", "#dc2626"
+        if 0 <= delta_minutes <= 30 and status in {"pending", "confirmed"}:
+            return "Sắp tới giờ", "#d97706"
+        return "Bình thường", "#16a34a"
+
+    def _matches_filters(self, row):
+        dt_value = self._parse_datetime(row.get("appointment_date"))
+        if not dt_value:
+            return False
+
+        from_dt = datetime(
+            self.from_date.date().year(),
+            self.from_date.date().month(),
+            self.from_date.date().day(),
+            0,
+            0,
+            0,
+        )
+        to_dt = datetime(
+            self.to_date.date().year(),
+            self.to_date.date().month(),
+            self.to_date.date().day(),
+            23,
+            59,
+            59,
+        )
+        if dt_value < from_dt or dt_value > to_dt:
+            return False
+
+        status_code = self._status_code_from_filter()
+        if status_code and str(row.get("status", "")) != status_code:
+            return False
+
+        specialty_selected = self.specialty_filter.currentText()
+        doctor_specialty = str(row.get("doctor_specialty", "") or "").strip()
+        if specialty_selected != "Tất cả chuyên khoa" and doctor_specialty != specialty_selected:
+            return False
+
+        keyword = self.search_input.text().strip().lower()
+        if keyword:
+            haystack = (
+                f"{row.get('patient_name', '')} {row.get('patient_phone', '')}"
+            ).lower()
+            if keyword not in haystack:
+                return False
+
+        return True
+
+    def _update_stats(self):
+        total = len(self.filtered_rows)
+        pending = 0
+        confirmed = 0
+        done = 0
+        cancelled = 0
+
+        for row in self.filtered_rows:
+            status = str(row.get("status", ""))
+            if status == "pending":
+                pending += 1
+            elif status == "confirmed":
+                confirmed += 1
+            elif status == "done":
+                done += 1
+            elif status == "cancelled":
+                cancelled += 1
+
+        self.total_card._value_label.setText(str(total))
+        self.pending_card._value_label.setText(str(pending))
+        self.confirmed_card._value_label.setText(str(confirmed))
+        self.done_card._value_label.setText(str(done))
+        self.cancelled_card._value_label.setText(str(cancelled))
+
+    def _update_reminder(self):
+        nearest_minutes = None
+        nearest_name = ""
+
+        for row in self.filtered_rows:
+            status = str(row.get("status", ""))
+            if status not in {"pending", "confirmed"}:
+                continue
+            dt_value = self._parse_datetime(row.get("appointment_date"))
+            if not dt_value:
+                continue
+            delta = int((dt_value - datetime.now()).total_seconds() // 60)
+            if delta < 0:
+                continue
+            if nearest_minutes is None or delta < nearest_minutes:
+                nearest_minutes = delta
+                nearest_name = str(row.get("patient_name", ""))
+
+        if nearest_minutes is None:
+            self.reminder_banner.setText("Không có lịch hẹn gần giờ khám")
+            return
+
+        self.reminder_banner.setText(
+            f"🔔 Còn {nearest_minutes} phút tới lịch khám của {nearest_name}"
+        )
+
+    def _build_action_buttons(self, row):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(4)
+
+        buttons = [
+            ("👁 Xem", "#e2e8f0", lambda checked=False, r=row: self._view_appointment(r)),
+            ("✏ Sửa", "#dbeafe", lambda checked=False, r=row: self._edit_appointment(r)),
+            ("🗑 Xóa", "#fee2e2", lambda checked=False, r=row: self._cancel_appointment(r)),
+            ("🩺 Khám ngay", "#dcfce7", lambda checked=False, r=row: self._start_exam(r)),
+        ]
+
+        for text, bg, callback in buttons:
+            btn = QtWidgets.QPushButton(text)
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(
+                f"QPushButton {{ background: {bg}; border: none; border-radius: 6px; padding: 5px 8px; font-size: 11px; font-weight: 700; }}"
+                "QPushButton:hover { opacity: 0.92; }"
+            )
+            btn.clicked.connect(callback)
+            layout.addWidget(btn)
+
+        return wrapper
+
+    def _render_page(self):
+        total_rows = len(self.filtered_rows)
+        total_pages = max(1, (total_rows + self.page_size - 1) // self.page_size)
+        self.current_page = max(1, min(self.current_page, total_pages))
+
+        start = (self.current_page - 1) * self.page_size
+        end = start + self.page_size
+        page_rows = self.filtered_rows[start:end]
+
+        self.table.setRowCount(len(page_rows))
+        for row_idx, row in enumerate(page_rows):
+            dt_value = self._parse_datetime(row.get("appointment_date"))
+            dt_text = dt_value.strftime("%d/%m/%Y - %H:%M") if dt_value else ""
+
+            age_text = self._calculate_age_text(row.get("patient_dob"))
+            patient_text = f"{row.get('patient_name', '')} ({age_text} tuổi, {row.get('patient_phone', '')})"
+            service_text = self._extract_service(row.get("note"))
+            status_code = str(row.get("status", "pending"))
+            status_text = self.STATUS_LABELS.get(status_code, status_code)
+            note_text = self._extract_plain_note(row.get("note"))
+            priority_text, priority_color = self._compute_priority(row)
+
+            cells = [
+                dt_text,
+                patient_text,
+                service_text,
+                status_text,
+                note_text,
+                priority_text,
+            ]
+
+            for col, text in enumerate(cells):
+                item = QtWidgets.QTableWidgetItem(str(text))
+                item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
+                self.table.setItem(row_idx, col, item)
+
+            status_item = self.table.item(row_idx, 3)
+            status_item.setForeground(QtGui.QBrush(QtGui.QColor(self.STATUS_COLORS.get(status_code, "#475569"))))
+
+            priority_item = self.table.item(row_idx, 5)
+            priority_item.setForeground(QtGui.QBrush(QtGui.QColor(priority_color)))
+
+            self.table.setCellWidget(row_idx, 6, self._build_action_buttons(row))
+            self.table.setRowHeight(row_idx, 52)
+
+        self._render_pagination_buttons(total_pages)
+
+    def _render_pagination_buttons(self, total_pages):
+        while self.pagination_row.count() > 0:
+            item = self.pagination_row.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        self.pagination_row.addStretch()
+
+        visible = []
+        if total_pages <= 5:
+            visible = list(range(1, total_pages + 1))
+        else:
+            visible = [1, 2, 3, total_pages]
+
+        last = None
+        for page in visible:
+            if last is not None and page - last > 1:
+                ellipsis = QtWidgets.QLabel("...")
+                ellipsis.setStyleSheet("color: #64748b; padding: 0 6px;")
+                self.pagination_row.addWidget(ellipsis)
+
+            btn = QtWidgets.QPushButton(str(page))
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            if page == self.current_page:
+                btn.setStyleSheet(
+                    "background: #69c0a5; color: white; border: none; border-radius: 6px; padding: 6px 10px; font-weight: 800;"
+                )
+            else:
+                btn.setStyleSheet(
+                    "background: #f1f5f9; color: #334155; border: none; border-radius: 6px; padding: 6px 10px;"
+                )
+            btn.clicked.connect(lambda checked=False, p=page: self._go_page(p))
+            self.pagination_row.addWidget(btn)
+            last = page
+
+        self.pagination_row.addStretch()
+
+    def _go_page(self, page):
+        self.current_page = page
+        self._render_page()
+
+    def _on_filter_changed(self):
+        self.current_page = 1
+        self._apply_filters()
+
+    def _apply_filters(self):
+        self.filtered_rows = [row for row in self.all_rows if self._matches_filters(row)]
+        self._update_stats()
+        self._update_reminder()
+        self._render_page()
+
     def load_data(self):
-        from database.db import fetch_all
-        appts = fetch_all("""
-            SELECT a.appointment_id, a.appointment_date, a.status, p.name, p.phone
-            FROM Appointments a
-            JOIN Patients p ON a.patient_id = p.patient_id
-            WHERE a.doctor_id = ?
-            ORDER BY a.appointment_date DESC
-        """, (self.doctor_id,))
-        
-        self.table.setRowCount(len(appts))
-        for row, a in enumerate(appts):
-            self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(a["appointment_id"])))
-            self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(str(a.get("appointment_date", ""))))
-            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(a.get("name", ""))))
-            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(a.get("phone", ""))))
-            self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(str(a.get("status", "pending"))))
+        self.all_rows = AppointmentController.get_management_rows_by_doctor(self.doctor_id)
+        self._apply_filters()
+
+    def _view_appointment(self, row):
+        dt_value = self._parse_datetime(row.get("appointment_date"))
+        dt_text = dt_value.strftime("%d/%m/%Y %H:%M") if dt_value else ""
+
+        fields = [
+            ("Mã lịch", row.get("appointment_id", "")),
+            ("Thời gian", dt_text),
+            ("Bệnh nhân", row.get("patient_name", "")),
+            ("Số điện thoại", row.get("patient_phone", "")),
+            ("Dịch vụ", self._extract_service(row.get("note"))),
+            ("Trạng thái", self.STATUS_LABELS.get(str(row.get("status", "")), row.get("status", ""))),
+            ("Ghi chú", self._extract_plain_note(row.get("note"))),
+            ("Chuyên khoa", row.get("doctor_specialty", "")),
+        ]
+
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Chi tiết lịch hẹn")
+        dialog.setMinimumWidth(520)
+        layout = QtWidgets.QVBoxLayout(dialog)
+
+        form = QtWidgets.QFormLayout()
+        for key, value in fields:
+            label = QtWidgets.QLabel(str(value))
+            label.setStyleSheet("color: #1e293b;")
+            label.setWordWrap(True)
+            form.addRow(f"{key}:", label)
+        layout.addLayout(form)
+
+        close_btn = QtWidgets.QPushButton("Đóng")
+        close_btn.setStyleSheet(
+            "background: #69c0a5; color: white; padding: 8px 14px; border-radius: 6px; font-weight: 700;"
+        )
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+        dialog.exec()
+
+    def add_new(self):
+        dialog = AppointmentUpsertDialog(self.doctor_id, parent=self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+
+        payload = dialog.get_payload()
+        result = AppointmentController.create_with_details(
+            payload.get("patient_id"),
+            payload.get("doctor_id"),
+            payload.get("date"),
+            payload.get("time"),
+            payload.get("status"),
+            payload.get("service_name") or "Khám tổng quát",
+            payload.get("note"),
+        )
+
+        if not result.get("status"):
+            QtWidgets.QMessageBox.warning(self, "Không thể tạo lịch", result.get("message", "Lỗi không xác định"))
+            return
+
+        QtWidgets.QMessageBox.information(self, "Thành công", "Đã thêm lịch hẹn mới.")
+        self.load_data()
+
+    def _edit_appointment(self, row):
+        detail = AppointmentController.get_by_id(row.get("appointment_id"))
+        if not detail:
+            QtWidgets.QMessageBox.warning(self, "Không tìm thấy", "Không thể đọc lịch hẹn để chỉnh sửa.")
+            return
+
+        dialog = AppointmentUpsertDialog(self.doctor_id, appointment=detail, parent=self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+
+        payload = dialog.get_payload()
+        result = AppointmentController.update_full(
+            detail.get("appointment_id"),
+            payload.get("patient_id"),
+            payload.get("doctor_id"),
+            payload.get("date"),
+            payload.get("time"),
+            payload.get("status"),
+            payload.get("service_name"),
+            payload.get("note"),
+        )
+
+        if not result.get("status"):
+            QtWidgets.QMessageBox.warning(self, "Không thể cập nhật", result.get("message", "Lỗi không xác định"))
+            return
+
+        QtWidgets.QMessageBox.information(self, "Thành công", "Đã cập nhật lịch hẹn.")
+        self.load_data()
+
+    def _cancel_appointment(self, row):
+        appointment_id = row.get("appointment_id")
+        current_status = str(row.get("status", ""))
+
+        if current_status == "done":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Không thể hủy",
+                "Không thể hủy lịch hẹn đã hoàn tất.",
+            )
+            return
+
+        if current_status == "cancelled":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Đã hủy trước đó",
+                "Lịch hẹn này đã ở trạng thái Đã hủy.",
+            )
+            return
+
+        confirm = QtWidgets.QMessageBox.question(
+            self,
+            "Xác nhận hủy",
+            "Bạn có chắc muốn hủy lịch hẹn này?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+
+        is_ok = AppointmentController.update_status(appointment_id, "cancelled")
+        if not is_ok:
+            QtWidgets.QMessageBox.warning(self, "Không thể hủy", "Không thể cập nhật trạng thái hủy.")
+            return
+
+        QtWidgets.QMessageBox.information(self, "Đã hủy", "Lịch hẹn đã được chuyển sang trạng thái Đã hủy.")
+        self.load_data()
+
+    def _start_exam(self, row):
+        appointment_id = row.get("appointment_id")
+        current_status = str(row.get("status", ""))
+
+        if current_status in {"done", "cancelled"}:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Không thể bắt đầu",
+                "Lịch hẹn đã hoàn tất hoặc đã hủy, không thể bắt đầu khám.",
+            )
+            return
+
+        if current_status in {"pending", "confirmed"}:
+            is_ok = AppointmentController.update_status(appointment_id, "in_progress")
+            if not is_ok:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Không thể bắt đầu",
+                    "Không thể cập nhật trạng thái lịch hẹn để bắt đầu khám.",
+                )
+                return
+
+        QtWidgets.QMessageBox.information(
+            self,
+            "Bắt đầu khám",
+            f"🩺 Đã sẵn sàng khám ngay cho bệnh nhân {row.get('patient_name', '')}.",
+        )
+        self.load_data()
