@@ -2,6 +2,7 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from views.dashboard_view import DashboardView, AdminDashboardView 
 from models.doctor_model import DoctorModel
 from controllers.appointment_controller import AppointmentController
+from controllers.service_controller import ServiceController
 
 class MainView(QtWidgets.QMainWindow):
     def __init__(self, role, user_data, login_window=None):
@@ -12,7 +13,8 @@ class MainView(QtWidgets.QMainWindow):
         
         # QUAN TRỌNG: Lưu tham chiếu cửa sổ đăng nhập
         self.login_window = login_window 
-        self.selected_time = "09:00"
+        self.selected_time = None
+        self._time_buttons = []
 
         self.setWindowTitle(f"CarePlus - {self.role.upper()}")
         self.resize(1150, 850) 
@@ -57,7 +59,7 @@ class MainView(QtWidgets.QMainWindow):
         container_layout.setContentsMargins(0, 0, 0, 40)
         container_layout.setSpacing(20)
 
-        container_layout.addWidget(self.create_navbar())
+        container_layout.addWidget(self.create_navbar(0))
 
         main_content_widget = QtWidgets.QWidget()
         main_content_layout = QtWidgets.QVBoxLayout(main_content_widget)
@@ -105,8 +107,6 @@ class MainView(QtWidgets.QMainWindow):
         bk_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1a2a3a; border:none;")
         bk_v.addWidget(bk_title)
 
-        row_cb = QtWidgets.QHBoxLayout()
-        
         combo_style = """
             QComboBox { 
                 padding: 10px; border: 1px solid #eee; border-radius: 10px; 
@@ -125,6 +125,25 @@ class MainView(QtWidgets.QMainWindow):
                 background: #f8faff; color: #333; font-size: 14px;
             }
         """
+
+        row_service = QtWidgets.QHBoxLayout()
+        self.cb_service = QtWidgets.QComboBox()
+        self.cb_service.setStyleSheet(combo_style)
+        services = ServiceController.get_all()
+        for service in services:
+            service_name = str(service.get("service_name", ""))
+            if service_name:
+                self.cb_service.addItem(service_name)
+        if self.cb_service.count() == 0:
+            self.cb_service.addItem("Chưa có dịch vụ")
+
+        service_label = QtWidgets.QLabel("Dịch vụ khám")
+        service_label.setStyleSheet("font-weight: 700; color: #334155;")
+        row_service.addWidget(service_label)
+        row_service.addWidget(self.cb_service)
+        bk_v.addLayout(row_service)
+
+        row_cb = QtWidgets.QHBoxLayout()
         
         self.cb_doc = QtWidgets.QComboBox()
         docs = DoctorModel.get_all()
@@ -148,24 +167,18 @@ class MainView(QtWidgets.QMainWindow):
         row_cb.addWidget(self.cb_doc); row_cb.addWidget(self.de_date)
         bk_v.addLayout(row_cb)
 
-        days_box = QtWidgets.QHBoxLayout()
-        for d, n in [("T2","22"), ("T3","23"), ("T4","24"), ("T5","25"), ("T6","26"), ("T7","27"), ("CN","28")]:
-            day_v = QtWidgets.QVBoxLayout()
-            l1 = QtWidgets.QLabel(d); l1.setStyleSheet("color: #888; font-size: 11px; border:none;")
-            l2 = QtWidgets.QPushButton(n); l2.setFixedSize(40,40)
-            if n == "25": l2.setStyleSheet("background: #e1f2ee; color: #69c0a5; border: 1px solid #69c0a5; border-radius: 8px; font-weight: bold;")
-            else: l2.setStyleSheet("background: transparent; color: #333; border: none;")
-            day_v.addWidget(l1, 0, QtCore.Qt.AlignmentFlag.AlignCenter); day_v.addWidget(l2)
-            days_box.addLayout(day_v)
-        bk_v.addLayout(days_box)
-
         time_grid = QtWidgets.QHBoxLayout()
         for t in ["08:00", "09:00", "10:00", "11:00"]:
             t_btn = QtWidgets.QPushButton(f"{t}\nCòn trống")
-            if t == "09:00": t_btn.setStyleSheet("background: #e1f2ee; border: 1px solid #69c0a5; border-radius: 10px; color: #1a2a3a; padding: 10px; font-weight: bold;")
-            else: t_btn.setStyleSheet("background: white; border: 1px solid #eee; border-radius: 10px; color: #333; padding: 10px;")
+            t_btn.setStyleSheet("background: white; border: 1px solid #eee; border-radius: 10px; color: #333; padding: 10px;")
+            t_btn.clicked.connect(lambda _, selected=t: self.select_time_slot(selected))
+            self._time_buttons.append(t_btn)
             time_grid.addWidget(t_btn)
         bk_v.addLayout(time_grid)
+
+        self.booking_hint = QtWidgets.QLabel("Vui lòng chọn dịch vụ, ngày, bác sĩ và giờ khám.")
+        self.booking_hint.setStyleSheet("color: #64748b; font-size: 13px;")
+        bk_v.addWidget(self.booking_hint)
 
         btn_book = QtWidgets.QPushButton("Đặt lịch ngay")
         btn_book.setFixedHeight(50)
@@ -184,7 +197,8 @@ class MainView(QtWidgets.QMainWindow):
         apt_head.addStretch(); apt_head.addWidget(QtWidgets.QLabel("Xem tất cả >", styleSheet="color:#3498db; border:none;"))
         apt_v.addLayout(apt_head)
         
-        self.load_appointments(apt_v)
+        self.appointment_list_layout = apt_v
+        self.load_appointments(self.appointment_list_layout)
         right_col.addWidget(apt_card)
 
         noti_card = QtWidgets.QFrame(); noti_card.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #eee;")
@@ -243,49 +257,53 @@ class MainView(QtWidgets.QMainWindow):
         self.patient_stack.addWidget(self.page_dashboard) # Index 0
 
         # --- CÁC TRANG KHÁC ---
-        from views.patient_view import ServicePage, HistoryPage, ProfilePage
+        from views.patient_view import ServicePage, DoctorPage, NewsPage, HistoryPage, ProfilePage
         
         # Wrapper cho các trang khác để có navbar
-        def create_page_with_navbar(page_content):
+        def create_page_with_navbar(page_content, active_index):
             page = QtWidgets.QWidget()
             layout = QtWidgets.QVBoxLayout(page)
             layout.setContentsMargins(0, 0, 0, 0)
-            layout.addWidget(self.create_navbar())
+            layout.addWidget(self.create_navbar(active_index))
             layout.addWidget(page_content)
             layout.addStretch()
             return page
 
-        self.page_service = create_page_with_navbar(ServicePage())
-        self.page_history = create_page_with_navbar(HistoryPage(self.user_data.get("patient_id")))
-        self.page_profile = create_page_with_navbar(ProfilePage(self.user_data.get("patient_id")))
+        self.page_service = create_page_with_navbar(ServicePage(), 1)
+        self.page_doctor = create_page_with_navbar(DoctorPage(), 2)
+        self.page_news = create_page_with_navbar(NewsPage(), 3)
+        self.page_history = create_page_with_navbar(HistoryPage(self.user_data.get("patient_id")), 0)
+        self.page_profile = create_page_with_navbar(ProfilePage(self.user_data.get("patient_id")), 0)
 
-        self.patient_stack.addWidget(self.page_service) # Index 1
-        self.patient_stack.addWidget(self.page_history) # Index 2
-        self.patient_stack.addWidget(self.page_profile) # Index 3
+        self.patient_stack.addWidget(self.page_service)  # Index 1
+        self.patient_stack.addWidget(self.page_doctor)   # Index 2
+        self.patient_stack.addWidget(self.page_news)     # Index 3
+        self.patient_stack.addWidget(self.page_history)  # Index 4
+        self.patient_stack.addWidget(self.page_profile)  # Index 5
 
     def switch_patient_page(self, index):
         self.patient_stack.setCurrentIndex(index)
+        self._update_dynamic_navbar()
 
-    def create_navbar(self):
+    def create_navbar(self, active_index=0):
         nav = QtWidgets.QWidget(); nav.setFixedHeight(80); nav.setStyleSheet("background: white; border-bottom: 1px solid #eee;")
         nav_layout = QtWidgets.QHBoxLayout(nav); nav_layout.setContentsMargins(40, 0, 40, 0)
         logo = QtWidgets.QLabel("⊕ CarePlus"); logo.setStyleSheet("color: #69c0a5; font-size: 24px; font-weight: bold;")
         nav_layout.addWidget(logo); nav_layout.addStretch()
-        for text in ["Trang chủ", "Dịch vụ", "Bác sĩ", "Tin tức"]:
+        nav_items = [("Trang chủ", 0), ("Dịch vụ", 1), ("Bác sĩ", 2), ("Tin tức", 3)]
+        for text, page_index in nav_items:
             btn = QtWidgets.QPushButton(text)
-            btn.setStyleSheet("QPushButton { border: none; padding: 10px 15px; color: #555; font-size: 15px; }")
-            if text == "Trang chủ": 
-                btn.setStyleSheet("color: #69c0a5; font-weight: bold; border: none;")
-                btn.clicked.connect(lambda _, t=0: self.switch_patient_page(t))
-            elif text == "Dịch vụ":
-                btn.clicked.connect(lambda _, t=1: self.switch_patient_page(t))
+            default_style = "QPushButton { border: none; padding: 10px 15px; color: #555; font-size: 15px; }"
+            active_style = "QPushButton { border: none; padding: 10px 15px; color: #69c0a5; font-size: 15px; font-weight: bold; border-bottom: 2px solid #69c0a5; }"
+            btn.setStyleSheet(active_style if active_index == page_index else default_style)
+            btn.clicked.connect(lambda _, idx=page_index: self.switch_patient_page(idx))
             nav_layout.addWidget(btn)
         nav_layout.addStretch()
         
-        self.user_btn = QtWidgets.QPushButton(f"👤 {self.username} ▿")
-        self.user_btn.setStyleSheet("background: #f0f7f6; border-radius: 15px; padding: 8px 15px; font-weight: bold; color: #333;")
-        self.user_btn.clicked.connect(self.show_menu)
-        nav_layout.addWidget(self.user_btn)
+        user_btn = QtWidgets.QPushButton(f"👤 {self.username} ▿")
+        user_btn.setStyleSheet("background: #f0f7f6; border-radius: 15px; padding: 8px 15px; font-weight: bold; color: #333;")
+        user_btn.clicked.connect(lambda _, b=user_btn: self.show_menu(b))
+        nav_layout.addWidget(user_btn)
 
         # ĐÃ SỬA: Gán vào biến self để không bị Garbage Collection xóa mất kết nối
         self.btn_logout_nav = QtWidgets.QPushButton("Đăng xuất")
@@ -295,7 +313,39 @@ class MainView(QtWidgets.QMainWindow):
         
         return nav
 
-    def show_menu(self):
+    def _update_dynamic_navbar(self):
+        current_index = self.patient_stack.currentIndex()
+        if current_index == 0:
+            target_active = 0
+        elif current_index == 1:
+            target_active = 1
+        elif current_index == 2:
+            target_active = 2
+        elif current_index == 3:
+            target_active = 3
+        else:
+            target_active = 0
+
+        for page in [
+            self.page_service,
+            self.page_doctor,
+            self.page_news,
+            self.page_history,
+            self.page_profile,
+        ]:
+            layout = page.layout()
+            if not layout or layout.count() == 0:
+                continue
+
+            first_item = layout.itemAt(0)
+            old_nav = first_item.widget() if first_item else None
+            if old_nav is not None:
+                layout.removeWidget(old_nav)
+                old_nav.deleteLater()
+
+            layout.insertWidget(0, self.create_navbar(target_active))
+
+    def show_menu(self, anchor_btn):
         menu = QtWidgets.QMenu(self)
         menu.setStyleSheet("QMenu { background: white; color: #333; border: 1px solid #eee; } QMenu::item { padding: 10px 30px; } QMenu::item:selected { background: #f8faff; color: #69c0a5; }")
         
@@ -303,39 +353,114 @@ class MainView(QtWidgets.QMainWindow):
         act_history = menu.addAction("📋 Lịch sử khám")
         act_profile = menu.addAction("👤 Hồ sơ cá nhân")
         act_service = menu.addAction("🩺 Dịch vụ")
-        
+        act_doctor = menu.addAction("👨‍⚕️ Bác sĩ")
+        act_news = menu.addAction("📰 Tin tức")
+        act_dev = menu.addAction("🚧 Tính năng khác đang phát triển")
+
         act_booking.triggered.connect(lambda: self.switch_patient_page(0))
         act_service.triggered.connect(lambda: self.switch_patient_page(1))
-        act_history.triggered.connect(lambda: self.switch_patient_page(2))
-        act_profile.triggered.connect(lambda: self.switch_patient_page(3))
+        act_doctor.triggered.connect(lambda: self.switch_patient_page(2))
+        act_news.triggered.connect(lambda: self.switch_patient_page(3))
+        act_history.triggered.connect(lambda: self.switch_patient_page(4))
+        act_profile.triggered.connect(lambda: self.switch_patient_page(5))
+        act_dev.triggered.connect(
+            lambda: QtWidgets.QMessageBox.information(
+                self,
+                "Thông báo",
+                "Một số chức năng nâng cao đang trong quá trình phát triển.",
+            )
+        )
         
         menu.addSeparator()
         logout_act = menu.addAction("🚪 Đăng xuất")
         logout_act.triggered.connect(self.logout)
-        menu.exec(self.user_btn.mapToGlobal(QtCore.QPoint(0, self.user_btn.height() + 5)))
+        menu.exec(anchor_btn.mapToGlobal(QtCore.QPoint(0, anchor_btn.height() + 5)))
 
     def book_appointment(self):
         doc_id = self.cb_doc.currentData()
+        service_name = self.cb_service.currentText().strip()
         date = self.de_date.date().toString("yyyy-MM-dd")
-        date_time = f"{date} 09:00:00" # Dùng tạm giờ cứng theo UI mock
         patient_id = self.user_data.get("patient_id")
-        
+
+        if not self.selected_time:
+            QtWidgets.QMessageBox.warning(self, "Lỗi", "Vui lòng chọn khung giờ khám.")
+            return
+
+        confirm_msg = (
+            f"Dịch vụ: {service_name}\n"
+            f"Bác sĩ: {self.cb_doc.currentText()}\n"
+            f"Ngày: {date}\n"
+            f"Giờ: {self.selected_time}\n\n"
+            "Bạn có muốn xác nhận đặt lịch không?"
+        )
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Xác nhận đặt lịch",
+            confirm_msg,
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+        )
+        if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+
         if not doc_id or not patient_id:
             QtWidgets.QMessageBox.warning(self, "Lỗi", "Không thể đặt lịch do thiếu dữ liệu Bác sĩ hoặc Bệnh nhân")
             return
-            
-        success = AppointmentController.create(patient_id, doc_id, date_time)
-        if success:
-            QtWidgets.QMessageBox.information(self, "Thành công", "Đặt lịch khám thành công!")
+
+        result = AppointmentController.book_with_validation(
+            patient_id,
+            doc_id,
+            service_name,
+            date,
+            self.selected_time,
+        )
+        if result["status"]:
+            QtWidgets.QMessageBox.information(self, "Thành công", result["message"])
+            self._reset_booking_selection()
+            self._reload_upcoming_appointments()
         else:
-            QtWidgets.QMessageBox.warning(self, "Thất bại", "Lỗi khi lưu lịch hẹn")
+            QtWidgets.QMessageBox.warning(self, "Thất bại", result["message"])
+
+    def select_time_slot(self, time_value):
+        self.selected_time = time_value
+        for button in self._time_buttons:
+            button_time = button.text().split("\n", maxsplit=1)[0]
+            if button_time == time_value:
+                button.setStyleSheet(
+                    "background: #e1f2ee; border: 1px solid #69c0a5; border-radius: 10px; color: #1a2a3a; padding: 10px; font-weight: bold;"
+                )
+            else:
+                button.setStyleSheet(
+                    "background: white; border: 1px solid #eee; border-radius: 10px; color: #333; padding: 10px;"
+                )
+        self.booking_hint.setText(f"Đã chọn giờ khám: {time_value}")
+
+    def _reset_booking_selection(self):
+        self.selected_time = None
+        self.booking_hint.setText("Vui lòng chọn dịch vụ, ngày, bác sĩ và giờ khám.")
+        if self.cb_service.count() > 0:
+            self.cb_service.setCurrentIndex(0)
+        for button in self._time_buttons:
+            button.setStyleSheet(
+                "background: white; border: 1px solid #eee; border-radius: 10px; color: #333; padding: 10px;"
+            )
+
+    def _reload_upcoming_appointments(self):
+        if not hasattr(self, "appointment_list_layout"):
+            return
+
+        while self.appointment_list_layout.count() > 1:
+            item = self.appointment_list_layout.takeAt(1)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        self.load_appointments(self.appointment_list_layout)
 
     def load_appointments(self, layout):
         patient_id = self.user_data.get("patient_id")
         if not patient_id:
             return
             
-        appointments = AppointmentController.get_by_patient(patient_id)
+        appointments = AppointmentController.get_upcoming_by_patient(patient_id)
         if not appointments:
             layout.addWidget(QtWidgets.QLabel("Bạn chưa có lịch hẹn nào."))
             return
@@ -357,8 +482,12 @@ class MainView(QtWidgets.QMainWindow):
             stt = QtWidgets.QLabel(appt["status"])
             if appt["status"] == "pending":
                 stt.setStyleSheet("background: #fff4e6; color: #fd7e14; padding: 5px 10px; border-radius: 8px; border:none; font-size: 11px;")
+            elif appt["status"] == "confirmed":
+                stt.setStyleSheet("background: #e0f2fe; color: #0369a1; padding: 5px 10px; border-radius: 8px; border:none; font-size: 11px;")
+            elif appt["status"] == "in_progress":
+                stt.setStyleSheet("background: #ede9fe; color: #5b21b6; padding: 5px 10px; border-radius: 8px; border:none; font-size: 11px;")
             else:
-                stt.setStyleSheet("background: #e8f5e9; color: #2e7d32; padding: 5px 10px; border-radius: 8px; border:none; font-size: 11px;")
+                stt.setStyleSheet("background: #f1f5f9; color: #475569; padding: 5px 10px; border-radius: 8px; border:none; font-size: 11px;")
                 
             item_h.addWidget(info); item_h.addStretch(); item_h.addWidget(stt)
             layout.addWidget(item)
