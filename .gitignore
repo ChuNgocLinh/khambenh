@@ -1,0 +1,21 @@
+**/AGENT.md
+AGENTS.md
+.env
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Backup files
+*.bak
+
+# IDEs
+.idea/
+.vscode/
+
+# Logs
+*.log

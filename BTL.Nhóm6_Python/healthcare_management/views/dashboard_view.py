@@ -81,8 +81,9 @@ class ChartWidget(QtWidgets.QWidget):
 # 2. GIAO DIỆN BÁC SĨ (Dashboard Bác Sĩ)
 # =================================================================
 class DashboardView(QtWidgets.QWidget):
-    def __init__(self):
+    def __init__(self, user_data=None):
         super().__init__()
+        self.user_data = user_data or {"doctor_id": 1, "name": "Unknown"}
         self.main_layout = QtWidgets.QHBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
@@ -131,7 +132,7 @@ class DashboardView(QtWidgets.QWidget):
         self.user_avatar.setFixedSize(35, 35)
         self.user_avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.user_avatar.setStyleSheet("background: #d1e9e7; border-radius: 17px; font-size: 16px;")
-        self.user_name_lbl = QtWidgets.QLabel("Bác sĩ Minh ▿")
+        self.user_name_lbl = QtWidgets.QLabel(f"Bác sĩ {self.user_data.get('name')} ▿")
         self.user_name_lbl.setStyleSheet("font-weight: bold; color: #333; font-size: 14px;")
         self.btn_logout = QtWidgets.QPushButton("Đăng xuất")
         self.btn_logout.setStyleSheet("QPushButton { background: #ff7875; color: white; border-radius: 8px; padding: 7px 15px; font-weight: bold; border: none; } QPushButton:hover { background: #ff4d4f; }")
@@ -143,8 +144,12 @@ class DashboardView(QtWidgets.QWidget):
         self.lbl_page_title.setStyleSheet("font-size: 30px; font-weight: 800; color: #2c3e50;")
         self.content_layout.addWidget(self.lbl_page_title)
 
+        from controllers.appointment_controller import AppointmentController
+        appointments = AppointmentController.get_by_doctor(self.user_data.get("doctor_id"))
+        today_count = len(appointments)
+
         self.stats_layout = QtWidgets.QHBoxLayout(); self.stats_layout.setSpacing(25)
-        stats_data = [("📄", "Hẹn hôm nay", "05", "#e6f2ff", "#007bff"), ("👥", "Bệnh nhân", "12", "#fff4e6", "#fd7e14"), ("🗓️", "Lịch tuần", "18", "#e6f9f1", "#28a745"), ("🔔", "Thông báo", "03", "#f9e6e6", "#dc3545")]
+        stats_data = [("📄", "Hẹn khám", f"{today_count:02d}", "#e6f2ff", "#007bff"), ("👥", "Bệnh nhân", "12", "#fff4e6", "#fd7e14"), ("🗓️", "Lịch tuần", "18", "#e6f9f1", "#28a745"), ("🔔", "Thông báo", "03", "#f9e6e6", "#dc3545")]
         for icon, title, value, bg, txt in stats_data:
             card = self.create_stat_card(icon, title, value, bg, txt)
             self.stats_layout.addWidget(card)
@@ -176,25 +181,37 @@ class DashboardView(QtWidgets.QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
 
-        sample_data = [
-            ("09:00", "Yến Nguyễn", "Sốt, ho", "Bác sĩ Minh", "Đã khám"),
-            ("10:00", "Hải Phạm", "Đau đầu", "Bác sĩ Minh", "Chờ khám"),
-            ("11:00", "Nam Trần", "Đau bụng", "Bác sĩ Minh", "Chờ khám")
-        ]
-        self.table.setRowCount(len(sample_data))
-        for row, (gio, ten, tc, bs, tt) in enumerate(sample_data):
-            for col, text in enumerate([gio, ten, tc, bs]):
-                item = QtWidgets.QTableWidgetItem(text)
+        self.table.setRowCount(len(appointments))
+        for row, appt in enumerate(appointments):
+            import datetime
+            if isinstance(appt["appointment_date"], datetime.datetime):
+                dt_str = appt["appointment_date"].strftime("%d/%m/%Y %H:%M")
+            else:
+                dt_str = str(appt["appointment_date"])
+                
+            ten = appt.get("patient_name", "")
+            tc = appt.get("patient_phone", "")
+            bs = self.user_data.get("name", "")
+            tt = appt.get("status", "pending")
+            
+            for col, text in enumerate([dt_str, ten, tc, bs]):
+                item = QtWidgets.QTableWidgetItem(str(text))
                 item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
                 self.table.setItem(row, col, item)
             
-            status_lbl = QtWidgets.QLabel(tt)
-            status_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-            if tt == "Đã khám":
-                status_lbl.setStyleSheet("background: #e1f2ee; color: #69c0a5; border-radius: 8px; margin: 8px; font-weight: 800; font-size: 12px;")
+            cb_status = QtWidgets.QComboBox()
+            cb_status.addItems(["pending", "completed", "cancelled"])
+            cb_status.setCurrentText(tt)
+            
+            if tt == "completed":
+                cb_status.setStyleSheet("background: #e1f2ee; color: #69c0a5; font-weight: bold; border-radius: 5px;")
+            elif tt == "cancelled":
+                cb_status.setStyleSheet("background: #fde8e8; color: #e02424; font-weight: bold; border-radius: 5px;")
             else:
-                status_lbl.setStyleSheet("background: #fff4e6; color: #fd7e14; border-radius: 8px; margin: 8px; font-weight: 800; font-size: 12px;")
-            self.table.setCellWidget(row, 4, status_lbl)
+                cb_status.setStyleSheet("background: #fff4e6; color: #fd7e14; font-weight: bold; border-radius: 5px;")
+                
+            cb_status.currentTextChanged.connect(lambda text, a_id=appt["appointment_id"]: AppointmentController.update_status(a_id, text))
+            self.table.setCellWidget(row, 4, cb_status)
 
         for i in range(self.table.rowCount()): self.table.setRowHeight(i, 55)
         self.table_main_layout.addWidget(self.table)
@@ -214,9 +231,10 @@ class DashboardView(QtWidgets.QWidget):
 # 3. GIAO DIỆN ADMIN (Dashboard Admin)
 # =================================================================
 class AdminDashboardView(QtWidgets.QWidget):
-    def __init__(self, username="Admin"):
+    def __init__(self, user_data=None):
         super().__init__()
-        self.username = username
+        self.user_data = user_data or {"name": "Admin"}
+        self.username = self.user_data.get("name")
         self.main_layout = QtWidgets.QHBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
@@ -279,8 +297,18 @@ class AdminDashboardView(QtWidgets.QWidget):
         content_layout.addLayout(header)
 
         # Stats Admin
+        from database.db import fetch_one
+        total_patients = fetch_one("SELECT COUNT(*) as c FROM Patients")
+        tp = total_patients["c"] if isinstance(total_patients, dict) else total_patients[0]
+        
+        total_doctors = fetch_one("SELECT COUNT(*) as c FROM Doctors")
+        td = total_doctors["c"] if isinstance(total_doctors, dict) else total_doctors[0]
+        
+        total_appts = fetch_one("SELECT COUNT(*) as c FROM Appointments")
+        ta = total_appts["c"] if isinstance(total_appts, dict) else total_appts[0]
+
         stats_layout = QtWidgets.QHBoxLayout(); stats_layout.setSpacing(20)
-        stats_data = [("👥", "Tổng bệnh nhân", "120", "#eff6ff", "#2563eb"), ("🩺", "Tổng bác sĩ", "25", "#f0fdf4", "#16a34a"), ("📅", "Lịch hẹn hôm nay", "15", "#fff7ed", "#ea580c")]
+        stats_data = [("👥", "Tổng bệnh nhân", str(tp), "#eff6ff", "#2563eb"), ("🩺", "Tổng bác sĩ", str(td), "#f0fdf4", "#16a34a"), ("📅", "Tổng lịch hẹn", str(ta), "#fff7ed", "#ea580c")]
         for icon, title, val, bg, color in stats_data:
             card = self.create_stat_card(icon, title, val, bg, color)
             stats_layout.addWidget(card)

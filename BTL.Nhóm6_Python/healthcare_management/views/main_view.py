@@ -1,11 +1,14 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from views.dashboard_view import DashboardView, AdminDashboardView 
+from models.doctor_model import DoctorModel
+from controllers.appointment_controller import AppointmentController
 
 class MainView(QtWidgets.QMainWindow):
-    def __init__(self, role, username, login_window=None):
+    def __init__(self, role, user_data, login_window=None):
         super().__init__()
         self.role = str(role).lower().strip() 
-        self.username = username
+        self.user_data = user_data if isinstance(user_data, dict) else {"username": "Unknown", "patient_id": 1, "doctor_id": 1}
+        self.username = self.user_data.get("name") or self.user_data.get("username")
         
         # QUAN TRỌNG: Lưu tham chiếu cửa sổ đăng nhập
         self.login_window = login_window 
@@ -23,11 +26,11 @@ class MainView(QtWidgets.QMainWindow):
         self.main_layout.setSpacing(0)
 
         if self.role == "admin":
-            self.admin_dashboard = AdminDashboardView(self.username)
+            self.admin_dashboard = AdminDashboardView(self.user_data)
             self.admin_dashboard.btn_logout.clicked.connect(self.logout)
             self.main_layout.addWidget(self.admin_dashboard)
         elif self.role == "doctor":
-            self.doctor_dashboard = DashboardView()
+            self.doctor_dashboard = DashboardView(self.user_data)
             self.doctor_dashboard.user_name_lbl.setText(f"Bác sĩ {self.username} ▿")
             self.doctor_dashboard.btn_logout.clicked.connect(self.logout)
             self.main_layout.addWidget(self.doctor_dashboard)
@@ -115,7 +118,9 @@ class MainView(QtWidgets.QMainWindow):
         """
         
         self.cb_doc = QtWidgets.QComboBox()
-        self.cb_doc.addItems(["BS Minh", "BS Lan", "BS Hùng", "BS Phượng"])
+        docs = DoctorModel.get_all()
+        for doc in docs:
+            self.cb_doc.addItem(f"BS {doc['name']}", userData=doc["doctor_id"])
         self.cb_doc.setStyleSheet(combo_style)
         
         self.de_date = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
@@ -156,6 +161,7 @@ class MainView(QtWidgets.QMainWindow):
         btn_book = QtWidgets.QPushButton("Đặt lịch ngay")
         btn_book.setFixedHeight(50)
         btn_book.setStyleSheet("background: #27ae60; color: white; border-radius: 12px; font-size: 18px; font-weight: bold;")
+        btn_book.clicked.connect(self.book_appointment)
         bk_v.addWidget(btn_book)
         grid_layout.addWidget(booking_card)
 
@@ -169,13 +175,8 @@ class MainView(QtWidgets.QMainWindow):
         apt_head.addStretch(); apt_head.addWidget(QtWidgets.QLabel("Xem tất cả >", styleSheet="color:#3498db; border:none;"))
         apt_v.addLayout(apt_head)
         
-        item = QtWidgets.QFrame(); item.setStyleSheet("background: #f9f9f9; border-radius: 12px; border: 1px solid #f0f0f0;")
-        item_h = QtWidgets.QHBoxLayout(item)
-        item_h.addWidget(QtWidgets.QLabel("📅"))
-        info = QtWidgets.QLabel("<b style='color:#1a2a3a;'>BS Minh</b><br><span style='color:#333;'>25/04/2024 • 09:00</span><br><span style='color:#555;'>Khám tổng quát</span>")
-        stt = QtWidgets.QLabel("Đã xác nhận"); stt.setStyleSheet("background: #e8f5e9; color: #2e7d32; padding: 5px 10px; border-radius: 8px; border:none; font-size: 11px;")
-        item_h.addWidget(info); item_h.addStretch(); item_h.addWidget(stt)
-        apt_v.addWidget(item); right_col.addWidget(apt_card)
+        self.load_appointments(apt_v)
+        right_col.addWidget(apt_card)
 
         noti_card = QtWidgets.QFrame(); noti_card.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #eee;")
         noti_v = QtWidgets.QVBoxLayout(noti_card); noti_v.setContentsMargins(20, 20, 20, 20)
@@ -263,6 +264,55 @@ class MainView(QtWidgets.QMainWindow):
         logout_act = menu.addAction("🚪 Đăng xuất")
         logout_act.triggered.connect(self.logout)
         menu.exec(self.user_btn.mapToGlobal(QtCore.QPoint(0, self.user_btn.height() + 5)))
+
+    def book_appointment(self):
+        doc_id = self.cb_doc.currentData()
+        date = self.de_date.date().toString("yyyy-MM-dd")
+        date_time = f"{date} 09:00:00" # Dùng tạm giờ cứng theo UI mock
+        patient_id = self.user_data.get("patient_id")
+        
+        if not doc_id or not patient_id:
+            QtWidgets.QMessageBox.warning(self, "Lỗi", "Không thể đặt lịch do thiếu dữ liệu Bác sĩ hoặc Bệnh nhân")
+            return
+            
+        success = AppointmentController.create(patient_id, doc_id, date_time)
+        if success:
+            QtWidgets.QMessageBox.information(self, "Thành công", "Đặt lịch khám thành công!")
+        else:
+            QtWidgets.QMessageBox.warning(self, "Thất bại", "Lỗi khi lưu lịch hẹn")
+
+    def load_appointments(self, layout):
+        patient_id = self.user_data.get("patient_id")
+        if not patient_id:
+            return
+            
+        appointments = AppointmentController.get_by_patient(patient_id)
+        if not appointments:
+            layout.addWidget(QtWidgets.QLabel("Bạn chưa có lịch hẹn nào."))
+            return
+            
+        # Lấy tối đa 3 lịch hẹn
+        for appt in appointments[:3]:
+            item = QtWidgets.QFrame(); item.setStyleSheet("background: #f9f9f9; border-radius: 12px; border: 1px solid #f0f0f0;")
+            item_h = QtWidgets.QHBoxLayout(item)
+            item_h.addWidget(QtWidgets.QLabel("📅"))
+            
+            import datetime
+            if isinstance(appt["appointment_date"], datetime.datetime):
+                dt_str = appt["appointment_date"].strftime("%d/%m/%Y • %H:%M")
+            else:
+                dt_str = str(appt["appointment_date"])
+                
+            info = QtWidgets.QLabel(f"<b style='color:#1a2a3a;'>BS {appt['doctor_name']}</b><br><span style='color:#333;'>{dt_str}</span><br><span style='color:#555;'>{appt.get('specialty', '')}</span>")
+            
+            stt = QtWidgets.QLabel(appt["status"])
+            if appt["status"] == "pending":
+                stt.setStyleSheet("background: #fff4e6; color: #fd7e14; padding: 5px 10px; border-radius: 8px; border:none; font-size: 11px;")
+            else:
+                stt.setStyleSheet("background: #e8f5e9; color: #2e7d32; padding: 5px 10px; border-radius: 8px; border:none; font-size: 11px;")
+                
+            item_h.addWidget(info); item_h.addStretch(); item_h.addWidget(stt)
+            layout.addWidget(item)
 
     def logout(self):
      reply = QtWidgets.QMessageBox.question(

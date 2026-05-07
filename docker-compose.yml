@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    container_name: healthcare_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: your_password
+      MYSQL_DATABASE: HealthcareDB
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./BTL.Nhóm6_Python/healthcare_management/database/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql

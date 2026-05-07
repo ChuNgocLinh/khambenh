@@ -1,4 +1,4 @@
-from healthcare_management.models.appointment_model import AppointmentModel
+from models.appointment_model import AppointmentModel
 
 
 class AppointmentController:
@@ -7,18 +7,20 @@ class AppointmentController:
     @staticmethod
     def get_all():
         return AppointmentModel.get_all()
-
-
-    # 🔹 TẠO LỊCH HẸN (TỪ FORM WEB)
+        
     @staticmethod
-    def create(form):
-        return AppointmentModel.create(
-            form.get("patient_id"),
-            form.get("doctor_id"),
-            form.get("date"),
-            form.get("time"),
-            form.get("status", "pending")  # mặc định
-        )
+    def get_by_patient(patient_id):
+        return AppointmentModel.get_by_patient(patient_id)
+        
+    @staticmethod
+    def get_by_doctor(doctor_id):
+        return AppointmentModel.get_by_doctor(doctor_id)
+
+
+    # 🔹 TẠO LỊCH HẸN (TỪ FORM WEB/APP)
+    @staticmethod
+    def create(patient_id, doctor_id, date):
+        return AppointmentModel.create(patient_id, doctor_id, date, "pending")
 
 
     # 🔹 CẬP NHẬT TRẠNG THÁI

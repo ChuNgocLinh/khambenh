@@ -272,16 +272,39 @@ class LoginView(QWidget):
         layout.addStretch()
 
     def register_account(self):
+        name = self.reg_inputs["Họ và tên"].text().strip()
+        phone = self.reg_inputs["Số điện thoại"].text().strip()
+        email = self.reg_inputs["Email cá nhân"].text().strip()
+        pwd = self.reg_inputs["Mật khẩu"].text().strip()
+        pwd_conf = self.reg_inputs["Xác nhận mật khẩu"].text().strip()
+        
+        if not all([name, phone, email, pwd, pwd_conf]):
+            msg = QMessageBox(self)
+            msg.setText("Vui lòng điền đầy đủ thông tin!")
+            msg.setStyleSheet("QLabel{ color: #000; }")
+            msg.exec()
+            return
+            
+        if pwd != pwd_conf:
+            msg = QMessageBox(self)
+            msg.setText("Mật khẩu xác nhận không khớp!")
+            msg.setStyleSheet("QLabel{ color: #000; }")
+            msg.exec()
+            return
+            
+        res = AuthController.register(email, pwd, name, phone, email)
+        
         msg = QMessageBox(self)
-        msg.setWindowTitle("Thành công")
-        msg.setText("Đăng ký tài khoản thành công!\nBây giờ bạn có thể đăng nhập.")
+        msg.setWindowTitle("Thông báo")
+        msg.setText(res["message"])
         msg.setStyleSheet("""
             QLabel{ color: #000000; font-size: 14px; }
             QPushButton{ width: 80px; color: black; background-color: #eee; font-weight: bold; border-radius: 5px; padding: 5px;}
         """)
-        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setIcon(QMessageBox.Icon.Information if res["status"] else QMessageBox.Icon.Warning)
         msg.exec()
-        self.right_stack.setCurrentIndex(0)
+        if res["status"]:
+            self.right_stack.setCurrentIndex(0)
 
     def setup_forgot_page(self):
         layout = QVBoxLayout(self.forgot_page)
@@ -341,6 +364,15 @@ class LoginView(QWidget):
             msg.setStyleSheet("QLabel{ color: #000; }")
             msg.exec()
             return
-        self.main_window = MainView("patient", user)
-        self.main_window.show()
-        self.close()
+            
+        res = AuthController.login(user, pwd)
+        if res and res.get("status"):
+            user_data = res.get("user")
+            self.main_window = MainView(res.get("role"), user_data, self)
+            self.main_window.show()
+            self.close()
+        else:
+            msg = QMessageBox(self)
+            msg.setText(res.get("message") if res else "Đăng nhập thất bại")
+            msg.setStyleSheet("QLabel{ color: #000; }")
+            msg.exec()

@@ -1,12 +1,20 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ================================
 # 🗄️ DATABASE CONFIG
 # ================================
+DB_TYPE = os.getenv("DB_TYPE", "sqlserver")
+
 DB_CONFIG = {
     "DRIVER": "ODBC Driver 17 for SQL Server",
     "SERVER": os.getenv("DB_SERVER", "localhost"),
     "DATABASE": os.getenv("DB_NAME", "HealthcareDB"),
+    "USER": os.getenv("DB_USER", "sa"),
+    "PASSWORD": os.getenv("DB_PASSWORD", "your_password"),
+    "PORT": int(os.getenv("DB_PORT", 3306)),
     "TRUSTED_CONNECTION": "yes",
     "TIMEOUT": 5
 }
@@ -64,13 +72,24 @@ STATUS = {
 # 🔌 CONNECTION STRING
 # ================================
 def get_connection_string():
-    return (
-        f"DRIVER={{{DB_CONFIG['DRIVER']}}};"
-        f"SERVER={DB_CONFIG['SERVER']};"
-        f"DATABASE={DB_CONFIG['DATABASE']};"
-        f"Trusted_Connection={DB_CONFIG['TRUSTED_CONNECTION']};"
-        f"Connection Timeout={DB_CONFIG['TIMEOUT']};"
-    )
+    if DB_TYPE == "mysql":
+        # Trả về config cho MySQL (sử dụng trong controller)
+        return {
+            "host": DB_CONFIG["SERVER"],
+            "port": DB_CONFIG["PORT"],
+            "user": DB_CONFIG["USER"],
+            "password": DB_CONFIG["PASSWORD"],
+            "database": DB_CONFIG["DATABASE"]
+        }
+    else:
+        # SQL Server connection string
+        return (
+            f"DRIVER={{{DB_CONFIG['DRIVER']}}};"
+            f"SERVER={DB_CONFIG['SERVER']};"
+            f"DATABASE={DB_CONFIG['DATABASE']};"
+            f"Trusted_Connection={DB_CONFIG['TRUSTED_CONNECTION']};"
+            f"Connection Timeout={DB_CONFIG['TIMEOUT']};"
+        )
 
 
 # ================================
