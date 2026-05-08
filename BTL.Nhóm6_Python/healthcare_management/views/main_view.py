@@ -270,7 +270,16 @@ class MainView(QtWidgets.QMainWindow):
             return page
 
         self.page_service = create_page_with_navbar(ServicePage(), 1)
-        self.page_doctor = create_page_with_navbar(DoctorPage(), 2)
+        self.page_doctor = create_page_with_navbar(
+            DoctorPage(
+                on_navigate=self.handle_doctor_page_navigation,
+                on_logout=self.logout,
+                on_open_profile=lambda: self.switch_patient_page(5),
+                on_update_profile=lambda: self.switch_patient_page(5),
+                on_change_password=self.show_change_password_placeholder,
+            ),
+            2,
+        )
         self.page_news = create_page_with_navbar(NewsPage(), 3)
         self.page_history = create_page_with_navbar(HistoryPage(self.user_data.get("patient_id")), 0)
         self.page_profile = create_page_with_navbar(ProfilePage(self.user_data.get("patient_id")), 0)
@@ -285,10 +294,120 @@ class MainView(QtWidgets.QMainWindow):
         self.patient_stack.setCurrentIndex(index)
         self._update_dynamic_navbar()
 
+    def handle_doctor_page_navigation(self, action_key, doctor=None):
+        if action_key == "home":
+            self.switch_patient_page(0)
+            return
+
+        if action_key == "booking":
+            if isinstance(doctor, dict):
+                self.prefill_booking_from_doctor(doctor, view_only=False)
+            else:
+                self.switch_patient_page(0)
+            return
+
+        if action_key == "view_slots":
+            if isinstance(doctor, dict):
+                self.prefill_booking_from_doctor(doctor, view_only=True)
+            else:
+                self.switch_patient_page(0)
+            return
+
+        if action_key == "appointments":
+            self.switch_patient_page(0)
+            QtWidgets.QMessageBox.information(
+                self,
+                "Lịch hẹn của tôi",
+                "Lịch hẹn sắp tới đang hiển thị tại thẻ 'Lịch hẹn sắp tới' trên Trang chủ.",
+            )
+            return
+
+        if action_key == "service":
+            self.switch_patient_page(1)
+            return
+
+        if action_key == "doctor":
+            self.switch_patient_page(2)
+            return
+
+        if action_key == "news":
+            self.switch_patient_page(3)
+            return
+
+        if action_key == "history":
+            self.switch_patient_page(4)
+            return
+
+        if action_key in {"profile", "update_profile"}:
+            self.switch_patient_page(5)
+            return
+
+        if action_key == "change_password":
+            self.show_change_password_placeholder()
+            return
+
+        if action_key == "lab_results":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Kết quả xét nghiệm",
+                "Chức năng xem kết quả xét nghiệm đang trong quá trình phát triển.",
+            )
+            return
+
+        if action_key == "prescriptions":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Đơn thuốc",
+                "Chức năng xem đơn thuốc đang trong quá trình phát triển.",
+            )
+            return
+
+    def prefill_booking_from_doctor(self, doctor, view_only=False):
+        self.switch_patient_page(0)
+        if not isinstance(doctor, dict):
+            return
+
+        doctor_id = doctor.get("doctor_id")
+        if doctor_id is None:
+            return
+
+        # Reset current booking selection to avoid stale time slot across doctors.
+        self._reset_booking_selection()
+
+        for index in range(self.cb_doc.count()):
+            if self.cb_doc.itemData(index) == doctor_id:
+                self.cb_doc.setCurrentIndex(index)
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Lịch khám bác sĩ" if view_only else "Đặt lịch khám",
+                    (
+                        f"Đã chọn sẵn BS {doctor.get('name', '')}. Vui lòng chọn ngày và giờ để xem lịch trống."
+                        if view_only
+                        else f"Đã chọn sẵn BS {doctor.get('name', '')}. Vui lòng chọn ngày và giờ khám."
+                    ),
+                )
+                return
+
+    def show_change_password_placeholder(self):
+        QtWidgets.QMessageBox.information(
+            self,
+            "Đổi mật khẩu",
+            "Chức năng đổi mật khẩu đang được phát triển ở phiên bản tiếp theo.",
+        )
+
     def create_navbar(self, active_index=0):
         nav = QtWidgets.QWidget(); nav.setFixedHeight(80); nav.setStyleSheet("background: white; border-bottom: 1px solid #eee;")
         nav_layout = QtWidgets.QHBoxLayout(nav); nav_layout.setContentsMargins(40, 0, 40, 0)
-        logo = QtWidgets.QLabel("⊕ CarePlus"); logo.setStyleSheet("color: #69c0a5; font-size: 24px; font-weight: bold;")
+        logo = QtWidgets.QPushButton("⊕ CarePlus")
+        logo.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        logo.setStyleSheet(
+            "QPushButton {"
+            " color: #69c0a5; font-size: 24px; font-weight: bold;"
+            " border: none; background: transparent; padding: 0;"
+            "}"
+            "QPushButton:hover { color: #58a68e; }"
+        )
+        logo.clicked.connect(lambda: self.switch_patient_page(0))
         nav_layout.addWidget(logo); nav_layout.addStretch()
         nav_items = [("Trang chủ", 0), ("Dịch vụ", 1), ("Bác sĩ", 2), ("Tin tức", 3)]
         for text, page_index in nav_items:
@@ -352,6 +471,8 @@ class MainView(QtWidgets.QMainWindow):
         act_booking = menu.addAction("📅 Đặt lịch khám")
         act_history = menu.addAction("📋 Lịch sử khám")
         act_profile = menu.addAction("👤 Hồ sơ cá nhân")
+        act_update_profile = menu.addAction("🛠️ Cập nhật thông tin")
+        act_change_password = menu.addAction("🔒 Đổi mật khẩu")
         act_service = menu.addAction("🩺 Dịch vụ")
         act_doctor = menu.addAction("👨‍⚕️ Bác sĩ")
         act_news = menu.addAction("📰 Tin tức")
@@ -363,6 +484,8 @@ class MainView(QtWidgets.QMainWindow):
         act_news.triggered.connect(lambda: self.switch_patient_page(3))
         act_history.triggered.connect(lambda: self.switch_patient_page(4))
         act_profile.triggered.connect(lambda: self.switch_patient_page(5))
+        act_update_profile.triggered.connect(lambda: self.switch_patient_page(5))
+        act_change_password.triggered.connect(self.show_change_password_placeholder)
         act_dev.triggered.connect(
             lambda: QtWidgets.QMessageBox.information(
                 self,

@@ -106,63 +106,884 @@ class ServicePage(QtWidgets.QWidget):
 
 
 class DoctorPage(QtWidgets.QWidget):
-    def __init__(self):
+    def __init__(
+        self,
+        on_navigate=None,
+        on_logout=None,
+        on_open_profile=None,
+        on_update_profile=None,
+        on_change_password=None,
+        on_open_doctor_profile=None,
+        on_book_doctor=None,
+    ):
         super().__init__()
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(40, 20, 40, 20)
+        self.on_navigate = on_navigate
+        self.on_logout = on_logout
+        self.on_open_profile = on_open_profile
+        self.on_update_profile = on_update_profile
+        self.on_change_password = on_change_password
+        self.on_open_doctor_profile = on_open_doctor_profile
+        self.on_book_doctor = on_book_doctor
 
+        self.page_size = 8
+        self.current_page = 1
+        self.all_doctors = []
+        self.filtered_doctors = []
+        self.doctors_data = []
+        self.last_error_message = ""
+
+        self.facility_by_specialty = {
+            "Nội khoa": "Bệnh viện Đa khoa CarePlus",
+            "Nội tổng quát": "Bệnh viện Đa khoa CarePlus",
+            "Ngoại khoa": "Bệnh viện Đa khoa CarePlus",
+            "Tim mạch": "Bệnh viện Đa khoa CarePlus",
+            "Nhi khoa": "Phòng khám Nhi CarePlus",
+            "Da liễu": "Phòng khám Da liễu CarePlus",
+            "Tai Mũi Họng": "Phòng khám Tai Mũi Họng",
+            "Sản phụ khoa": "Bệnh viện Đa khoa CarePlus",
+        }
+
+        self.specialty_icons = {
+            "Nội khoa": "🧬",
+            "Nội tổng quát": "🧬",
+            "Tim mạch": "❤️",
+            "Nhi khoa": "👶",
+            "Sản phụ khoa": "🤰",
+            "Ngoại khoa": "🦴",
+            "Da liễu": "✨",
+            "Tai Mũi Họng": "👂",
+        }
+
+        self.filter_timer = QtCore.QTimer(self)
+        self.filter_timer.setSingleShot(True)
+        self.filter_timer.timeout.connect(lambda: self.apply_filters(reset_page=True))
+
+        self.init_ui()
+        self.load_doctors()
+
+    def init_ui(self):
+        root_layout = QtWidgets.QVBoxLayout(self)
+        root_layout.setContentsMargins(40, 20, 40, 20)
+        root_layout.setSpacing(16)
+
+        header_layout = QtWidgets.QVBoxLayout()
         title = QtWidgets.QLabel("Đội ngũ bác sĩ")
         title.setStyleSheet("font-size: 26px; font-weight: 800; color: #2c3e50;")
-        layout.addWidget(title)
+        header_layout.addWidget(title)
 
-        desc = QtWidgets.QLabel("Danh sách bác sĩ đang khám tại CarePlus. Nhấn đúp để xem chi tiết.")
+        desc = QtWidgets.QLabel(
+            "Tìm kiếm và đặt lịch hẹn với các bác sĩ chuyên khoa giàu kinh nghiệm"
+        )
         desc.setWordWrap(True)
-        desc.setStyleSheet("color: #64748b; font-size: 14px; margin-bottom: 10px;")
-        layout.addWidget(desc)
+        desc.setStyleSheet("color: #64748b; font-size: 14px;")
+        header_layout.addWidget(desc)
+        root_layout.addLayout(header_layout)
 
-        self.table = QtWidgets.QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Họ tên", "Chuyên khoa", "SĐT"])
-        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setShowGrid(False)
-        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setStyleSheet(
-            """
-            QTableWidget { background: white; border-radius: 12px; border: 1px solid #eef0f2; font-size: 14px; color: #1f2937; }
-            QHeaderView::section { background-color: #f8f9fa; padding: 12px; font-weight: bold; border: none; border-bottom: 2px solid #69c0a5; }
-            QTableWidget::item { padding: 12px; border-bottom: 1px solid #f1f5f9; }
-            """
+        body_layout = QtWidgets.QHBoxLayout()
+        body_layout.setSpacing(20)
+        root_layout.addLayout(body_layout)
+
+        # LEFT SIDEBAR
+        left_sidebar = QtWidgets.QFrame()
+        left_sidebar.setFixedWidth(260)
+        left_sidebar.setStyleSheet(
+            "background: white; border-radius: 12px; border: 1px solid #eef0f2;"
+        )
+        left_layout = QtWidgets.QVBoxLayout(left_sidebar)
+        left_layout.setContentsMargins(20, 20, 20, 20)
+        left_layout.setSpacing(12)
+
+        left_title = QtWidgets.QLabel("Tìm kiếm bác sĩ")
+        left_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b;")
+        left_layout.addWidget(left_title)
+
+        search_row = QtWidgets.QHBoxLayout()
+        search_row.setSpacing(8)
+
+        self.search_input = QtWidgets.QLineEdit()
+        self.search_input.setPlaceholderText("Tìm theo tên bác sĩ...")
+        self.search_input.setStyleSheet(
+            "padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1;"
+            "font-size: 13px; background: #f8fafc;"
+        )
+        search_row.addWidget(self.search_input, 1)
+
+        self.search_icon_btn = QtWidgets.QPushButton("🔍")
+        self.search_icon_btn.setFixedWidth(40)
+        self.search_icon_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.search_icon_btn.setStyleSheet(
+            "background: #69c0a5; color: white; border-radius: 6px;"
+            "font-size: 14px; border: none;"
+        )
+        search_row.addWidget(self.search_icon_btn)
+        left_layout.addLayout(search_row)
+
+        specialty_options = ["Tất cả chuyên khoa"]
+        hospital_options = ["Tất cả cơ sở"]
+        experience_options = ["Tất cả", "Trên 10 năm", "Trên 5 năm", "Dưới 5 năm"]
+
+        self.specialty_combo = self.create_filter_combo(
+            left_layout, "Chuyên khoa", specialty_options
+        )
+        self.hospital_combo = self.create_filter_combo(
+            left_layout, "Bệnh viện / Phòng khám", hospital_options
+        )
+        self.experience_combo = self.create_filter_combo(
+            left_layout, "Kinh nghiệm", experience_options
         )
 
-        doctors = DoctorController.get_all()
-        self.doctors_data = doctors
-        self.table.setRowCount(len(doctors))
-        for i, doctor in enumerate(doctors):
-            self.table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(doctor.get("name", ""))))
-            self.table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(doctor.get("specialty", ""))))
-            self.table.setItem(i, 2, QtWidgets.QTableWidgetItem(str(doctor.get("phone", ""))))
-            self.table.setRowHeight(i, 48)
+        self.search_btn = QtWidgets.QPushButton("Tìm kiếm")
+        self.search_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.search_btn.setStyleSheet(
+            "background: #69c0a5; color: white; padding: 10px; border-radius: 6px;"
+            "font-weight: bold; font-size: 14px; margin-top: 8px; border: none;"
+        )
+        left_layout.addWidget(self.search_btn)
 
-        self.table.cellDoubleClicked.connect(self.show_detail)
-        layout.addWidget(self.table)
-        layout.addStretch()
+        self.reset_btn = QtWidgets.QPushButton("Xóa bộ lọc")
+        self.reset_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.reset_btn.setStyleSheet(
+            "background: white; color: #475569; padding: 10px; border-radius: 6px;"
+            "font-weight: bold; font-size: 13px; border: 1px solid #cbd5e1;"
+        )
+        left_layout.addWidget(self.reset_btn)
+        left_layout.addStretch()
+        body_layout.addWidget(left_sidebar)
 
-    def show_detail(self, row, _col):
-        if row < 0 or row >= len(self.doctors_data):
+        # CENTER
+        center_widget = QtWidgets.QWidget()
+        center_layout = QtWidgets.QVBoxLayout(center_widget)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(12)
+
+        center_header = QtWidgets.QHBoxLayout()
+        center_title = QtWidgets.QLabel("Danh sách bác sĩ")
+        center_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b;")
+
+        self.center_info = QtWidgets.QLabel("Đang tải danh sách bác sĩ...")
+        self.center_info.setStyleSheet("font-size: 13px; color: #64748b;")
+
+        self.filter_state = QtWidgets.QLabel("Đang áp dụng bộ lọc")
+        self.filter_state.setStyleSheet(
+            "font-size: 12px; color: #166534; background: #dcfce7;"
+            "padding: 4px 8px; border-radius: 8px;"
+        )
+        self.filter_state.setVisible(False)
+
+        self.sort_combo = QtWidgets.QComboBox()
+        self.sort_combo.setStyleSheet(
+            "padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1;"
+            "font-size: 13px; background: white;"
+        )
+        self.sort_combo.addItem("Mới nhất", "newest")
+        self.sort_combo.addItem("Đánh giá cao nhất", "rating")
+        self.sort_combo.addItem("Nhiều đánh giá nhất", "reviews")
+        self.sort_combo.addItem("Kinh nghiệm nhiều nhất", "experience")
+        self.sort_combo.addItem("Tên A-Z", "name_asc")
+
+        center_header.addWidget(center_title)
+        center_header.addStretch()
+        center_header.addWidget(self.filter_state)
+        center_header.addWidget(self.center_info)
+        center_header.addSpacing(10)
+        center_header.addWidget(self.sort_combo)
+        center_layout.addLayout(center_header)
+
+        self.content_stack = QtWidgets.QStackedWidget()
+
+        self.list_page = QtWidgets.QWidget()
+        list_layout = QtWidgets.QVBoxLayout(self.list_page)
+        list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(10)
+
+        self.scroll_area = QtWidgets.QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.scroll_area.setStyleSheet("background: transparent;")
+
+        self.grid_widget = QtWidgets.QWidget()
+        self.grid_widget.setStyleSheet("background: transparent;")
+        self.grid_layout = QtWidgets.QGridLayout(self.grid_widget)
+        self.grid_layout.setContentsMargins(0, 0, 0, 0)
+        self.grid_layout.setSpacing(15)
+        self.scroll_area.setWidget(self.grid_widget)
+        list_layout.addWidget(self.scroll_area)
+
+        pagination_layout = QtWidgets.QHBoxLayout()
+        self.prev_page_btn = QtWidgets.QPushButton("← Trang trước")
+        self.next_page_btn = QtWidgets.QPushButton("Trang sau →")
+        self.prev_page_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.next_page_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.prev_page_btn.setStyleSheet(
+            "padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;"
+            "background: white; color: #334155;"
+        )
+        self.next_page_btn.setStyleSheet(self.prev_page_btn.styleSheet())
+        self.page_label = QtWidgets.QLabel("Trang 1/1")
+        self.page_label.setStyleSheet("font-size: 12px; color: #64748b;")
+
+        pagination_layout.addWidget(self.prev_page_btn)
+        pagination_layout.addStretch()
+        pagination_layout.addWidget(self.page_label)
+        pagination_layout.addStretch()
+        pagination_layout.addWidget(self.next_page_btn)
+        list_layout.addLayout(pagination_layout)
+
+        self.state_page = QtWidgets.QFrame()
+        self.state_page.setStyleSheet(
+            "background: white; border: 1px solid #e2e8f0; border-radius: 12px;"
+        )
+        state_layout = QtWidgets.QVBoxLayout(self.state_page)
+        state_layout.setContentsMargins(24, 24, 24, 24)
+        state_layout.setSpacing(10)
+        state_layout.addStretch()
+
+        self.state_title = QtWidgets.QLabel("Đang tải danh sách bác sĩ...")
+        self.state_title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.state_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #334155;")
+
+        self.state_desc = QtWidgets.QLabel("")
+        self.state_desc.setWordWrap(True)
+        self.state_desc.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.state_desc.setStyleSheet("font-size: 13px; color: #64748b;")
+
+        self.retry_btn = QtWidgets.QPushButton("Tải lại")
+        self.retry_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.retry_btn.setStyleSheet(
+            "background: #69c0a5; color: white; padding: 10px 18px; border-radius: 8px;"
+            "font-weight: bold; border: none;"
+        )
+
+        self.state_action_btn = QtWidgets.QPushButton("Đăng nhập lại")
+        self.state_action_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.state_action_btn.setStyleSheet(
+            "background: white; color: #2563eb; padding: 8px 16px; border-radius: 8px;"
+            "font-weight: bold; border: 1px solid #93c5fd;"
+        )
+
+        state_layout.addWidget(self.state_title)
+        state_layout.addWidget(self.state_desc)
+        state_layout.addWidget(self.retry_btn, 0, QtCore.Qt.AlignmentFlag.AlignCenter)
+        state_layout.addWidget(self.state_action_btn, 0, QtCore.Qt.AlignmentFlag.AlignCenter)
+        state_layout.addStretch()
+
+        self.content_stack.addWidget(self.list_page)
+        self.content_stack.addWidget(self.state_page)
+        center_layout.addWidget(self.content_stack)
+        body_layout.addWidget(center_widget, 1)
+
+        # RIGHT SIDEBAR
+        right_sidebar_layout = QtWidgets.QVBoxLayout()
+        right_sidebar_layout.setSpacing(20)
+
+        quick_items = [
+            ("📅", "Đặt lịch khám", "booking"),
+            ("🗓️", "Lịch hẹn của tôi", "appointments"),
+            ("🏥", "Lịch sử khám bệnh", "history"),
+            ("🔬", "Kết quả xét nghiệm", "lab_results"),
+            ("📄", "Đơn thuốc của tôi", "prescriptions"),
+        ]
+        right_sidebar_layout.addWidget(self.create_right_panel("Truy cập nhanh", quick_items))
+
+        self.specialty_panel_host = QtWidgets.QWidget()
+        self.specialty_panel_layout = QtWidgets.QVBoxLayout(self.specialty_panel_host)
+        self.specialty_panel_layout.setContentsMargins(0, 0, 0, 0)
+        self.specialty_panel_layout.setSpacing(0)
+        self.specialty_panel = None
+        self.render_specialty_panel([])
+        right_sidebar_layout.addWidget(self.specialty_panel_host)
+        right_sidebar_layout.addStretch()
+
+        right_widget = QtWidgets.QWidget()
+        right_widget.setFixedWidth(250)
+        right_widget.setLayout(right_sidebar_layout)
+        body_layout.addWidget(right_widget)
+
+        self.bind_events()
+
+    def create_filter_combo(self, parent_layout, label_text, items):
+        label = QtWidgets.QLabel(label_text)
+        label.setStyleSheet(
+            "font-size: 13px; font-weight: bold; color: #475569; margin-top: 4px;"
+        )
+        combo = QtWidgets.QComboBox()
+        combo.addItems(items)
+        combo.setStyleSheet(
+            "padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;"
+            "font-size: 13px; background: white;"
+        )
+        parent_layout.addWidget(label)
+        parent_layout.addWidget(combo)
+        return combo
+
+    def create_right_panel(self, title_text, items, is_specialty=False):
+        panel = QtWidgets.QFrame()
+        panel.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #eef0f2;")
+        layout = QtWidgets.QVBoxLayout(panel)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(8)
+
+        title = QtWidgets.QLabel(title_text)
+        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b; margin-bottom: 6px;")
+        layout.addWidget(title)
+
+        for item in items:
+            icon, text = item[0], item[1]
+            meta = item[2] if len(item) > 2 else ""
+            suffix = f" ({meta})" if is_specialty and meta else ""
+
+            button = QtWidgets.QPushButton(f"{icon}  {text}{suffix}   ›")
+            button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+            button.setStyleSheet(
+                "QPushButton {"
+                " text-align: left; padding: 8px 10px; border-radius: 8px;"
+                " border: 1px solid transparent; background: transparent;"
+                " color: #475569; font-size: 12px;"
+                "}"
+                "QPushButton:hover {"
+                " background: #f8fafc; border-color: #e2e8f0;"
+                "}"
+            )
+
+            if is_specialty:
+                button.clicked.connect(
+                    lambda _, value=text: self.apply_specialty_from_sidebar(value)
+                )
+            else:
+                button.clicked.connect(
+                    lambda _, action_key=meta: self.handle_quick_access(action_key)
+                )
+
+            layout.addWidget(button)
+
+        if is_specialty:
+            view_all = QtWidgets.QPushButton("Xem tất cả →")
+            view_all.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+            view_all.setStyleSheet(
+                "QPushButton { text-align: left; border: none; color: #2563eb;"
+                " font-size: 12px; font-weight: bold; padding: 6px 2px; }"
+                "QPushButton:hover { color: #1d4ed8; }"
+            )
+            view_all.clicked.connect(self.reset_specialty_filter)
+            layout.addWidget(view_all)
+
+        return panel
+
+    def bind_events(self):
+        self.search_btn.clicked.connect(lambda: self.apply_filters(reset_page=True))
+        self.search_icon_btn.clicked.connect(lambda: self.apply_filters(reset_page=True))
+        self.search_input.returnPressed.connect(lambda: self.apply_filters(reset_page=True))
+        self.search_input.textChanged.connect(self.schedule_auto_filter)
+
+        self.specialty_combo.currentIndexChanged.connect(
+            lambda _: self.apply_filters(reset_page=True)
+        )
+        self.hospital_combo.currentIndexChanged.connect(
+            lambda _: self.apply_filters(reset_page=True)
+        )
+        self.experience_combo.currentIndexChanged.connect(
+            lambda _: self.apply_filters(reset_page=True)
+        )
+        self.sort_combo.currentIndexChanged.connect(lambda _: self.apply_filters())
+
+        self.reset_btn.clicked.connect(self.reset_filters)
+        self.prev_page_btn.clicked.connect(self.go_to_previous_page)
+        self.next_page_btn.clicked.connect(self.go_to_next_page)
+        self.retry_btn.clicked.connect(self.load_doctors)
+
+    def schedule_auto_filter(self):
+        self.filter_timer.start(300)
+
+    def load_doctors(self):
+        self.show_state(
+            "loading",
+            "Đang tải danh sách bác sĩ...",
+            "Vui lòng đợi trong giây lát.",
+        )
+        QtCore.QTimer.singleShot(80, self.fetch_doctors)
+
+    def fetch_doctors(self):
+        try:
+            doctors = DoctorController.get_all()
+        except PermissionError:
+            self.show_state(
+                "unauthorized",
+                "Phiên đăng nhập đã hết hạn",
+                "Vui lòng đăng nhập lại để tiếp tục sử dụng hệ thống.",
+            )
+            return
+        except Exception as error:
+            self.last_error_message = str(error)
+            self.show_state(
+                "error",
+                "Không thể tải danh sách bác sĩ",
+                "Đã xảy ra lỗi khi kết nối dữ liệu. Vui lòng thử lại.",
+            )
             return
 
-        doctor = self.doctors_data[row]
+        if doctors is None:
+            doctors = []
+
+        self.all_doctors = self.decorate_doctors(doctors)
+        self.refresh_filter_options()
+        self.apply_filters(reset_page=True)
+
+    def decorate_doctors(self, doctors):
+        decorated = []
+        for index, doctor in enumerate(doctors):
+            doctor_id = doctor.get("doctor_id", 0)
+            try:
+                doctor_id_int = int(doctor_id)
+            except (TypeError, ValueError):
+                doctor_id_int = 0
+
+            specialty = str(doctor.get("specialty", "")).strip()
+            if not specialty:
+                specialty = "Chưa cập nhật"
+
+            hospital = self.facility_by_specialty.get(
+                specialty,
+                "Bệnh viện Đa khoa CarePlus",
+            )
+
+            experience_years = 6 + (doctor_id_int % 11)
+            rating = round(min(4.9, 4.3 + ((doctor_id_int + index) % 7) * 0.1), 1)
+            reviews = 20 + doctor_id_int * 13 + index * 4
+
+            decorated.append(
+                {
+                    **doctor,
+                    "specialty": specialty,
+                    "experience_years": experience_years,
+                    "experience_label": f"{experience_years} năm KN",
+                    "rating": rating,
+                    "reviews": reviews,
+                    "hospital": hospital,
+                    "order": doctor_id_int,
+                }
+            )
+        return decorated
+
+    def refresh_filter_options(self):
+        selected_specialty = self.specialty_combo.currentText()
+        selected_hospital = self.hospital_combo.currentText()
+
+        specialties = sorted(
+            {
+                str(doctor.get("specialty", "")).strip()
+                for doctor in self.all_doctors
+                if str(doctor.get("specialty", "")).strip()
+            }
+        )
+        hospitals = sorted(
+            {
+                str(doctor.get("hospital", "")).strip()
+                for doctor in self.all_doctors
+                if str(doctor.get("hospital", "")).strip()
+            }
+        )
+
+        self.replace_combo_items(
+            self.specialty_combo,
+            ["Tất cả chuyên khoa", *specialties],
+            selected_specialty,
+        )
+        self.replace_combo_items(
+            self.hospital_combo,
+            ["Tất cả cơ sở", *hospitals],
+            selected_hospital,
+        )
+
+        specialty_count = {}
+        for doctor in self.all_doctors:
+            specialty = str(doctor.get("specialty", "")).strip()
+            if specialty:
+                specialty_count[specialty] = specialty_count.get(specialty, 0) + 1
+
+        specialty_items = [
+            (
+                self.specialty_icons.get(name, "🩺"),
+                name,
+                str(count),
+            )
+            for name, count in sorted(
+                specialty_count.items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+        ]
+        self.render_specialty_panel(specialty_items)
+
+    def replace_combo_items(self, combo, items, selected_value):
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems(items)
+        target_index = combo.findText(selected_value)
+        combo.setCurrentIndex(target_index if target_index >= 0 else 0)
+        combo.blockSignals(False)
+
+    def render_specialty_panel(self, specialty_items):
+        if self.specialty_panel is not None:
+            self.specialty_panel_layout.removeWidget(self.specialty_panel)
+            self.specialty_panel.deleteLater()
+
+        self.specialty_panel = self.create_right_panel(
+            "Chuyên khoa",
+            specialty_items,
+            is_specialty=True,
+        )
+        self.specialty_panel_layout.addWidget(self.specialty_panel)
+
+    def apply_filters(self, reset_page=False):
+        if reset_page:
+            self.current_page = 1
+
+        keyword = self.search_input.text().strip().lower()
+        selected_specialty = self.specialty_combo.currentText()
+        selected_hospital = self.hospital_combo.currentText()
+        selected_experience = self.experience_combo.currentText()
+
+        filtered = list(self.all_doctors)
+
+        if keyword:
+            filtered = [
+                doctor
+                for doctor in filtered
+                if keyword in str(doctor.get("name", "")).lower()
+            ]
+
+        if selected_specialty != "Tất cả chuyên khoa":
+            filtered = [
+                doctor
+                for doctor in filtered
+                if str(doctor.get("specialty", "")) == selected_specialty
+            ]
+
+        if selected_hospital != "Tất cả cơ sở":
+            filtered = [
+                doctor
+                for doctor in filtered
+                if str(doctor.get("hospital", "")) == selected_hospital
+            ]
+
+        if selected_experience == "Trên 10 năm":
+            filtered = [
+                doctor for doctor in filtered if doctor.get("experience_years", 0) > 10
+            ]
+        elif selected_experience == "Trên 5 năm":
+            filtered = [
+                doctor for doctor in filtered if doctor.get("experience_years", 0) > 5
+            ]
+        elif selected_experience == "Dưới 5 năm":
+            filtered = [
+                doctor for doctor in filtered if doctor.get("experience_years", 0) < 5
+            ]
+
+        sort_key = self.sort_combo.currentData()
+        if sort_key == "newest":
+            filtered.sort(key=lambda doctor: doctor.get("order", 0), reverse=True)
+        elif sort_key == "rating":
+            filtered.sort(key=lambda doctor: doctor.get("rating", 0), reverse=True)
+        elif sort_key == "reviews":
+            filtered.sort(key=lambda doctor: doctor.get("reviews", 0), reverse=True)
+        elif sort_key == "experience":
+            filtered.sort(
+                key=lambda doctor: doctor.get("experience_years", 0), reverse=True
+            )
+        elif sort_key == "name_asc":
+            filtered.sort(key=lambda doctor: str(doctor.get("name", "")).lower())
+
+        self.filtered_doctors = filtered
+        self.update_filter_state()
+        self.render_current_page()
+
+    def update_filter_state(self):
+        has_filter = (
+            bool(self.search_input.text().strip())
+            or self.specialty_combo.currentIndex() > 0
+            or self.hospital_combo.currentIndex() > 0
+            or self.experience_combo.currentIndex() > 0
+        )
+        self.filter_state.setVisible(has_filter)
+
+    def render_current_page(self):
+        total = len(self.filtered_doctors)
+        if total == 0:
+            self.center_info.setText("Không tìm thấy bác sĩ")
+            self.page_label.setText("Trang 0/0")
+            self.prev_page_btn.setEnabled(False)
+            self.next_page_btn.setEnabled(False)
+            self.show_state(
+                "empty",
+                "Không tìm thấy bác sĩ phù hợp",
+                "Vui lòng thử từ khóa hoặc bộ lọc khác.",
+            )
+            return
+
+        total_pages = max((total + self.page_size - 1) // self.page_size, 1)
+        if self.current_page > total_pages:
+            self.current_page = total_pages
+
+        start = (self.current_page - 1) * self.page_size
+        end = min(start + self.page_size, total)
+        self.doctors_data = self.filtered_doctors[start:end]
+
+        self.clear_grid_layout()
+        col_count = 3
+        for index, doctor in enumerate(self.doctors_data):
+            card = self.create_doctor_card(doctor)
+            self.grid_layout.addWidget(card, index // col_count, index % col_count)
+
+        self.grid_layout.setRowStretch(self.grid_layout.rowCount(), 1)
+
+        self.center_info.setText(f"Hiển thị {start + 1} - {end} trong {total} bác sĩ")
+        self.page_label.setText(f"Trang {self.current_page}/{total_pages}")
+        self.prev_page_btn.setEnabled(self.current_page > 1)
+        self.next_page_btn.setEnabled(self.current_page < total_pages)
+        self.content_stack.setCurrentWidget(self.list_page)
+
+    def clear_grid_layout(self):
+        while self.grid_layout.count():
+            item = self.grid_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def show_state(self, state, title, description):
+        self.state_title.setText(title)
+        self.state_desc.setText(description)
+        self.retry_btn.setVisible(state in {"loading", "error", "empty"})
+        self.retry_btn.setEnabled(state != "loading")
+        self.state_action_btn.setVisible(state == "unauthorized")
+
+        try:
+            self.state_action_btn.clicked.disconnect()
+        except TypeError:
+            pass
+
+        if state == "unauthorized":
+            if callable(self.on_logout):
+                self.state_action_btn.clicked.connect(self.on_logout)
+            else:
+                self.state_action_btn.clicked.connect(
+                    lambda: QtWidgets.QMessageBox.information(
+                        self,
+                        "Thông báo",
+                        "Vui lòng đăng nhập lại để tiếp tục.",
+                    )
+                )
+
+        self.content_stack.setCurrentWidget(self.state_page)
+
+    def create_doctor_card(self, doctor):
+        card = QtWidgets.QFrame()
+        card.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #eef0f2;")
+        card.setFixedSize(230, 315)
+
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(6)
+
+        top_layout = QtWidgets.QHBoxLayout()
+
+        avatar_btn = QtWidgets.QPushButton("🧑‍⚕️")
+        avatar_btn.setFixedSize(50, 50)
+        avatar_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        avatar_btn.setStyleSheet(
+            "background: #f1f5f9; border-radius: 25px; font-size: 24px;"
+            "border: 2px solid #e2e8f0;"
+        )
+        avatar_btn.clicked.connect(lambda: self.open_doctor_profile(doctor))
+
+        badge = QtWidgets.QLabel(doctor.get("experience_label", "0 năm KN"))
+        badge.setStyleSheet(
+            "background: #d1fae5; color: #059669; border-radius: 8px; padding: 4px 8px;"
+            "font-size: 11px; font-weight: bold;"
+        )
+        badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        top_layout.addWidget(avatar_btn)
+        top_layout.addStretch()
+        top_layout.addWidget(badge, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(top_layout)
+
+        name_btn = QtWidgets.QPushButton(f"BS. {doctor.get('name', 'N/A')}")
+        name_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        name_btn.setStyleSheet(
+            "QPushButton {"
+            " text-align: left; border: none; padding: 0;"
+            " font-size: 14px; font-weight: bold; color: #1e293b;"
+            "}"
+            "QPushButton:hover { color: #0f766e; }"
+        )
+        name_btn.clicked.connect(lambda: self.open_doctor_profile(doctor))
+        layout.addWidget(name_btn)
+
+        specialty = QtWidgets.QLabel(doctor.get("specialty", "Chuyên khoa"))
+        specialty.setStyleSheet("font-size: 12px; color: #059669; font-weight: bold;")
+        layout.addWidget(specialty)
+
+        hospital = QtWidgets.QLabel(doctor.get("hospital", "Bệnh viện CarePlus"))
+        hospital.setStyleSheet("font-size: 11px; color: #64748b;")
+        hospital.setWordWrap(True)
+        layout.addWidget(hospital)
+
+        rating_btn = QtWidgets.QPushButton(
+            f"⭐ {doctor.get('rating', 0)} ({doctor.get('reviews', 0)} đánh giá)"
+        )
+        rating_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        rating_btn.setStyleSheet(
+            "QPushButton { text-align: left; border: none; padding: 0;"
+            " font-size: 11px; color: #d97706; }"
+            "QPushButton:hover { color: #b45309; }"
+        )
+        rating_btn.clicked.connect(lambda: self.open_doctor_profile(doctor, open_reviews=True))
+        layout.addWidget(rating_btn)
+
+        layout.addStretch()
+
+        view_profile_btn = QtWidgets.QPushButton("Xem hồ sơ")
+        view_profile_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        view_profile_btn.setStyleSheet(
+            "QPushButton {"
+            " background: white; border: 1px solid #69c0a5; color: #69c0a5;"
+            " border-radius: 6px; padding: 7px; font-weight: bold; font-size: 12px;"
+            "}"
+            "QPushButton:hover { background: #f0fdf4; }"
+        )
+        view_profile_btn.clicked.connect(lambda: self.open_doctor_profile(doctor))
+        layout.addWidget(view_profile_btn)
+
+        book_btn = QtWidgets.QPushButton("Đặt lịch")
+        book_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        book_btn.setStyleSheet(
+            "QPushButton {"
+            " background: #69c0a5; border: none; color: white;"
+            " border-radius: 6px; padding: 7px; font-weight: bold; font-size: 12px;"
+            "}"
+            "QPushButton:hover { background: #58a68e; }"
+        )
+        book_btn.clicked.connect(lambda: self.book_with_doctor(doctor))
+        layout.addWidget(book_btn)
+
+        view_slots_btn = QtWidgets.QPushButton("Xem lịch trống")
+        view_slots_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        view_slots_btn.setStyleSheet(
+            "QPushButton {"
+            " background: transparent; border: none; color: #2563eb;"
+            " font-size: 12px; font-weight: bold;"
+            "}"
+            "QPushButton:hover { color: #1d4ed8; }"
+        )
+        view_slots_btn.clicked.connect(lambda: self.book_with_doctor(doctor, only_view_slots=True))
+        layout.addWidget(view_slots_btn)
+
+        return card
+
+    def open_doctor_profile(self, doctor, open_reviews=False):
+        if open_reviews:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Đánh giá bác sĩ",
+                f"BS. {doctor.get('name', '')} hiện có {doctor.get('reviews', 0)} đánh giá, điểm trung bình {doctor.get('rating', 0)} sao.",
+            )
+
+        if callable(self.on_open_doctor_profile):
+            self.on_open_doctor_profile(doctor)
+            return
+
+        self.show_detail_by_doctor(doctor)
+
+    def show_detail_by_doctor(self, doctor):
         fields = [
             ("Mã bác sĩ", doctor.get("doctor_id", "")),
             ("Họ tên", doctor.get("name", "")),
             ("Chuyên khoa", doctor.get("specialty", "")),
+            ("Cơ sở khám", doctor.get("hospital", "")),
+            ("Kinh nghiệm", doctor.get("experience_label", "")),
             ("SĐT", doctor.get("phone", "")),
             ("Email", doctor.get("email", "")),
         ]
         dialog = DetailDialog("Chi tiết bác sĩ", fields, self)
         dialog.exec()
+
+    def book_with_doctor(self, doctor, only_view_slots=False):
+        if only_view_slots and callable(self.on_navigate):
+            self.on_navigate("view_slots", doctor)
+            return
+
+        if callable(self.on_book_doctor):
+            self.on_book_doctor(doctor)
+            return
+
+        if callable(self.on_navigate):
+            self.on_navigate("booking", doctor)
+            return
+
+        message = (
+            f"Mở lịch trống của BS. {doctor.get('name', '')}."
+            if only_view_slots
+            else f"Bắt đầu đặt lịch với BS. {doctor.get('name', '')}."
+        )
+        QtWidgets.QMessageBox.information(self, "Thông báo", message)
+
+    def handle_quick_access(self, action_key):
+        if action_key in {"booking", "appointments", "history"} and callable(self.on_navigate):
+            self.on_navigate(action_key)
+            return
+
+        if action_key == "lab_results":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Kết quả xét nghiệm",
+                "Chức năng xem kết quả xét nghiệm đang được hoàn thiện.",
+            )
+            return
+
+        if action_key == "prescriptions":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Đơn thuốc của tôi",
+                "Chức năng xem đơn thuốc đang được hoàn thiện.",
+            )
+            return
+
+        QtWidgets.QMessageBox.information(
+            self,
+            "Thông báo",
+            "Chức năng đang được cập nhật.",
+        )
+
+    def apply_specialty_from_sidebar(self, specialty_name):
+        index = self.specialty_combo.findText(specialty_name)
+        if index >= 0:
+            self.specialty_combo.setCurrentIndex(index)
+
+    def reset_specialty_filter(self):
+        self.specialty_combo.setCurrentIndex(0)
+
+    def reset_filters(self):
+        self.search_input.clear()
+        self.specialty_combo.setCurrentIndex(0)
+        self.hospital_combo.setCurrentIndex(0)
+        self.experience_combo.setCurrentIndex(0)
+        self.sort_combo.setCurrentIndex(0)
+        self.apply_filters(reset_page=True)
+
+    def go_to_previous_page(self):
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.render_current_page()
+
+    def go_to_next_page(self):
+        total_pages = max((len(self.filtered_doctors) + self.page_size - 1) // self.page_size, 1)
+        if self.current_page < total_pages:
+            self.current_page += 1
+            self.render_current_page()
+
+    def show_detail(self, row, _col):
+        if row < 0 or row >= len(self.doctors_data):
+            return
+        self.show_detail_by_doctor(self.doctors_data[row])
 
 
 class NewsPage(QtWidgets.QWidget):
@@ -442,17 +1263,26 @@ class PatientView(QtWidgets.QWidget):
         nav_layout = QtWidgets.QHBoxLayout(navbar)
         nav_layout.setContentsMargins(40, 0, 40, 0)
 
-        logo = QtWidgets.QLabel("⊕ CarePlus")
-        logo.setStyleSheet("color: #69c0a5; font-size: 24px; font-weight: 900;")
+        logo = QtWidgets.QPushButton("⊕ CarePlus")
+        logo.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        logo.setStyleSheet(
+            "QPushButton {"
+            " color: #69c0a5; font-size: 24px; font-weight: 900;"
+            " border: none; background: transparent; padding: 0;"
+            "}"
+            "QPushButton:hover { color: #58a68e; }"
+        )
+        logo.clicked.connect(lambda: self.switch_page(0))
         nav_layout.addWidget(logo)
         nav_layout.addStretch()
 
         # Tạo các nút điều hướng
         self.btn_home = QtWidgets.QPushButton("Trang chủ")
         self.btn_service = QtWidgets.QPushButton("Dịch vụ")
-        self.btn_booking = QtWidgets.QPushButton("Đặt lịch khám")
+        self.btn_doctor = QtWidgets.QPushButton("Bác sĩ")
+        self.btn_news = QtWidgets.QPushButton("Tin tức")
 
-        self.nav_buttons = [self.btn_home, self.btn_service, self.btn_booking]
+        self.nav_buttons = [self.btn_home, self.btn_service, self.btn_doctor, self.btn_news]
         for btn in self.nav_buttons:
             btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet("""
@@ -462,13 +1292,23 @@ class PatientView(QtWidgets.QWidget):
             nav_layout.addWidget(btn)
 
         nav_layout.addStretch()
-        user_info = QtWidgets.QLabel(f"👤 {username}")
-        user_info.setStyleSheet("font-weight: 700; color: #1e293b; margin-right: 10px;")
-        nav_layout.addWidget(user_info)
+        self.user_info_btn = QtWidgets.QPushButton(f"👤 {username} ▿")
+        self.user_info_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.user_info_btn.setStyleSheet(
+            "QPushButton {"
+            " border: none; background: #f0f7f6; border-radius: 12px;"
+            " padding: 8px 12px; font-weight: 700; color: #1e293b;"
+            "}"
+            "QPushButton:hover { background: #e1f2ee; }"
+        )
+        self.user_info_btn.clicked.connect(self.show_user_menu)
+        nav_layout.addWidget(self.user_info_btn)
         
-        logout = QtWidgets.QPushButton("Đăng xuất")
-        logout.setStyleSheet("background:#ff7875; color:white; border-radius:8px; padding: 8px 18px; font-weight: bold; border: none;")
-        nav_layout.addWidget(logout)
+        self.logout_btn = QtWidgets.QPushButton("Đăng xuất")
+        self.logout_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.logout_btn.setStyleSheet("background:#ff7875; color:white; border-radius:8px; padding: 8px 18px; font-weight: bold; border: none;")
+        self.logout_btn.clicked.connect(self.logout)
+        nav_layout.addWidget(self.logout_btn)
         
         self.main_layout.addWidget(navbar)
 
@@ -477,16 +1317,27 @@ class PatientView(QtWidgets.QWidget):
         
         self.home_page = HomePage(self.username, self)
         self.service_page = ServicePage()
+        self.doctor_page = DoctorPage(
+            on_navigate=self.handle_doctor_navigation,
+            on_logout=self.logout,
+            on_open_profile=lambda: self.show_account_placeholder("Hồ sơ cá nhân"),
+            on_update_profile=lambda: self.show_account_placeholder("Cập nhật thông tin"),
+            on_change_password=lambda: self.show_account_placeholder("Đổi mật khẩu"),
+        )
+        self.news_page = NewsPage()
         
         self.content_stack.addWidget(self.home_page)    # Index 0
         self.content_stack.addWidget(self.service_page) # Index 1
+        self.content_stack.addWidget(self.doctor_page)  # Index 2
+        self.content_stack.addWidget(self.news_page)    # Index 3
         
         self.main_layout.addWidget(self.content_stack)
 
         # Kết nối sự kiện bấm nút để chuyển trang và đổi màu nút tích cực
         self.btn_home.clicked.connect(lambda: self.switch_page(0))
         self.btn_service.clicked.connect(lambda: self.switch_page(1))
-        self.btn_booking.clicked.connect(lambda: self.switch_page(0))
+        self.btn_doctor.clicked.connect(lambda: self.switch_page(2))
+        self.btn_news.clicked.connect(lambda: self.switch_page(3))
 
         # Mặc định trang chủ được chọn
         self.switch_page(0)
@@ -494,11 +1345,110 @@ class PatientView(QtWidgets.QWidget):
     def switch_page(self, index):
         self.content_stack.setCurrentIndex(index)
         # Đổi màu text để người dùng biết mình đang ở trang nào
-        for i, btn in enumerate([self.btn_home, self.btn_service, self.btn_booking]):
-            if i == index or (index == 0 and i == 2): # Booking cũng dẫn về trang chủ
+        for i, btn in enumerate(self.nav_buttons):
+            if i == index:
                 btn.setStyleSheet("border:none; background:transparent; font-size: 15px; font-weight: 800; color: #69c0a5; border-bottom: 2px solid #69c0a5;")
             else:
                 btn.setStyleSheet("border:none; background:transparent; font-size: 15px; font-weight: 700; color: #64748b;")
+
+    def handle_doctor_navigation(self, action_key, doctor=None):
+        if action_key == "home":
+            self.switch_page(0)
+            return
+        if action_key == "service":
+            self.switch_page(1)
+            return
+        if action_key == "doctor":
+            self.switch_page(2)
+            return
+        if action_key == "news":
+            self.switch_page(3)
+            return
+
+        if action_key == "booking":
+            self.switch_page(0)
+            doctor_name = doctor.get("name", "") if isinstance(doctor, dict) else ""
+            message = (
+                f"Đã chuyển về Trang chủ để bạn đặt lịch với BS. {doctor_name}."
+                if doctor_name
+                else "Đã chuyển về Trang chủ để bạn đặt lịch khám."
+            )
+            QtWidgets.QMessageBox.information(self, "Đặt lịch khám", message)
+            return
+
+        if action_key == "view_slots":
+            self.switch_page(0)
+            doctor_name = doctor.get("name", "") if isinstance(doctor, dict) else ""
+            QtWidgets.QMessageBox.information(
+                self,
+                "Lịch trống bác sĩ",
+                f"Đã chuyển về Trang chủ để xem lịch trống của BS. {doctor_name}.",
+            )
+            return
+
+        if action_key in {"appointments", "history"}:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Thông báo",
+                "Danh sách lịch hẹn và lịch sử khám đầy đủ đang có trên giao diện bệnh nhân chính.",
+            )
+            return
+
+        if action_key == "profile":
+            self.show_account_placeholder("Hồ sơ cá nhân")
+            return
+        if action_key == "update_profile":
+            self.show_account_placeholder("Cập nhật thông tin")
+            return
+        if action_key == "change_password":
+            self.show_account_placeholder("Đổi mật khẩu")
+            return
+
+    def show_user_menu(self):
+        menu = QtWidgets.QMenu(self)
+        menu.setStyleSheet(
+            "QMenu { background: white; color: #333; border: 1px solid #eee; }"
+            "QMenu::item { padding: 10px 24px; }"
+            "QMenu::item:selected { background: #f8faff; color: #69c0a5; }"
+        )
+
+        profile_act = menu.addAction("👤 Hồ sơ cá nhân")
+        update_act = menu.addAction("🛠️ Cập nhật thông tin")
+        password_act = menu.addAction("🔒 Đổi mật khẩu")
+        menu.addSeparator()
+        logout_act = menu.addAction("🚪 Đăng xuất")
+
+        profile_act.triggered.connect(lambda: self.handle_doctor_navigation("profile"))
+        update_act.triggered.connect(lambda: self.handle_doctor_navigation("update_profile"))
+        password_act.triggered.connect(lambda: self.handle_doctor_navigation("change_password"))
+        logout_act.triggered.connect(self.logout)
+
+        menu.exec(self.user_info_btn.mapToGlobal(QtCore.QPoint(0, self.user_info_btn.height() + 5)))
+
+    def show_account_placeholder(self, title):
+        QtWidgets.QMessageBox.information(
+            self,
+            title,
+            f"Chức năng '{title}' đang được triển khai chi tiết trên giao diện bệnh nhân chính.",
+        )
+
+    def logout(self):
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Đăng xuất",
+            "Bạn có chắc muốn đăng xuất không?",
+            QtWidgets.QMessageBox.StandardButton.Yes
+            | QtWidgets.QMessageBox.StandardButton.No,
+        )
+
+        if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+
+        self.close()
+        from views.login_view import LoginView
+
+        self.login_window = LoginView()
+        self.login_window.show()
 
     # Logic cũ giữ nguyên
     def select_time(self, btn, page):
