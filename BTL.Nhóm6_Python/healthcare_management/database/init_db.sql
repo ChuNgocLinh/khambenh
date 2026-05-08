@@ -42,6 +42,29 @@ CREATE TABLE IF NOT EXISTS Doctors (
 );
 
 -- ========================================
+-- 3.1 BẢNG USER SETTINGS (CÀI ĐẶT CÁ NHÂN)
+-- ========================================
+CREATE TABLE IF NOT EXISTS UserSettings (
+    user_id INT PRIMARY KEY,
+    gender VARCHAR(10) DEFAULT 'Nam',
+    dob DATE,
+    address VARCHAR(255) DEFAULT '',
+    avatar_path VARCHAR(255) DEFAULT '',
+    notify_new_appointment BOOLEAN DEFAULT TRUE,
+    notify_reminder BOOLEAN DEFAULT TRUE,
+    notify_system BOOLEAN DEFAULT TRUE,
+    theme_mode VARCHAR(20) DEFAULT 'Sáng',
+    font_size VARCHAR(20) DEFAULT 'Trung bình',
+    display_density VARCHAR(20) DEFAULT 'Thoải mái',
+    language VARCHAR(20) DEFAULT 'Tiếng Việt',
+    backup_mode VARCHAR(20) DEFAULT 'cloud',
+    last_backup_at DATETIME NULL,
+    last_sync_at DATETIME NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)
+);
+
+-- ========================================
 -- 4. BẢNG SERVICES (DỊCH VỤ KHÁM)
 -- ========================================
 CREATE TABLE IF NOT EXISTS Services (
@@ -153,9 +176,9 @@ CREATE INDEX idx_invoice_payment_id ON Invoices(payment_id);
 -- 11. INSERT DỮ LIỆU MẪU
 -- ========================================
 INSERT IGNORE INTO Users (username, password, role) VALUES 
-('admin','123456','admin'),
-('doctor1','123456','doctor'),
-('staff1','123456','patient');
+('admin','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','admin'),
+('doctor1','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','doctor'),
+('staff1','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','patient');
 
 INSERT IGNORE INTO Patients (name, dob, gender, phone, address, user_id) VALUES
 ('Nguyễn Văn A','2000-01-01','Nam','0123456789','Hà Nội', 3),
