@@ -186,7 +186,9 @@ class BaseManagementView(QtWidgets.QWidget):
         toolbar = QtWidgets.QHBoxLayout()
         self.search_input = QtWidgets.QLineEdit()
         self.search_input.setPlaceholderText("Tìm kiếm...")
-        self.search_input.setStyleSheet("padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px;")
+        self.search_input.setStyleSheet(
+            "padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; color: #1f2937; background: white;"
+        )
         toolbar.addWidget(self.search_input)
         
         self.btn_search = QtWidgets.QPushButton("🔍 Tìm kiếm")
@@ -534,4 +536,3 @@ class ReportStatsView(QtWidgets.QWidget):
                 
         self.total_revenue.setText(f"Tổng doanh thu: {total_rev:,.0f} VND")
         self.total_paid.setText(f"Hóa đơn đã thanh toán: {paid_count}")
-

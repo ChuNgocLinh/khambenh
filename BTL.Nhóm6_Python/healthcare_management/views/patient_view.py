@@ -130,7 +130,7 @@ class DoctorPage(QtWidgets.QWidget):
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setStyleSheet(
             """
-            QTableWidget { background: white; border-radius: 12px; border: 1px solid #eef0f2; font-size: 14px; }
+            QTableWidget { background: white; border-radius: 12px; border: 1px solid #eef0f2; font-size: 14px; color: #1f2937; }
             QHeaderView::section { background-color: #f8f9fa; padding: 12px; font-weight: bold; border: none; border-bottom: 2px solid #69c0a5; }
             QTableWidget::item { padding: 12px; border-bottom: 1px solid #f1f5f9; }
             """
@@ -255,7 +255,7 @@ class HistoryPage(QtWidgets.QWidget):
         self.table.setHorizontalHeaderLabels(["Ngày khám", "Bác sĩ", "Chẩn đoán", "Điều trị"])
         self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.table.setStyleSheet("""
-            QTableWidget { background: white; border-radius: 12px; border: 1px solid #eef0f2; font-size: 14px; }
+            QTableWidget { background: white; border-radius: 12px; border: 1px solid #eef0f2; font-size: 14px; color: #1f2937; }
             QHeaderView::section { background-color: #f8f9fa; padding: 12px; font-weight: bold; border: none; border-bottom: 2px solid #69c0a5; }
             QTableWidget::item { padding: 15px; border-bottom: 1px solid #f1f5f9; }
         """)

@@ -20,7 +20,9 @@ class BaseDoctorView(QtWidgets.QWidget):
         toolbar = QtWidgets.QHBoxLayout()
         self.search_input = QtWidgets.QLineEdit()
         self.search_input.setPlaceholderText("Tìm kiếm...")
-        self.search_input.setStyleSheet("padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px;")
+        self.search_input.setStyleSheet(
+            "padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; color: #1f2937; background: white;"
+        )
         toolbar.addWidget(self.search_input)
         
         self.btn_search = QtWidgets.QPushButton("🔍 Tìm kiếm")
@@ -101,7 +103,7 @@ class PatientCreateDialog(QtWidgets.QDialog):
         ]
         for widget in widgets:
             widget.setStyleSheet(
-                "padding: 8px; border-radius: 6px; border: 1px solid #dbe2ea; font-size: 13px;"
+                "padding: 8px; border-radius: 6px; border: 1px solid #dbe2ea; font-size: 13px; color: #1f2937; background: white;"
             )
 
         form.addRow("Họ tên:", self.name_input)
@@ -232,7 +234,7 @@ class PatientEditDialog(QtWidgets.QDialog):
             self.address_input,
         ]:
             widget.setStyleSheet(
-                "padding: 8px; border-radius: 6px; border: 1px solid #dbe2ea; font-size: 13px;"
+                "padding: 8px; border-radius: 6px; border: 1px solid #dbe2ea; font-size: 13px; color: #1f2937; background: white;"
             )
 
         form.addRow("Họ tên:", self.name_input)
@@ -318,7 +320,7 @@ class PatientRecordDialog(QtWidgets.QDialog):
         table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         table.setStyleSheet(
-            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; color: #1f2937; }"
             "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
@@ -724,7 +726,7 @@ class PrescriptionView(BaseDoctorView):
             label = QtWidgets.QLabel(title)
             label.setStyleSheet("color: #475569; font-size: 12px; font-weight: 700;")
             widget.setStyleSheet(
-                "padding: 7px 8px; border-radius: 6px; border: 1px solid #dbe2ea; background: white;"
+                "padding: 7px 8px; border-radius: 6px; border: 1px solid #dbe2ea; background: white; color: #1f2937;"
             )
             block.addWidget(label)
             block.addWidget(widget)
@@ -1003,7 +1005,7 @@ class PrescriptionView(BaseDoctorView):
         table.setShowGrid(False)
         table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setStyleSheet(
-            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; color: #1f2937; }"
             "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
@@ -1112,14 +1114,14 @@ class DoctorPatientListView(BaseDoctorView):
         self.gender_filter = QtWidgets.QComboBox()
         self.gender_filter.addItems(["Tất cả giới tính", "Nam", "Nữ"])
         self.gender_filter.setStyleSheet(
-            "padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px;"
+            "padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; color: #1f2937; background: white;"
         )
         self.gender_filter.currentIndexChanged.connect(self._handle_filter_changed)
 
         self.age_filter = QtWidgets.QComboBox()
         self.age_filter.addItems(["Tất cả độ tuổi", "Trẻ em", "Người lớn", "Người cao tuổi"])
         self.age_filter.setStyleSheet(
-            "padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px;"
+            "padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; color: #1f2937; background: white;"
         )
         self.age_filter.currentIndexChanged.connect(self._handle_filter_changed)
 
@@ -1588,7 +1590,7 @@ class DoctorPatientListView(BaseDoctorView):
         history_table.setShowGrid(False)
         history_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         history_table.setStyleSheet(
-            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; color: #1f2937; }"
             "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
@@ -1632,7 +1634,7 @@ class DoctorPatientListView(BaseDoctorView):
         diagnosis_table.setShowGrid(False)
         diagnosis_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         diagnosis_table.setStyleSheet(
-            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; color: #1f2937; }"
             "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
@@ -1669,7 +1671,7 @@ class DoctorPatientListView(BaseDoctorView):
         prescription_table.setShowGrid(False)
         prescription_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         prescription_table.setStyleSheet(
-            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; color: #1f2937; }"
             "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
@@ -1701,7 +1703,7 @@ class DoctorPatientListView(BaseDoctorView):
         lab_table.setShowGrid(False)
         lab_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         lab_table.setStyleSheet(
-            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; color: #1f2937; }"
             "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
@@ -1764,7 +1766,7 @@ class DoctorPatientListView(BaseDoctorView):
         note_table.setShowGrid(False)
         note_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         note_table.setStyleSheet(
-            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; }"
+            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 10px; background: white; color: #1f2937; }"
             "QHeaderView::section { background-color: #f8fafc; padding: 10px; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
@@ -2109,7 +2111,7 @@ class AppointmentUpsertDialog(QtWidgets.QDialog):
             self.note_input,
         ]:
             widget.setStyleSheet(
-                "padding: 8px; border-radius: 6px; border: 1px solid #dbe2ea; font-size: 13px;"
+                "padding: 8px; border-radius: 6px; border: 1px solid #dbe2ea; font-size: 13px; color: #1f2937; background: white;"
             )
 
         form.addRow("Bệnh nhân:", self.patient_input)
@@ -2347,7 +2349,7 @@ class DoctorAppointmentView(BaseDoctorView):
             label = QtWidgets.QLabel(title)
             label.setStyleSheet("color: #475569; font-size: 12px; font-weight: 700;")
             widget.setStyleSheet(
-                "padding: 7px 8px; border-radius: 6px; border: 1px solid #dbe2ea; background: white;"
+                "padding: 7px 8px; border-radius: 6px; border: 1px solid #dbe2ea; background: white; color: #1f2937;"
             )
             group.addWidget(label)
             group.addWidget(widget)

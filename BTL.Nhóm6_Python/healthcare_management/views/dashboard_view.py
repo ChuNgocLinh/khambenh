@@ -638,7 +638,7 @@ class DashboardView(QtWidgets.QWidget):
             label = QtWidgets.QLabel(label_text)
             label.setStyleSheet("font-size: 12px; font-weight: 700; color: #475569;")
             widget.setStyleSheet(
-                "padding: 8px 10px; border-radius: 8px; border: 1px solid #dbe2ea; background: white;"
+                "padding: 8px 10px; border-radius: 8px; border: 1px solid #dbe2ea; background: white; color: #1f2937;"
             )
             col.addWidget(label)
             col.addWidget(widget)
@@ -769,6 +769,7 @@ class DashboardView(QtWidgets.QWidget):
         table.setShowGrid(False)
         table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setStyleSheet(
+            "QTableWidget { color: #1f2937; background: white; }"
             "QHeaderView::section { background-color: #f8f9fa; padding: 10px; border: none; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
@@ -1130,6 +1131,7 @@ class DashboardView(QtWidgets.QWidget):
         table.verticalHeader().setVisible(False)
         table.setShowGrid(False)
         table.setStyleSheet(
+            "QTableWidget { color: #1f2937; background: white; }"
             "QHeaderView::section { background-color: #f8f9fa; padding: 10px; border: none; font-weight: 700; }"
             "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
         )
