@@ -60,6 +60,9 @@ class UserModel:
             
         # Lấy user_id vừa tạo
         new_user = fetch_one("SELECT user_id FROM Users WHERE username=?", (username,))
+        if not new_user:
+            return False, "Không tìm thấy tài khoản vừa tạo"
+
         user_id = new_user.get("user_id") if isinstance(new_user, dict) else new_user[0]
         
         # Thêm patient
@@ -68,3 +71,30 @@ class UserModel:
             return False, "Lỗi tạo thông tin bệnh nhân"
             
         return True, "Đăng ký thành công"
+
+    @staticmethod
+    def verify_password(user_id, password):
+        row = fetch_one("SELECT password FROM Users WHERE user_id=?", (user_id,))
+        if not row:
+            return False
+
+        hashed_input = UserModel.hash_password(password)
+        stored_hash = str(row.get("password", "")) if isinstance(row, dict) else str(row[0])
+
+        if hashed_input == stored_hash:
+            return True
+
+        # Support legacy plaintext passwords and migrate on successful verification.
+        if password == stored_hash:
+            execute("UPDATE Users SET password=? WHERE user_id=?", (hashed_input, user_id))
+            return True
+
+        return False
+
+    @staticmethod
+    def change_password(user_id, current_password, new_password):
+        if not UserModel.verify_password(user_id, current_password):
+            return False
+
+        new_hash = UserModel.hash_password(new_password)
+        return execute("UPDATE Users SET password=? WHERE user_id=?", (new_hash, user_id))
