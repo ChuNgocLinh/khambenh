@@ -303,137 +303,16 @@ class DashboardView(QtWidgets.QWidget):
         # TRANG 0: DASHBOARD
         # ==========================================
         self.page_dashboard = QtWidgets.QWidget()
-        page_dashboard_layout = QtWidgets.QVBoxLayout(self.page_dashboard)
-        page_dashboard_layout.setContentsMargins(0, 0, 0, 0)
-        page_dashboard_layout.setSpacing(25)
-
-        self.lbl_page_title = QtWidgets.QLabel("Dashboard")
-        self.lbl_page_title.setStyleSheet("font-size: 30px; font-weight: 800; color: #2c3e50;")
-        page_dashboard_layout.addWidget(self.lbl_page_title)
-
-        self.dashboard_data = self._build_doctor_dashboard_data(self.user_data.get("doctor_id"))
-
-        raw_today = self.dashboard_data.get("today_appointments", [])
-        appointments_today = raw_today if isinstance(raw_today, list) else []
-        today_count = len(appointments_today)
-
-        total_patients_raw = self.dashboard_data.get("total_patients", 0)
-        total_patients = int(total_patients_raw) if isinstance(total_patients_raw, (int, float)) else 0
-
-        week_count_raw = self.dashboard_data.get("week_count", 0)
-        week_count = int(week_count_raw) if isinstance(week_count_raw, (int, float)) else 0
-
-        raw_notifications = self.dashboard_data.get("notifications", [])
-        notifications = raw_notifications if isinstance(raw_notifications, list) else []
-
-        notification_count_raw = self.dashboard_data.get("notification_count", 0)
-        notification_count = int(notification_count_raw) if isinstance(notification_count_raw, (int, float)) else 0
-
-        self.stats_layout = QtWidgets.QHBoxLayout(); self.stats_layout.setSpacing(25)
-        stats_data = [
-            ("📄", "Lịch hẹn hôm nay", f"{today_count:02d}", "#e6f2ff", "#007bff"),
-            ("👥", "Bệnh nhân đã khám", f"{total_patients:02d}", "#fff4e6", "#fd7e14"),
-            ("🗓️", "Lịch hẹn tuần này", f"{week_count:02d}", "#e6f9f1", "#28a745"),
-            ("🔔", "Thông báo mới", f"{notification_count:02d}", "#f9e6e6", "#dc3545"),
-        ]
-        for icon, title, value, bg, txt in stats_data:
-            card = self.create_stat_card(icon, title, value, bg, txt)
-            self.stats_layout.addWidget(card)
-        page_dashboard_layout.addLayout(self.stats_layout)
-
-        top_content_layout = QtWidgets.QHBoxLayout()
-        top_content_layout.setSpacing(20)
-
-        self.table_container = QtWidgets.QFrame()
-        self.table_container.setStyleSheet("background: white; border-radius: 20px;")
-        self.table_main_layout = QtWidgets.QVBoxLayout(self.table_container)
-        self.table_main_layout.setContentsMargins(20, 20, 20, 20)
-
-        self.lbl_table_title = QtWidgets.QLabel("Danh sách lịch hẹn hôm nay")
-        self.lbl_table_title.setStyleSheet("font-size: 18px; font-weight: 800; color: #2c3e50; margin-bottom: 10px;")
-        self.table_main_layout.addWidget(self.lbl_table_title)
-
-        self.table = QtWidgets.QTableWidget()
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["Giờ", "Bệnh nhân", "Triệu chứng", "Loại khám", "Trạng thái", "Hành động"])
-        self.table.setStyleSheet("""
-            QTableWidget { border: none; font-size: 14px; color: #333; }
-            QHeaderView::section {
-                background-color: #f8f9fa; padding: 12px;
-                border: none; border-bottom: 2px solid #eef0f2;
-                font-weight: 800; color: #1e293b;
-            }
-            QTableWidget::item { padding: 10px; border-bottom: 1px solid #f1f5f9; }
-        """)
-        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setShowGrid(False)
-        self._populate_today_appointments_table(appointments_today)
-        self.table_main_layout.addWidget(self.table)
-
-        top_content_layout.addWidget(self.table_container, 7)
-
-        side_panels = QtWidgets.QVBoxLayout()
-        side_panels.setSpacing(15)
-        side_panels.addWidget(self._build_notification_panel(notifications))
-        side_panels.addWidget(self._build_upcoming_panel(self.dashboard_data.get("upcoming_appointments", [])))
-        top_content_layout.addLayout(side_panels, 3)
-
-        page_dashboard_layout.addLayout(top_content_layout)
-
-        charts_layout = QtWidgets.QHBoxLayout()
-        charts_layout.setSpacing(20)
-
-        trend_frame = QtWidgets.QFrame()
-        trend_frame.setStyleSheet("background: white; border-radius: 20px;")
-        trend_layout = QtWidgets.QVBoxLayout(trend_frame)
-        trend_layout.setContentsMargins(20, 20, 20, 20)
-        trend_title = QtWidgets.QLabel("Biểu đồ bệnh nhân theo ngày (7 ngày)")
-        trend_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
-        trend_layout.addWidget(trend_title)
-        trend_widget = DoctorLineChartWidget(
-            self.dashboard_data.get("trend_labels", []),
-            self.dashboard_data.get("trend_values", []),
-        )
-        trend_layout.addWidget(trend_widget)
-
-        type_frame = QtWidgets.QFrame()
-        type_frame.setStyleSheet("background: white; border-radius: 20px;")
-        type_layout = QtWidgets.QVBoxLayout(type_frame)
-        type_layout.setContentsMargins(20, 20, 20, 20)
-        type_title = QtWidgets.QLabel("Biểu đồ cơ cấu loại khám")
-        type_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
-        type_layout.addWidget(type_title)
-        type_widget = DoctorPieChartWidget(self.dashboard_data.get("visit_type_data", []))
-        type_layout.addWidget(type_widget)
-
-        charts_layout.addWidget(trend_frame)
-        charts_layout.addWidget(type_frame)
-        page_dashboard_layout.addLayout(charts_layout)
-
-        new_patient_frame = QtWidgets.QFrame()
-        new_patient_frame.setStyleSheet("background: white; border-radius: 20px;")
-        new_patient_layout = QtWidgets.QVBoxLayout(new_patient_frame)
-        new_patient_layout.setContentsMargins(20, 20, 20, 20)
-        new_patient_title = QtWidgets.QLabel("Bệnh nhân mới")
-        new_patient_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
-        new_patient_layout.addWidget(new_patient_title)
-
-        self.new_patient_table = QtWidgets.QTableWidget()
-        self.new_patient_table.setColumnCount(4)
-        self.new_patient_table.setHorizontalHeaderLabels(["Bệnh nhân", "SĐT", "Lần khám đầu", "Ghi chú"])
-        self.new_patient_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.new_patient_table.verticalHeader().setVisible(False)
-        self.new_patient_table.setShowGrid(False)
-        self.new_patient_table.setStyleSheet(
-            "QHeaderView::section { background-color: #f8f9fa; padding: 10px; border: none; font-weight: 700; }"
-            "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
-        )
-        self._populate_new_patient_table(self.dashboard_data.get("new_patients", []))
-        new_patient_layout.addWidget(self.new_patient_table)
-        page_dashboard_layout.addWidget(new_patient_frame)
-
-        page_dashboard_layout.addStretch()
+        self.page_dashboard_layout = QtWidgets.QVBoxLayout(self.page_dashboard)
+        self.page_dashboard_layout.setContentsMargins(0, 0, 0, 0)
+        self.page_dashboard_layout.setSpacing(20)
+        self.dashboard_filter_state = {
+            "range_key": "30d",
+            "from_date": QtCore.QDate.currentDate().addDays(-29),
+            "to_date": QtCore.QDate.currentDate(),
+        }
+        self.dashboard_data = {}
+        self._render_dashboard_page()
 
         self.content_stack.addWidget(self.page_dashboard)
 
@@ -450,147 +329,612 @@ class DashboardView(QtWidgets.QWidget):
         self.content_stack.addWidget(self.page_medical_record)  # 3: Hồ sơ khám bệnh
         self.content_stack.addWidget(self._build_consultation_page())  # 4: Tư vấn & lịch sử chăm sóc
         self.content_stack.addWidget(self.page_prescription)    # 5: Đơn thuốc
-        self.content_stack.addWidget(self._build_notification_center_page(notifications))  # 6: Thông báo
+        self.content_stack.addWidget(self._build_notification_center_page(self.dashboard_data.get("notifications", [])))  # 6: Thông báo
         self.content_stack.addWidget(self._build_settings_page())  # 7: Cài đặt
 
     def _build_doctor_dashboard_data(self, doctor_id):
         from controllers.appointment_controller import AppointmentController
-        from database.db import fetch_one, fetch_all
+        from database.db import fetch_all
 
         now_dt = datetime.now()
-        today_start = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        tomorrow_start = today_start + timedelta(days=1)
-        week_end = today_start + timedelta(days=7)
+        from_date = self.dashboard_filter_state.get("from_date", QtCore.QDate.currentDate().addDays(-29))
+        to_date = self.dashboard_filter_state.get("to_date", QtCore.QDate.currentDate())
+        from_dt = datetime(from_date.year(), from_date.month(), from_date.day(), 0, 0, 0)
+        to_dt = datetime(to_date.year(), to_date.month(), to_date.day(), 23, 59, 59)
+        day_span = max(1, from_dt.date().toordinal() - from_dt.date().toordinal() + (to_dt.date() - from_dt.date()).days + 1)
 
         appointments = AppointmentController.get_by_doctor(doctor_id)
-
+        status_counts = {"pending": 0, "confirmed": 0, "in_progress": 0, "done": 0, "cancelled": 0}
+        filtered_appointments = []
         today_appointments = []
         upcoming_appointments = []
-        week_count = 0
-        trend_map = {}
-        unique_patient_map = {}
+        appointments_per_day = {}
+        unique_patients_per_day = {}
+        time_slot_counts = {"Sáng": 0, "Trưa": 0, "Chiều": 0, "Tối": 0}
+        week_status_counts = {"done": 0, "in_progress": 0, "pending": 0, "confirmed": 0, "cancelled": 0}
 
-        for i in range(7):
-            date_key = (today_start + timedelta(days=i)).date()
-            trend_map[date_key] = 0
-            unique_patient_map[date_key] = set()
-
-        active_statuses = {"pending", "confirmed", "in_progress"}
+        current_day = from_dt.date()
+        while current_day <= to_dt.date():
+            appointments_per_day[current_day] = 0
+            unique_patients_per_day[current_day] = set()
+            current_day += timedelta(days=1)
 
         for appointment in appointments:
             appt_dt = self._to_datetime(appointment.get("appointment_date"))
             if not appt_dt:
                 continue
 
-            appt_status = str(appointment.get("status", "")).lower()
+            status = str(appointment.get("status", "pending") or "pending").lower()
+            if status in status_counts:
+                status_counts[status] += 1
 
-            if appt_status in active_statuses and today_start <= appt_dt < tomorrow_start:
+            if from_dt <= appt_dt <= to_dt:
+                filtered_appointments.append(appointment)
+                appointments_per_day.setdefault(appt_dt.date(), 0)
+                appointments_per_day[appt_dt.date()] += 1
+                if appointment.get("patient_id") is not None:
+                    unique_patients_per_day.setdefault(appt_dt.date(), set()).add(appointment.get("patient_id"))
+
+                slot_label = self._get_time_slot_label(appt_dt)
+                time_slot_counts[slot_label] = time_slot_counts.get(slot_label, 0) + 1
+
+            if appt_dt.date() == now_dt.date() and status in {"pending", "confirmed", "in_progress"}:
                 today_appointments.append(appointment)
 
-            if appt_status in active_statuses and today_start <= appt_dt < week_end:
-                week_count += 1
-
-            if appt_status in active_statuses and appt_dt >= now_dt:
+            if appt_dt >= now_dt and status in {"pending", "confirmed", "in_progress"}:
                 upcoming_appointments.append(appointment)
 
-            appt_date = appt_dt.date()
-            if appt_date in trend_map:
-                patient_id = appointment.get("patient_id")
-                if patient_id is not None:
-                    unique_patient_map[appt_date].add(patient_id)
-                else:
-                    trend_map[appt_date] += 1
+            if appt_dt.isocalendar()[:2] == now_dt.isocalendar()[:2] and status in week_status_counts:
+                week_status_counts[status] += 1
 
-        total_patients_query = fetch_one(
-            "SELECT COUNT(DISTINCT patient_id) as c FROM Appointments WHERE doctor_id=? AND status='done'",
-            (doctor_id,),
-        )
-        total_patients = self._extract_count(total_patients_query)
-
-        pending_query = fetch_one(
-            "SELECT COUNT(*) as c FROM Appointments WHERE doctor_id=? AND status IN ('pending','confirmed')",
-            (doctor_id,),
-        )
-        pending_count = self._extract_count(pending_query)
-
-        type_rows = fetch_all(
+        record_rows = fetch_all(
             """
-            SELECT
-                CASE
-                    WHEN note IS NULL OR note = '' THEN 'Khám tổng quát'
-                    WHEN note LIKE 'Dịch vụ:%' THEN TRIM(SUBSTRING(note, 9))
-                    ELSE note
-                END AS visit_type,
-                COUNT(*) AS total
-            FROM Appointments
-            WHERE doctor_id = ?
-            GROUP BY
-                CASE
-                    WHEN note IS NULL OR note = '' THEN 'Khám tổng quát'
-                    WHEN note LIKE 'Dịch vụ:%' THEN TRIM(SUBSTRING(note, 9))
-                    ELSE note
-                END
-            ORDER BY total DESC
-            LIMIT 5
+            SELECT mr.record_id, mr.created_at, mr.diagnosis, mr.treatment,
+                   p.patient_id, p.name AS patient_name,
+                   a.status AS appointment_status, a.appointment_date,
+                   pr.prescription_id, pr.quantity,
+                   m.name AS medicine_name,
+                   m.description AS medicine_description,
+                   CASE
+                       WHEN a.note IS NULL OR a.note = '' THEN 'Khám tổng quát'
+                       WHEN a.note LIKE 'Dịch vụ:%' THEN TRIM(SUBSTRING(a.note, 9))
+                       ELSE a.note
+                   END AS visit_type
+            FROM MedicalRecords mr
+            JOIN Patients p ON p.patient_id = mr.patient_id
+            LEFT JOIN Appointments a ON a.appointment_id = mr.appointment_id
+            LEFT JOIN Prescriptions pr ON pr.record_id = mr.record_id
+            LEFT JOIN Medicines m ON m.medicine_id = pr.medicine_id
+            WHERE mr.doctor_id = ?
+            ORDER BY mr.created_at DESC, pr.prescription_id DESC
             """,
             (doctor_id,),
         )
 
-        # Normalize raw note values into stable labels for chart grouping.
-        visit_type_data = []
-        for row in type_rows:
-            visit_type_data.append((str(row.get("visit_type", "Khám tổng quát")), int(row.get("total", 0))))
+        diagnosis_counts = {}
+        prescription_type_counts = {}
+        prescriptions_per_day = {}
+        exam_duration_samples = []
+        diagnosis_counted_records = set()
+        exam_duration_counted_records = set()
+        prescription_counted_records_by_day = {}
+        monthly_appointment_count = 0
+        monthly_done_count = 0
+        month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        new_patients = fetch_all(
-            """
-            SELECT p.name, p.phone, MIN(a.appointment_date) as first_visit
-            FROM Patients p
-            JOIN Appointments a ON p.patient_id = a.patient_id
-            WHERE a.doctor_id = ?
-            GROUP BY p.patient_id, p.name, p.phone
-            ORDER BY first_visit DESC
-            LIMIT 5
-            """,
-            (doctor_id,),
+        for row in record_rows:
+            created_at = self._to_datetime(row.get("created_at"))
+            if not created_at or not (from_dt <= created_at <= to_dt):
+                continue
+
+            record_id = row.get("record_id")
+            if record_id not in diagnosis_counted_records:
+                diagnosis_counted_records.add(record_id)
+                diagnosis = str(row.get("diagnosis", "") or "Chưa cập nhật chẩn đoán").strip()
+                diagnosis_counts[diagnosis] = diagnosis_counts.get(diagnosis, 0) + 1
+
+            prescriptions_per_day.setdefault(created_at.date(), 0)
+            prescription_counted_records_by_day.setdefault(created_at.date(), set())
+            if row.get("prescription_id") and record_id not in prescription_counted_records_by_day[created_at.date()]:
+                prescription_counted_records_by_day[created_at.date()].add(record_id)
+                prescriptions_per_day[created_at.date()] += 1
+
+            if row.get("prescription_id"):
+                prescription_label = self._categorize_prescription_item(
+                    row.get("medicine_name"),
+                    row.get("medicine_description"),
+                )
+                prescription_type_counts[prescription_label] = prescription_type_counts.get(prescription_label, 0) + 1
+
+            appt_time = self._to_datetime(row.get("appointment_date"))
+            if appt_time and created_at >= appt_time and record_id not in exam_duration_counted_records:
+                exam_duration_counted_records.add(record_id)
+                duration_minutes = int((created_at - appt_time).total_seconds() // 60)
+                if 1 <= duration_minutes <= 360:
+                    exam_duration_samples.append(duration_minutes)
+
+        for day_key in appointments_per_day.keys():
+            prescriptions_per_day.setdefault(day_key, 0)
+
+        for appointment in appointments:
+            appt_dt = self._to_datetime(appointment.get("appointment_date"))
+            if not appt_dt:
+                continue
+            if appt_dt >= month_start and appt_dt.month == now_dt.month and appt_dt.year == now_dt.year:
+                monthly_appointment_count += 1
+                if str(appointment.get("status", "")).lower() == "done":
+                    monthly_done_count += 1
+
+        filtered_patient_ids = {
+            appointment.get("patient_id")
+            for appointment in filtered_appointments
+            if appointment.get("patient_id") is not None
+        }
+
+        patient_visit_counts = {}
+        done_patient_ids = set()
+        for appt in filtered_appointments:
+            patient_id = appt.get("patient_id")
+            if patient_id is None:
+                continue
+            patient_visit_counts[patient_id] = patient_visit_counts.get(patient_id, 0) + 1
+            if str(appt.get("status", "")).lower() == "done":
+                done_patient_ids.add(patient_id)
+
+        revisit_patients = sum(1 for count in patient_visit_counts.values() if count >= 2)
+        revisit_rate = (revisit_patients / len(patient_visit_counts) * 100) if patient_visit_counts else 0.0
+
+        avg_exam_minutes = (
+            sum(exam_duration_samples) / len(exam_duration_samples)
+            if exam_duration_samples
+            else 18.0
         )
+
+        completed_filtered = sum(1 for appt in filtered_appointments if str(appt.get("status", "")).lower() == "done")
+        pending_filtered = sum(1 for appt in filtered_appointments if str(appt.get("status", "")).lower() in {"pending", "confirmed"})
+
+        week_total = sum(week_status_counts.values())
+        week_avg_per_day = week_total / 7 if week_total else 0
+        week_completion_rate = (week_status_counts.get("done", 0) / week_total * 100) if week_total else 0
 
         notifications = []
-        if pending_count > 0:
-            notifications.append(f"Có {pending_count} bệnh nhân đang chờ xác nhận")
+        if pending_filtered > 0:
+            notifications.append(f"Có {pending_filtered} lịch cần xác nhận hoặc chuẩn bị khám trong khoảng thời gian đang xem")
         if today_appointments:
-            notifications.append(f"Bạn có {len(today_appointments)} lịch khám trong hôm nay")
-
-        notification_count = len(notifications)
-        if notification_count == 0:
-            notifications = ["Không có thông báo quan trọng"]
+            notifications.append(f"Hôm nay còn {len(today_appointments)} lịch hẹn hoạt động")
+        if not notifications:
+            notifications = ["Không có cảnh báo nổi bật trong giai đoạn đã chọn"]
 
         sorted_upcoming = sorted(
             upcoming_appointments,
             key=lambda a: self._to_datetime(a.get("appointment_date")) or now_dt,
         )[:5]
 
-        trend_labels = []
-        trend_values = []
-        for i in range(7):
-            date_key = (today_start + timedelta(days=i)).date()
-            trend_labels.append((today_start + timedelta(days=i)).strftime("%d/%m"))
-            if unique_patient_map[date_key]:
-                trend_values.append(len(unique_patient_map[date_key]))
-            else:
-                trend_values.append(trend_map[date_key])
+        trend_labels = [day.strftime("%d/%m") for day in appointments_per_day.keys()]
+        patient_trend_values = [len(unique_patients_per_day.get(day, set())) for day in appointments_per_day.keys()]
+        prescription_trend_values = [prescriptions_per_day.get(day, 0) for day in appointments_per_day.keys()]
+        top_diseases = sorted(diagnosis_counts.items(), key=lambda item: (-item[1], item[0]))[:5]
+        time_slot_distribution = [(label, time_slot_counts.get(label, 0)) for label in ["Sáng", "Trưa", "Chiều", "Tối"]]
+        visit_type_data = sorted(prescription_type_counts.items(), key=lambda item: (-item[1], item[0]))[:5]
+
+        current_month_label = now_dt.strftime("%m/%Y")
+        month_completion_rate = (monthly_done_count / monthly_appointment_count * 100) if monthly_appointment_count else 0
 
         return {
             "today_appointments": sorted(today_appointments, key=lambda a: self._to_datetime(a.get("appointment_date")) or now_dt),
             "upcoming_appointments": sorted_upcoming,
-            "total_patients": total_patients,
-            "week_count": week_count,
             "notifications": notifications,
-            "notification_count": notification_count,
-            "trend_labels": trend_labels,
-            "trend_values": trend_values,
-            "visit_type_data": visit_type_data,
-            "new_patients": new_patients,
+            "notification_count": len(notifications),
+            "kpis": {
+                "total_examined_patients": len(done_patient_ids),
+                "total_appointments": len(filtered_appointments),
+                "prescriptions": sum(prescriptions_per_day.values()),
+                "avg_exam_minutes": avg_exam_minutes,
+                "revisit_rate": revisit_rate,
+                "unique_patients": len(filtered_patient_ids),
+                "completed": completed_filtered,
+            },
+            "status_counts": status_counts,
+            "patient_trend_labels": trend_labels,
+            "patient_trend_values": patient_trend_values,
+            "prescription_trend_labels": trend_labels,
+            "prescription_trend_values": prescription_trend_values,
+            "top_diseases": top_diseases,
+            "prescription_category_distribution": visit_type_data,
+            "time_slot_distribution": time_slot_distribution,
+            "weekly_summary": {
+                "done": week_status_counts.get("done", 0),
+                "active": week_status_counts.get("in_progress", 0),
+                "waiting": week_status_counts.get("pending", 0) + week_status_counts.get("confirmed", 0),
+                "cancelled": week_status_counts.get("cancelled", 0),
+                "avg_per_day": week_avg_per_day,
+                "completion_rate": week_completion_rate,
+            },
+            "month_summary": {
+                "label": current_month_label,
+                "appointments": monthly_appointment_count,
+                "completed": monthly_done_count,
+                "completion_rate": month_completion_rate,
+            },
+            "updated_at": now_dt.strftime("%H:%M %d/%m/%Y"),
         }
+
+    def _render_dashboard_page(self):
+        while self.page_dashboard_layout.count():
+            item = self.page_dashboard_layout.takeAt(0)
+            widget = item.widget()
+            child_layout = item.layout()
+            if widget is not None:
+                widget.deleteLater()
+            elif child_layout is not None:
+                self._clear_layout(child_layout)
+
+        self.dashboard_data = self._build_doctor_dashboard_data(self.user_data.get("doctor_id"))
+
+        self.lbl_page_title = QtWidgets.QLabel("Thống kê khám bệnh")
+        self.lbl_page_title.setStyleSheet("font-size: 30px; font-weight: 800; color: #2c3e50;")
+        self.page_dashboard_layout.addWidget(self.lbl_page_title)
+
+        description = QtWidgets.QLabel(
+            "Theo dõi toàn cảnh hiệu suất khám bệnh, xu hướng bệnh nhân và hoạt động kê đơn trong khoảng thời gian bạn chọn."
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet("font-size: 14px; color: #64748b; margin-top: -6px;")
+        self.page_dashboard_layout.addWidget(description)
+
+        self.page_dashboard_layout.addWidget(self._build_dashboard_filter_bar())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_kpi_row())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_analytics_row())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_trend_row())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_distribution_row())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_summary_row())
+
+        updated_label = QtWidgets.QLabel(
+            f"Dữ liệu được cập nhật lúc {self.dashboard_data.get('updated_at', '')} • Tổng hợp theo khoảng thời gian đang chọn."
+        )
+        updated_label.setStyleSheet("font-size: 12px; color: #64748b; font-style: italic;")
+        self.page_dashboard_layout.addWidget(updated_label)
+        self.page_dashboard_layout.addStretch()
+
+    def _build_dashboard_filter_bar(self):
+        wrapper = QtWidgets.QFrame()
+        wrapper.setStyleSheet("background: white; border-radius: 18px; border: 1px solid #e2e8f0;")
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(18, 14, 18, 14)
+        layout.setSpacing(14)
+
+        self.range_combo = QtWidgets.QComboBox()
+        self.range_combo.addItem("7 ngày gần nhất", "7d")
+        self.range_combo.addItem("30 ngày gần nhất", "30d")
+        self.range_combo.addItem("90 ngày gần nhất", "90d")
+        self.range_combo.addItem("Tháng này", "month")
+
+        current_key = self.dashboard_filter_state.get("range_key", "30d")
+        range_idx = self.range_combo.findData(current_key)
+        if range_idx >= 0:
+            self.range_combo.setCurrentIndex(range_idx)
+
+        self.range_from_input = QtWidgets.QDateEdit(self.dashboard_filter_state.get("from_date"))
+        self.range_from_input.setCalendarPopup(True)
+        self.range_from_input.setDisplayFormat("dd/MM/yyyy")
+        self.range_to_input = QtWidgets.QDateEdit(self.dashboard_filter_state.get("to_date"))
+        self.range_to_input.setCalendarPopup(True)
+        self.range_to_input.setDisplayFormat("dd/MM/yyyy")
+
+        for label_text, widget in [
+            ("Khoảng thời gian", self.range_combo),
+            ("Từ ngày", self.range_from_input),
+            ("Đến ngày", self.range_to_input),
+        ]:
+            col = QtWidgets.QVBoxLayout()
+            label = QtWidgets.QLabel(label_text)
+            label.setStyleSheet("font-size: 12px; font-weight: 700; color: #475569;")
+            widget.setStyleSheet(
+                "padding: 8px 10px; border-radius: 8px; border: 1px solid #dbe2ea; background: white;"
+            )
+            col.addWidget(label)
+            col.addWidget(widget)
+            layout.addLayout(col)
+
+        apply_btn = QtWidgets.QPushButton("Cập nhật")
+        apply_btn.setStyleSheet(
+            "background: #69c0a5; color: white; border-radius: 8px; padding: 10px 16px; font-weight: 800;"
+        )
+        apply_btn.clicked.connect(self._apply_dashboard_filters)
+        layout.addStretch()
+        layout.addWidget(apply_btn)
+        self.range_combo.currentIndexChanged.connect(self._sync_dashboard_dates_from_preset)
+        return wrapper
+
+    def _build_dashboard_kpi_row(self):
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(18)
+        kpis = self.dashboard_data.get("kpis", {})
+        cards = [
+            ("👥", "Tổng bệnh nhân đã khám", str(kpis.get("total_examined_patients", 0)), "#e6f2ff", "#2563eb"),
+            ("🗓️", "Tổng lịch hẹn", str(kpis.get("total_appointments", 0)), "#fff7ed", "#ea580c"),
+            ("💊", "Tổng đơn thuốc đã kê", str(kpis.get("prescriptions", 0)), "#ecfdf3", "#15803d"),
+            (
+                "⏱️",
+                "Độ trễ ghi nhận bệnh án TB",
+                f"{kpis.get('avg_exam_minutes', 0):.1f} phút",
+                "#f5f3ff",
+                "#7c3aed",
+            ),
+            (
+                "🔁",
+                "Tỷ lệ tái khám",
+                f"{kpis.get('revisit_rate', 0):.1f}%",
+                "#fef2f2",
+                "#be123c",
+            ),
+        ]
+        for icon, title, value, bg, color in cards:
+            row.addWidget(self.create_stat_card(icon, title, value, bg, color))
+        return row
+
+    def _build_dashboard_analytics_row(self):
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(20)
+        row.addWidget(self._build_status_analytics_card(), 5)
+        row.addWidget(self._build_top_diseases_card(), 5)
+        return row
+
+    def _build_dashboard_trend_row(self):
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(20)
+        row.addWidget(
+            self._build_chart_card(
+                "Xu hướng bệnh nhân theo ngày",
+                DoctorLineChartWidget(
+                    self.dashboard_data.get("patient_trend_labels", []),
+                    self.dashboard_data.get("patient_trend_values", []),
+                ),
+            ),
+            1,
+        )
+        row.addWidget(
+            self._build_chart_card(
+                "Xu hướng kê đơn theo ngày",
+                DoctorLineChartWidget(
+                    self.dashboard_data.get("prescription_trend_labels", []),
+                    self.dashboard_data.get("prescription_trend_values", []),
+                ),
+            ),
+            1,
+        )
+        return row
+
+    def _build_dashboard_distribution_row(self):
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(20)
+        row.addWidget(
+            self._build_chart_card(
+                "Phân loại thuốc đã kê",
+                DoctorPieChartWidget(self.dashboard_data.get("prescription_category_distribution", [])),
+            ),
+            1,
+        )
+        row.addWidget(
+            self._build_chart_card(
+                "Phân bố lịch hẹn theo khung giờ",
+                DoctorPieChartWidget(self.dashboard_data.get("time_slot_distribution", [])),
+            ),
+            1,
+        )
+        return row
+
+    def _build_dashboard_summary_row(self):
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(20)
+        row.addWidget(self._build_weekly_summary_card(), 1)
+        row.addWidget(self._build_month_summary_card(), 1)
+        return row
+
+    def _build_chart_card(self, title_text, widget):
+        frame = QtWidgets.QFrame()
+        frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
+        layout = QtWidgets.QVBoxLayout(frame)
+        layout.setContentsMargins(18, 18, 18, 18)
+        title = QtWidgets.QLabel(title_text)
+        title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
+        layout.addWidget(title)
+        layout.addWidget(widget)
+        return frame
+
+    def _build_status_analytics_card(self):
+        frame = QtWidgets.QFrame()
+        frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
+        layout = QtWidgets.QVBoxLayout(frame)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(10)
+
+        title = QtWidgets.QLabel("Phân tích trạng thái lịch hẹn")
+        title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
+        layout.addWidget(title)
+
+        table = QtWidgets.QTableWidget()
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["Trạng thái", "Số lượng", "Ghi chú"])
+        table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setShowGrid(False)
+        table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setStyleSheet(
+            "QHeaderView::section { background-color: #f8f9fa; padding: 10px; border: none; font-weight: 700; }"
+            "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
+        )
+
+        status_counts = self.dashboard_data.get("status_counts", {})
+        rows = [
+            ("Chờ xác nhận", status_counts.get("pending", 0), "Lịch mới tạo hoặc chưa phản hồi"),
+            ("Đã xác nhận", status_counts.get("confirmed", 0), "Sẵn sàng tiếp nhận"),
+            ("Đang khám", status_counts.get("in_progress", 0), "Bệnh nhân đang được xử lý"),
+            ("Đã khám", status_counts.get("done", 0), "Ca đã hoàn tất"),
+            ("Đã hủy", status_counts.get("cancelled", 0), "Lịch không còn hiệu lực"),
+        ]
+        table.setRowCount(len(rows))
+        for row_idx, row in enumerate(rows):
+            for col_idx, text in enumerate(row):
+                table.setItem(row_idx, col_idx, QtWidgets.QTableWidgetItem(str(text)))
+            table.setRowHeight(row_idx, 42)
+        layout.addWidget(table)
+        return frame
+
+    def _build_top_diseases_card(self):
+        frame = QtWidgets.QFrame()
+        frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
+        layout = QtWidgets.QVBoxLayout(frame)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(10)
+
+        title = QtWidgets.QLabel("Top 5 bệnh thường gặp")
+        title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
+        layout.addWidget(title)
+
+        disease_rows = self.dashboard_data.get("top_diseases", [])
+        if not disease_rows:
+            empty = QtWidgets.QLabel("Chưa có dữ liệu chẩn đoán trong khoảng thời gian đã chọn.")
+            empty.setStyleSheet("font-size: 13px; color: #94a3b8;")
+            layout.addWidget(empty)
+        else:
+            for index, (label, count) in enumerate(disease_rows, start=1):
+                card = QtWidgets.QFrame()
+                card.setStyleSheet("background: #f8fafc; border-radius: 12px;")
+                row = QtWidgets.QHBoxLayout(card)
+                row.setContentsMargins(12, 10, 12, 10)
+                name_lbl = QtWidgets.QLabel(f"#{index} {label}")
+                name_lbl.setStyleSheet("font-size: 13px; font-weight: 700; color: #1e293b;")
+                count_lbl = QtWidgets.QLabel(f"{count} ca")
+                count_lbl.setStyleSheet("font-size: 13px; font-weight: 800; color: #0f766e;")
+                row.addWidget(name_lbl)
+                row.addStretch()
+                row.addWidget(count_lbl)
+                layout.addWidget(card)
+
+        layout.addStretch()
+        return frame
+
+    def _build_weekly_summary_card(self):
+        summary = self.dashboard_data.get("weekly_summary", {})
+        frame = QtWidgets.QFrame()
+        frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
+        layout = QtWidgets.QVBoxLayout(frame)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(10)
+
+        title = QtWidgets.QLabel("Hiệu suất khám theo tuần")
+        title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
+        layout.addWidget(title)
+
+        items = [
+            f"• Hoàn tất: {summary.get('done', 0)} ca",
+            f"• Đang khám: {summary.get('active', 0)} ca",
+            f"• Chờ xử lý: {summary.get('waiting', 0)} ca",
+            f"• Hủy lịch: {summary.get('cancelled', 0)} ca",
+            f"• Trung bình: {summary.get('avg_per_day', 0):.1f} lịch/ngày",
+            f"• Tỷ lệ hoàn tất: {summary.get('completion_rate', 0):.1f}%",
+        ]
+        for text in items:
+            label = QtWidgets.QLabel(text)
+            label.setStyleSheet("font-size: 13px; color: #334155;")
+            layout.addWidget(label)
+        layout.addStretch()
+        return frame
+
+    def _build_month_summary_card(self):
+        summary = self.dashboard_data.get("month_summary", {})
+        frame = QtWidgets.QFrame()
+        frame.setStyleSheet("background: #ecfdf3; border-radius: 20px; border: 1px solid #bbf7d0;")
+        layout = QtWidgets.QVBoxLayout(frame)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(8)
+
+        title = QtWidgets.QLabel(f"Tổng tháng này ({summary.get('label', '')})")
+        title.setStyleSheet("font-size: 16px; font-weight: 800; color: #166534;")
+        layout.addWidget(title)
+
+        total_lbl = QtWidgets.QLabel(str(summary.get("appointments", 0)))
+        total_lbl.setStyleSheet("font-size: 42px; font-weight: 900; color: #166534;")
+        layout.addWidget(total_lbl)
+
+        detail = QtWidgets.QLabel(
+            f"{summary.get('completed', 0)} lịch đã hoàn tất • Tỷ lệ xử lý {summary.get('completion_rate', 0):.1f}%"
+        )
+        detail.setWordWrap(True)
+        detail.setStyleSheet("font-size: 13px; color: #166534;")
+        layout.addWidget(detail)
+
+        footer = QtWidgets.QLabel("Thẻ này phản ánh tình hình tháng hiện tại, không phụ thuộc hoàn toàn vào filter hiển thị.")
+        footer.setWordWrap(True)
+        footer.setStyleSheet("font-size: 12px; color: #15803d;")
+        layout.addWidget(footer)
+        layout.addStretch()
+        return frame
+
+    def _apply_dashboard_filters(self):
+        from_date = self.range_from_input.date()
+        to_date = self.range_to_input.date()
+        if from_date > to_date:
+            QtWidgets.QMessageBox.warning(self, "Khoảng thời gian không hợp lệ", "Ngày bắt đầu không được lớn hơn ngày kết thúc.")
+            return
+
+        self.dashboard_filter_state = {
+            "range_key": self.range_combo.currentData() or "custom",
+            "from_date": from_date,
+            "to_date": to_date,
+        }
+        self._render_dashboard_page()
+
+    def _sync_dashboard_dates_from_preset(self):
+        key = self.range_combo.currentData() or "30d"
+        today = QtCore.QDate.currentDate()
+        if key == "7d":
+            self.range_from_input.setDate(today.addDays(-6))
+            self.range_to_input.setDate(today)
+        elif key == "30d":
+            self.range_from_input.setDate(today.addDays(-29))
+            self.range_to_input.setDate(today)
+        elif key == "90d":
+            self.range_from_input.setDate(today.addDays(-89))
+            self.range_to_input.setDate(today)
+        elif key == "month":
+            self.range_from_input.setDate(QtCore.QDate(today.year(), today.month(), 1))
+            self.range_to_input.setDate(today)
+
+    def _clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            child_layout = item.layout()
+            if widget is not None:
+                widget.deleteLater()
+            elif child_layout is not None:
+                self._clear_layout(child_layout)
+
+    @staticmethod
+    def _get_time_slot_label(dt_value):
+        hour = dt_value.hour
+        if hour < 11:
+            return "Sáng"
+        if hour < 14:
+            return "Trưa"
+        if hour < 18:
+            return "Chiều"
+        return "Tối"
+
+    @staticmethod
+    def _categorize_prescription_item(medicine_name, medicine_description):
+        payload = f"{medicine_name or ''} {medicine_description or ''}".lower()
+        if any(keyword in payload for keyword in ["kháng sinh", "antibiotic"]):
+            return "Kháng sinh"
+        if any(keyword in payload for keyword in ["vitamin", "bổ sung"]):
+            return "Vitamin"
+        if any(keyword in payload for keyword in ["giảm đau", "hạ sốt"]):
+            return "Giảm đau / hạ sốt"
+        if any(keyword in payload for keyword in ["tiêu hóa", "dạ dày"]):
+            return "Tiêu hóa"
+        return "Khác"
 
     def _populate_today_appointments_table(self, appointments):
         self.table.setRowCount(len(appointments))
