@@ -26,5 +26,16 @@ class DoctorModel:
         """, (name, specialty, phone, doctor_id))
 
     @staticmethod
+    def update_profile_details(doctor_id, name, specialty, phone, email):
+        return execute(
+            """
+            UPDATE Doctors
+            SET name=?, specialty=?, phone=?, email=?
+            WHERE doctor_id=?
+            """,
+            (name, specialty, phone, email, doctor_id),
+        )
+
+    @staticmethod
     def delete(doctor_id):
         return execute("DELETE FROM Doctors WHERE doctor_id=?", (doctor_id,))

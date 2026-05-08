@@ -1,5 +1,6 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 import sys
+from importlib import import_module
 from datetime import datetime, timedelta
 
 # =================================================================
@@ -227,6 +228,13 @@ class DashboardView(QtWidgets.QWidget):
     def __init__(self, user_data=None):
         super().__init__()
         self.user_data = user_data or {"doctor_id": 1, "name": "Unknown"}
+        self._settings_nav_buttons = []
+        self._settings_section_frames = {}
+        self._settings_notification_toggles = {}
+        self._settings_display_value_labels = {}
+        self._settings_scroll = None
+        self._settings_avatar_icon = None
+        self._settings_cached_values = {}
         self.main_layout = QtWidgets.QHBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
@@ -1139,21 +1147,839 @@ class DashboardView(QtWidgets.QWidget):
 
     def _build_settings_page(self):
         page = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(page)
-        title = QtWidgets.QLabel("Cài đặt tài khoản")
-        title.setStyleSheet("font-size: 24px; font-weight: 800; color: #1e293b;")
-        layout.addWidget(title)
+        page_layout = QtWidgets.QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
 
-        card = QtWidgets.QFrame()
-        card.setStyleSheet("background: white; border-radius: 14px;")
-        card_layout = QtWidgets.QFormLayout(card)
-        card_layout.setContentsMargins(16, 16, 16, 16)
-        card_layout.addRow("Họ tên:", QtWidgets.QLabel(str(self.user_data.get("name", ""))))
-        card_layout.addRow("Vai trò:", QtWidgets.QLabel("Bác sĩ"))
-        card_layout.addRow("Ghi chú:", QtWidgets.QLabel("Cấu hình chi tiết sẽ được mở rộng ở phiên bản tiếp theo."))
-        layout.addWidget(card)
-        layout.addStretch()
+        # --- HEADER ---
+        header_widget = QtWidgets.QWidget()
+        header_layout = QtWidgets.QVBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 15)
+        header_layout.setSpacing(4)
+
+        title = QtWidgets.QLabel("Cài đặt")
+        title.setStyleSheet("font-size: 28px; font-weight: 900; color: #1e293b;")
+        header_layout.addWidget(title)
+
+        subtitle = QtWidgets.QLabel("Quản lý thông tin cá nhân và tùy chỉnh hệ thống")
+        subtitle.setStyleSheet("font-size: 14px; color: #64748b;")
+        header_layout.addWidget(subtitle)
+        page_layout.addWidget(header_widget)
+
+        # --- MAIN CONTENT AREA ---
+        content_wrapper = QtWidgets.QHBoxLayout()
+        content_wrapper.setSpacing(0)
+
+        # ===== LEFT SUB-NAVIGATION SIDEBAR =====
+        left_nav = QtWidgets.QFrame()
+        left_nav.setFixedWidth(220)
+        left_nav.setStyleSheet("background: white; border-radius: 16px 0 0 16px; border: 1px solid #e8ecf1;")
+        left_nav_layout = QtWidgets.QVBoxLayout(left_nav)
+        left_nav_layout.setContentsMargins(12, 20, 12, 20)
+        left_nav_layout.setSpacing(4)
+
+        settings_menu_items = [
+            ("profile", "👤", "Thông tin cá nhân", True),
+            ("password", "🔒", "Đổi mật khẩu", False),
+            ("notification", "🔔", "Thông báo", False),
+            ("display", "🖥️", "Tùy chọn hiển thị", False),
+            ("language", "🌐", "Ngôn ngữ", False),
+            ("backup_sync", "☁️", "Sao lưu & đồng bộ", False),
+        ]
+
+        self._settings_nav_buttons = []
+        for key, icon, text, is_active in settings_menu_items:
+            btn = QtWidgets.QPushButton(f"  {icon}   {text}")
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setFixedHeight(42)
+            if is_active:
+                btn.setStyleSheet(
+                    "QPushButton { border: none; text-align: left; padding: 10px 16px; border-radius: 10px; "
+                    "background: #69c0a5; color: white; font-size: 13px; font-weight: 700; }"
+                )
+            else:
+                btn.setStyleSheet(
+                    "QPushButton { border: none; text-align: left; padding: 10px 16px; border-radius: 10px; "
+                    "color: #475569; font-size: 13px; font-weight: 600; background: transparent; }"
+                    "QPushButton:hover { background: #f1f5f9; }"
+                )
+            btn.clicked.connect(lambda _, selected_key=key: self._handle_settings_nav_action(selected_key))
+            self._settings_nav_buttons.append((key, btn))
+            left_nav_layout.addWidget(btn)
+
+        left_nav_layout.addStretch()
+
+        # --- Support section at bottom ---
+        support_frame = QtWidgets.QFrame()
+        support_frame.setStyleSheet(
+            "background: #f0f7f9; border-radius: 12px; border: 1px solid #e0ecef;"
+        )
+        support_layout = QtWidgets.QVBoxLayout(support_frame)
+        support_layout.setContentsMargins(16, 14, 16, 14)
+        support_layout.setSpacing(4)
+        support_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        support_icon = QtWidgets.QLabel("🎧")
+        support_icon.setStyleSheet("font-size: 28px; background: transparent;")
+        support_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        support_layout.addWidget(support_icon)
+
+        support_label = QtWidgets.QLabel("Hỗ trợ")
+        support_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 600; background: transparent;")
+        support_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        support_layout.addWidget(support_label)
+
+        support_phone = QtWidgets.QLabel("1900 1234")
+        support_phone.setStyleSheet("font-size: 20px; color: #69c0a5; font-weight: 900; background: transparent;")
+        support_phone.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        support_layout.addWidget(support_phone)
+
+        support_note = QtWidgets.QLabel("24/7 - Miễn phí cước")
+        support_note.setStyleSheet("font-size: 11px; color: #94a3b8; background: transparent;")
+        support_note.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        support_layout.addWidget(support_note)
+
+        left_nav_layout.addWidget(support_frame)
+        content_wrapper.addWidget(left_nav)
+
+        # ===== RIGHT CONTENT AREA (scrollable) =====
+        right_scroll = QtWidgets.QScrollArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        right_scroll.setStyleSheet("background: transparent; border: none;")
+        self._settings_scroll = right_scroll
+
+        right_content = QtWidgets.QWidget()
+        right_content.setStyleSheet("background: transparent;")
+        right_layout = QtWidgets.QVBoxLayout(right_content)
+        right_layout.setContentsMargins(30, 0, 10, 30)
+        right_layout.setSpacing(24)
+
+        # ============================
+        # SECTION 1: THÔNG TIN CÁ NHÂN
+        # ============================
+        personal_card = QtWidgets.QFrame()
+        personal_card.setStyleSheet(
+            "QFrame { background: white; border-radius: 16px; border: 1px solid #e8ecf1; }"
+        )
+        self._settings_section_frames["profile"] = personal_card
+        personal_layout = QtWidgets.QVBoxLayout(personal_card)
+        personal_layout.setContentsMargins(28, 24, 28, 24)
+        personal_layout.setSpacing(18)
+
+        section_title_1 = QtWidgets.QLabel("Thông tin cá nhân")
+        section_title_1.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b; border: none;")
+        personal_layout.addWidget(section_title_1)
+
+        # Avatar + form row
+        avatar_form_layout = QtWidgets.QHBoxLayout()
+        avatar_form_layout.setSpacing(24)
+
+        # Avatar
+        avatar_container = QtWidgets.QVBoxLayout()
+        avatar_container.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+
+        avatar_frame = QtWidgets.QFrame()
+        avatar_frame.setFixedSize(100, 100)
+        avatar_frame.setStyleSheet(
+            "background: #e2e8f0; border-radius: 50px; border: 3px solid #cbd5e1;"
+        )
+        avatar_inner_layout = QtWidgets.QVBoxLayout(avatar_frame)
+        avatar_inner_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar_icon = QtWidgets.QLabel("👤")
+        avatar_icon.setStyleSheet("font-size: 40px; background: transparent; border: none;")
+        avatar_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar_inner_layout.addWidget(avatar_icon)
+        self._settings_avatar_icon = avatar_icon
+
+        avatar_container.addWidget(avatar_frame, 0, QtCore.Qt.AlignmentFlag.AlignHCenter)
+
+        # Camera button overlay
+        btn_camera = QtWidgets.QPushButton("📷")
+        btn_camera.setFixedSize(30, 30)
+        btn_camera.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn_camera.setStyleSheet(
+            "QPushButton { background: white; border: 2px solid #e2e8f0; border-radius: 15px; font-size: 14px; }"
+            "QPushButton:hover { background: #f1f5f9; }"
+        )
+        btn_camera.clicked.connect(self._upload_settings_avatar)
+        avatar_container.addWidget(btn_camera, 0, QtCore.Qt.AlignmentFlag.AlignHCenter)
+
+        avatar_form_layout.addLayout(avatar_container)
+
+        # Form fields
+        form_grid = QtWidgets.QGridLayout()
+        form_grid.setHorizontalSpacing(16)
+        form_grid.setVerticalSpacing(14)
+
+        input_style = (
+            "QLineEdit, QComboBox, QDateEdit { "
+            "padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 10px; "
+            "font-size: 13px; color: #334155; background: white; }"
+            "QLineEdit:focus, QComboBox:focus, QDateEdit:focus { border-color: #69c0a5; }"
+        )
+        label_style = "font-size: 12px; color: #64748b; font-weight: 600; border: none;"
+
+        doctor_name = str(self.user_data.get("name", "Bác sĩ"))
+        doctor_phone = str(self.user_data.get("phone", "0901 234 567"))
+        doctor_email = str(self.user_data.get("email", "bs.minh@careplus.vn"))
+        doctor_specialty = str(self.user_data.get("specialty", "Nội tổng quát"))
+        if doctor_name.lower().startswith("bác sĩ "):
+            doctor_name = doctor_name[7:].strip()
+
+        # Row 0: Họ và tên + Giới tính
+        lbl_name = QtWidgets.QLabel("Họ và tên")
+        lbl_name.setStyleSheet(label_style)
+        form_grid.addWidget(lbl_name, 0, 0)
+
+        lbl_gender = QtWidgets.QLabel("Giới tính")
+        lbl_gender.setStyleSheet(label_style)
+        form_grid.addWidget(lbl_gender, 0, 1)
+
+        self._settings_name_input = QtWidgets.QLineEdit(f"Bác sĩ {doctor_name}" if doctor_name else "")
+        self._settings_name_input.setStyleSheet(input_style)
+        form_grid.addWidget(self._settings_name_input, 1, 0)
+
+        self._settings_gender_combo = QtWidgets.QComboBox()
+        self._settings_gender_combo.addItems(["Nam", "Nữ"])
+        self._settings_gender_combo.setStyleSheet(input_style)
+        form_grid.addWidget(self._settings_gender_combo, 1, 1)
+
+        # Row 2: Ngày sinh + Số điện thoại
+        lbl_dob = QtWidgets.QLabel("Ngày sinh")
+        lbl_dob.setStyleSheet(label_style)
+        form_grid.addWidget(lbl_dob, 2, 0)
+
+        lbl_phone = QtWidgets.QLabel("Số điện thoại")
+        lbl_phone.setStyleSheet(label_style)
+        form_grid.addWidget(lbl_phone, 2, 1)
+
+        self._settings_dob_input = QtWidgets.QDateEdit()
+        self._settings_dob_input.setCalendarPopup(True)
+        self._settings_dob_input.setDisplayFormat("dd/MM/yyyy")
+        self._settings_dob_input.setMinimumDate(QtCore.QDate(1900, 1, 1))
+        self._settings_dob_input.setSpecialValueText("Chưa cập nhật")
+        self._settings_dob_input.setDate(self._settings_dob_input.minimumDate())
+        self._settings_dob_input.setStyleSheet(input_style)
+        form_grid.addWidget(self._settings_dob_input, 3, 0)
+
+        self._settings_phone_input = QtWidgets.QLineEdit(doctor_phone)
+        self._settings_phone_input.setStyleSheet(input_style)
+        form_grid.addWidget(self._settings_phone_input, 3, 1)
+
+        # Row 4: Email + Chuyên khoa
+        lbl_email = QtWidgets.QLabel("Email")
+        lbl_email.setStyleSheet(label_style)
+        form_grid.addWidget(lbl_email, 4, 0)
+
+        lbl_specialty = QtWidgets.QLabel("Chuyên khoa")
+        lbl_specialty.setStyleSheet(label_style)
+        form_grid.addWidget(lbl_specialty, 4, 1)
+
+        self._settings_email_input = QtWidgets.QLineEdit(doctor_email)
+        self._settings_email_input.setStyleSheet(input_style)
+        form_grid.addWidget(self._settings_email_input, 5, 0)
+
+        self._settings_specialty_combo = QtWidgets.QComboBox()
+        specialties = [
+            "Nội tổng quát", "Ngoại khoa", "Nhi khoa", "Sản khoa",
+            "Da liễu", "Tim mạch", "Thần kinh", "Mắt"
+        ]
+        self._settings_specialty_combo.addItems(specialties)
+        idx = self._settings_specialty_combo.findText(doctor_specialty)
+        if idx >= 0:
+            self._settings_specialty_combo.setCurrentIndex(idx)
+        self._settings_specialty_combo.setStyleSheet(input_style)
+        form_grid.addWidget(self._settings_specialty_combo, 5, 1)
+
+        # Row 6: Địa chỉ (full width)
+        lbl_address = QtWidgets.QLabel("Địa chỉ")
+        lbl_address.setStyleSheet(label_style)
+        form_grid.addWidget(lbl_address, 6, 0, 1, 2)
+
+        self._settings_address_input = QtWidgets.QLineEdit("")
+        self._settings_address_input.setStyleSheet(input_style)
+        form_grid.addWidget(self._settings_address_input, 7, 0, 1, 2)
+
+        avatar_form_layout.addLayout(form_grid)
+        personal_layout.addLayout(avatar_form_layout)
+
+        # Save button
+        save_btn_layout = QtWidgets.QHBoxLayout()
+        save_btn_layout.addStretch()
+        btn_save = QtWidgets.QPushButton("Lưu thay đổi")
+        btn_save.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn_save.setFixedHeight(40)
+        btn_save.setStyleSheet(
+            "QPushButton { background: #69c0a5; color: white; border-radius: 10px; "
+            "padding: 10px 28px; font-size: 14px; font-weight: 700; border: none; }"
+            "QPushButton:hover { background: #5ab394; }"
+        )
+        btn_save.clicked.connect(self._save_settings_personal_info)
+        save_btn_layout.addWidget(btn_save)
+        personal_layout.addLayout(save_btn_layout)
+
+        right_layout.addWidget(personal_card)
+
+        # ============================
+        # SECTION 2: THÔNG BÁO
+        # ============================
+        notification_card = QtWidgets.QFrame()
+        notification_card.setStyleSheet(
+            "QFrame { background: white; border-radius: 16px; border: 1px solid #e8ecf1; }"
+        )
+        self._settings_section_frames["notification"] = notification_card
+        notif_layout = QtWidgets.QVBoxLayout(notification_card)
+        notif_layout.setContentsMargins(28, 24, 28, 24)
+        notif_layout.setSpacing(12)
+
+        section_title_2 = QtWidgets.QLabel("Thông báo")
+        section_title_2.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b; border: none;")
+        notif_layout.addWidget(section_title_2)
+
+        notif_desc = QtWidgets.QLabel("Quản lý các thiết lập thông báo của bạn")
+        notif_desc.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
+        notif_layout.addWidget(notif_desc)
+
+        # Notification toggle rows
+        notification_items = [
+            ("notify_new_appointment", "Thông báo lịch hẹn mới", "Nhận thông báo khi có lịch hẹn mới", True),
+            ("notify_reminder", "Thông báo nhắc lịch", "Nhận thông báo nhắc trước giờ hẹn", True),
+            ("notify_system", "Thông báo hệ thống", "Nhận thông báo về cập nhật hệ thống và tính năng mới", True),
+        ]
+
+        for notif_key, notif_title, notif_desc_text, is_checked in notification_items:
+            notif_row = QtWidgets.QFrame()
+            notif_row.setStyleSheet(
+                "QFrame { background: transparent; border: none; border-bottom: 1px solid #f1f5f9; "
+                "padding: 8px 0; }"
+            )
+            notif_row_layout = QtWidgets.QHBoxLayout(notif_row)
+            notif_row_layout.setContentsMargins(0, 8, 0, 8)
+            notif_row_layout.setSpacing(12)
+
+            # Toggle checkbox (green)
+            toggle = QtWidgets.QCheckBox()
+            toggle.setChecked(is_checked)
+            toggle.setStyleSheet(
+                "QCheckBox { spacing: 0px; }"
+                "QCheckBox::indicator { width: 20px; height: 20px; border-radius: 4px; border: 2px solid #cbd5e1; }"
+                "QCheckBox::indicator:checked { background: #69c0a5; border-color: #69c0a5; }"
+                "QCheckBox::indicator:unchecked { background: white; }"
+            )
+            toggle.toggled.connect(
+                lambda checked, selected_key=notif_key: self._update_notification_setting(selected_key, checked)
+            )
+            self._settings_notification_toggles[notif_key] = toggle
+            notif_row_layout.addWidget(toggle)
+
+            # Title (bold)
+            notif_title_lbl = QtWidgets.QLabel(f"<b>{notif_title}</b>")
+            notif_title_lbl.setStyleSheet("font-size: 14px; color: #1e293b; border: none;")
+            notif_row_layout.addWidget(notif_title_lbl)
+
+            # Description
+            notif_desc_lbl = QtWidgets.QLabel(notif_desc_text)
+            notif_desc_lbl.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
+            notif_row_layout.addWidget(notif_desc_lbl)
+
+            notif_row_layout.addStretch()
+
+            # Arrow icon
+            arrow = QtWidgets.QLabel("›")
+            arrow.setStyleSheet("font-size: 18px; color: #94a3b8; border: none;")
+            notif_row_layout.addWidget(arrow)
+
+            notif_layout.addWidget(notif_row)
+
+        right_layout.addWidget(notification_card)
+
+        # ============================
+        # SECTION 3: TÙY CHỌN HIỂN THỊ
+        # ============================
+        display_card = QtWidgets.QFrame()
+        display_card.setStyleSheet(
+            "QFrame { background: white; border-radius: 16px; border: 1px solid #e8ecf1; }"
+        )
+        self._settings_section_frames["display"] = display_card
+        display_layout = QtWidgets.QVBoxLayout(display_card)
+        display_layout.setContentsMargins(28, 24, 28, 24)
+        display_layout.setSpacing(12)
+
+        section_title_3 = QtWidgets.QLabel("Tùy chọn hiển thị")
+        section_title_3.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b; border: none;")
+        display_layout.addWidget(section_title_3)
+
+        display_desc = QtWidgets.QLabel("Tùy chỉnh giao diện và cách hiển thị thông tin")
+        display_desc.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
+        display_layout.addWidget(display_desc)
+
+        display_options = [
+            ("theme_mode", "Chế độ giao diện", "Sáng"),
+            ("font_size", "Kích thước chữ", "Trung bình"),
+            ("display_density", "Mật độ hiển thị", "Thoải mái"),
+        ]
+
+        for opt_key, opt_title, opt_value in display_options:
+            opt_row = QtWidgets.QFrame()
+            opt_row.setStyleSheet(
+                "QFrame { background: transparent; border: none; border-bottom: 1px solid #f1f5f9; "
+                "padding: 6px 0; }"
+            )
+            opt_row_layout = QtWidgets.QHBoxLayout(opt_row)
+            opt_row_layout.setContentsMargins(0, 10, 0, 10)
+
+            opt_title_lbl = QtWidgets.QLabel(opt_title)
+            opt_title_lbl.setStyleSheet("font-size: 14px; color: #334155; font-weight: 600; border: none;")
+            opt_row_layout.addWidget(opt_title_lbl)
+
+            opt_row_layout.addStretch()
+
+            opt_value_lbl = QtWidgets.QLabel(opt_value)
+            opt_value_lbl.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
+            opt_row_layout.addWidget(opt_value_lbl)
+            self._settings_display_value_labels[opt_key] = opt_value_lbl
+
+            arrow_display = QtWidgets.QLabel("›")
+            arrow_display.setStyleSheet("font-size: 18px; color: #94a3b8; border: none; margin-left: 6px;")
+            opt_row_layout.addWidget(arrow_display)
+
+            opt_row.mousePressEvent = lambda _, selected_key=opt_key: self._choose_display_option(selected_key)
+
+            display_layout.addWidget(opt_row)
+
+        right_layout.addWidget(display_card)
+        right_layout.addStretch()
+
+        right_scroll.setWidget(right_content)
+        content_wrapper.addWidget(right_scroll)
+
+        page_layout.addLayout(content_wrapper)
+        self._load_settings_data()
         return page
+
+    def _save_settings_personal_info(self):
+        """Lưu thông tin cá nhân bác sĩ từ trang cài đặt."""
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+
+        user_id = self.user_data.get("user_id")
+        doctor_id = self.user_data.get("doctor_id")
+        if not doctor_id or not user_id:
+            QtWidgets.QMessageBox.warning(None, "Lỗi", "Không xác định được tài khoản bác sĩ.")
+            return
+
+        name = self._settings_name_input.text().strip()
+        if name.startswith("Bác sĩ "):
+            name = name[len("Bác sĩ "):]
+
+        payload = {
+            "name": name,
+            "gender": self._settings_gender_combo.currentText(),
+            "dob": None
+            if self._settings_dob_input.date() == self._settings_dob_input.minimumDate()
+            else self._settings_dob_input.date().toString("yyyy-MM-dd"),
+            "phone": self._settings_phone_input.text().strip(),
+            "email": self._settings_email_input.text().strip(),
+            "specialty": self._settings_specialty_combo.currentText(),
+            "address": self._settings_address_input.text().strip(),
+        }
+
+        try:
+            ok, message = SettingsController.update_personal_info(doctor_id, user_id, payload)
+            if not ok:
+                QtWidgets.QMessageBox.warning(None, "Không thể lưu", message)
+                return
+
+            self.user_data["name"] = str(payload.get("name", ""))
+            self.user_data["phone"] = str(payload.get("phone", ""))
+            self.user_data["specialty"] = str(payload.get("specialty", ""))
+            self.user_data["email"] = str(payload.get("email", ""))
+            self.user_name_lbl.setText(f"Bác sĩ {str(payload.get('name', ''))} ▿")
+            QtWidgets.QMessageBox.information(None, "Thành công", message)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                None,
+                "Lỗi hệ thống",
+                f"Không thể lưu thông tin: {e}",
+            )
+
+    @staticmethod
+    def _settings_nav_style(is_active):
+        if is_active:
+            return (
+                "QPushButton { border: none; text-align: left; padding: 10px 16px; border-radius: 10px; "
+                "background: #69c0a5; color: white; font-size: 13px; font-weight: 700; }"
+            )
+
+        return (
+            "QPushButton { border: none; text-align: left; padding: 10px 16px; border-radius: 10px; "
+            "color: #475569; font-size: 13px; font-weight: 600; background: transparent; }"
+            "QPushButton:hover { background: #f1f5f9; }"
+        )
+
+    def _set_active_settings_nav(self, active_key):
+        for key, button in self._settings_nav_buttons:
+            button.setStyleSheet(self._settings_nav_style(key == active_key))
+
+    def _handle_settings_nav_action(self, key):
+        self._set_active_settings_nav(key)
+        if key == "password":
+            self._open_change_password_dialog()
+            return
+        if key == "language":
+            self._open_language_dialog()
+            return
+        if key == "backup_sync":
+            self._open_backup_sync_dialog()
+            return
+
+        self._scroll_to_settings_section(key)
+
+    def _scroll_to_settings_section(self, key):
+        if not self._settings_scroll:
+            return
+
+        section_widget = self._settings_section_frames.get(key)
+        if section_widget is None:
+            return
+
+        scroll_bar = self._settings_scroll.verticalScrollBar()
+        scroll_bar.setValue(max(0, section_widget.y() - 8))
+
+    @staticmethod
+    def _to_bool(value, default=False):
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        text = str(value).strip().lower()
+        return text in {"1", "true", "yes", "on"}
+
+    def _load_settings_data(self):
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+        DoctorModel = import_module("models.doctor_model").DoctorModel
+
+        user_id = self.user_data.get("user_id")
+        doctor_id = self.user_data.get("doctor_id")
+        if not user_id or not doctor_id:
+            return
+
+        doctor_data = DoctorModel.get_by_id(doctor_id) or {}
+        settings_data = SettingsController.get_settings(user_id) or {}
+
+        if not isinstance(doctor_data, dict):
+            doctor_data = {}
+        if not isinstance(settings_data, dict):
+            settings_data = {}
+
+        name = str(doctor_data.get("name") or self.user_data.get("name") or "").strip()
+        if name.lower().startswith("bác sĩ "):
+            name = name[7:].strip()
+        self._settings_name_input.setText(f"Bác sĩ {name}" if name else "")
+
+        gender = str(settings_data.get("gender") or "Nam")
+        gender_index = self._settings_gender_combo.findText(gender)
+        if gender_index >= 0:
+            self._settings_gender_combo.setCurrentIndex(gender_index)
+
+        dob_value = settings_data.get("dob")
+        if dob_value:
+            dob_date = QtCore.QDate.fromString(str(dob_value), "yyyy-MM-dd")
+            if dob_date.isValid():
+                self._settings_dob_input.setDate(dob_date)
+        else:
+            self._settings_dob_input.setDate(self._settings_dob_input.minimumDate())
+
+        self._settings_phone_input.setText(str(doctor_data.get("phone") or ""))
+        self._settings_email_input.setText(str(doctor_data.get("email") or ""))
+        self._settings_address_input.setText(str(settings_data.get("address") or ""))
+
+        specialty = str(doctor_data.get("specialty") or "")
+        specialty_index = self._settings_specialty_combo.findText(specialty)
+        if specialty_index >= 0:
+            self._settings_specialty_combo.setCurrentIndex(specialty_index)
+
+        self._settings_cached_values = {
+            "language": str(settings_data.get("language") or "Tiếng Việt"),
+            "backup_mode": str(settings_data.get("backup_mode") or "cloud"),
+            "last_backup_at": settings_data.get("last_backup_at"),
+            "last_sync_at": settings_data.get("last_sync_at"),
+            "dob": settings_data.get("dob"),
+        }
+
+        toggle_mapping = {
+            "notify_new_appointment": self._settings_notification_toggles.get("notify_new_appointment"),
+            "notify_reminder": self._settings_notification_toggles.get("notify_reminder"),
+            "notify_system": self._settings_notification_toggles.get("notify_system"),
+        }
+        for key, toggle in toggle_mapping.items():
+            if toggle is None:
+                continue
+            toggle.blockSignals(True)
+            toggle.setChecked(self._to_bool(settings_data.get(key), True))
+            toggle.blockSignals(False)
+
+        for field, label in self._settings_display_value_labels.items():
+            value = str(settings_data.get(field) or label.text())
+            label.setText(value)
+
+        self._apply_settings_avatar(str(settings_data.get("avatar_path") or "").strip())
+
+    def _apply_settings_avatar(self, avatar_path):
+        if not self._settings_avatar_icon:
+            return
+
+        if avatar_path:
+            pixmap = QtGui.QPixmap(avatar_path)
+            if not pixmap.isNull():
+                self._settings_avatar_icon.setPixmap(
+                    pixmap.scaled(
+                        84,
+                        84,
+                        QtCore.Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                        QtCore.Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+                self._settings_avatar_icon.setText("")
+                return
+
+        self._settings_avatar_icon.setPixmap(QtGui.QPixmap())
+        self._settings_avatar_icon.setText("👤")
+
+    def _upload_settings_avatar(self):
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            return
+
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Chọn ảnh đại diện",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp)",
+        )
+        if not file_path:
+            return
+
+        saved = SettingsController.update_avatar(user_id, file_path)
+        if not saved:
+            QtWidgets.QMessageBox.warning(self, "Lỗi", "Không thể lưu ảnh đại diện.")
+            return
+
+        self._apply_settings_avatar(file_path)
+        QtWidgets.QMessageBox.information(self, "Thành công", "Đã cập nhật ảnh đại diện.")
+
+    def _update_notification_setting(self, key, checked):
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            return
+
+        saved = SettingsController.update_notification(user_id, key, checked)
+        if not saved:
+            QtWidgets.QMessageBox.warning(self, "Lỗi", "Không thể cập nhật cài đặt thông báo.")
+
+    def _choose_display_option(self, key):
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+
+        user_id = self.user_data.get("user_id")
+        value_label = self._settings_display_value_labels.get(key)
+        if not user_id or value_label is None:
+            return
+
+        option_map = SettingsController.DISPLAY_OPTION_MAP
+        options = option_map.get(key, [])
+        if not options:
+            return
+
+        current_value = value_label.text().strip()
+        current_index = options.index(current_value) if current_value in options else 0
+        next_index = (current_index + 1) % len(options)
+        next_value = options[next_index]
+
+        updated = SettingsController.update_display_option(user_id, key, next_value)
+        if not updated:
+            QtWidgets.QMessageBox.warning(self, "Lỗi", "Không thể lưu tùy chọn hiển thị.")
+            return
+
+        value_label.setText(next_value)
+
+    def _open_change_password_dialog(self):
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            QtWidgets.QMessageBox.warning(self, "Lỗi", "Không xác định được người dùng hiện tại.")
+            return
+
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Đổi mật khẩu")
+        dialog.setModal(True)
+        dialog.resize(420, 220)
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+        form_layout = QtWidgets.QFormLayout()
+
+        current_input = QtWidgets.QLineEdit()
+        current_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+        new_input = QtWidgets.QLineEdit()
+        new_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+        confirm_input = QtWidgets.QLineEdit()
+        confirm_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+
+        form_layout.addRow("Mật khẩu cũ", current_input)
+        form_layout.addRow("Mật khẩu mới", new_input)
+        form_layout.addRow("Xác nhận", confirm_input)
+        layout.addLayout(form_layout)
+
+        button_row = QtWidgets.QHBoxLayout()
+        button_row.addStretch()
+        cancel_btn = QtWidgets.QPushButton("Hủy")
+        save_btn = QtWidgets.QPushButton("Lưu")
+        button_row.addWidget(cancel_btn)
+        button_row.addWidget(save_btn)
+        layout.addLayout(button_row)
+
+        cancel_btn.clicked.connect(dialog.reject)
+
+        def _submit_password_change():
+            ok, message = SettingsController.change_password(
+                user_id,
+                current_input.text(),
+                new_input.text(),
+                confirm_input.text(),
+            )
+            if not ok:
+                QtWidgets.QMessageBox.warning(dialog, "Không thể đổi mật khẩu", message)
+                return
+            QtWidgets.QMessageBox.information(dialog, "Thành công", message)
+            dialog.accept()
+
+        save_btn.clicked.connect(_submit_password_change)
+        dialog.exec()
+
+    def _open_language_dialog(self):
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            return
+
+        current_language = self._settings_cached_values.get("language", "Tiếng Việt")
+        language, ok = QtWidgets.QInputDialog.getItem(
+            self,
+            "Ngôn ngữ",
+            "Chọn ngôn ngữ hiển thị:",
+            SettingsController.LANGUAGES,
+            SettingsController.LANGUAGES.index(current_language)
+            if current_language in SettingsController.LANGUAGES
+            else 0,
+            False,
+        )
+        if not ok:
+            return
+
+        updated = SettingsController.update_language(user_id, language)
+        if not updated:
+            QtWidgets.QMessageBox.warning(self, "Lỗi", "Không thể cập nhật ngôn ngữ.")
+            return
+
+        self._settings_cached_values["language"] = language
+        QtWidgets.QMessageBox.information(
+            self,
+            "Đã cập nhật",
+            f"Ngôn ngữ hiển thị đã chuyển sang: {language}.",
+        )
+
+    def _open_backup_sync_dialog(self):
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            return
+
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Sao lưu & đồng bộ")
+        dialog.setModal(True)
+        dialog.resize(460, 250)
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+
+        mode_row = QtWidgets.QHBoxLayout()
+        mode_label = QtWidgets.QLabel("Chế độ sao lưu:")
+        mode_combo = QtWidgets.QComboBox()
+        mode_combo.addItem("Cloud", userData="cloud")
+        mode_combo.addItem("Local", userData="local")
+
+        current_mode = self._settings_cached_values.get("backup_mode", "cloud")
+        mode_index = mode_combo.findData(current_mode)
+        if mode_index >= 0:
+            mode_combo.setCurrentIndex(mode_index)
+
+        mode_row.addWidget(mode_label)
+        mode_row.addWidget(mode_combo)
+        layout.addLayout(mode_row)
+
+        last_backup = self._settings_cached_values.get("last_backup_at")
+        last_sync = self._settings_cached_values.get("last_sync_at")
+        info_label = QtWidgets.QLabel(
+            f"Lần backup gần nhất: {last_backup or 'Chưa có'}\nLần đồng bộ gần nhất: {last_sync or 'Chưa có'}"
+        )
+        info_label.setStyleSheet("color: #64748b;")
+        layout.addWidget(info_label)
+
+        button_row = QtWidgets.QHBoxLayout()
+        backup_btn = QtWidgets.QPushButton("Backup ngay")
+        sync_btn = QtWidgets.QPushButton("Đồng bộ ngay")
+        close_btn = QtWidgets.QPushButton("Đóng")
+        button_row.addWidget(backup_btn)
+        button_row.addWidget(sync_btn)
+        button_row.addStretch()
+        button_row.addWidget(close_btn)
+        layout.addLayout(button_row)
+
+        def _refresh_status_text():
+            last_backup_text = self._settings_cached_values.get("last_backup_at") or "Chưa có"
+            last_sync_text = self._settings_cached_values.get("last_sync_at") or "Chưa có"
+            info_label.setText(
+                f"Lần backup gần nhất: {last_backup_text}\nLần đồng bộ gần nhất: {last_sync_text}"
+            )
+
+        def _backup_now():
+            selected_mode = mode_combo.currentData()
+            ok, result = SettingsController.backup_now(user_id, selected_mode)
+            if not ok:
+                QtWidgets.QMessageBox.warning(dialog, "Lỗi", str(result))
+                return
+
+            self._settings_cached_values["backup_mode"] = selected_mode
+            self._settings_cached_values["last_backup_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            _refresh_status_text()
+            QtWidgets.QMessageBox.information(
+                dialog,
+                "Thành công",
+                f"Backup dữ liệu thành công.\nFile: {result}",
+            )
+
+        def _sync_now():
+            ok, result = SettingsController.sync_now(user_id)
+            if not ok:
+                QtWidgets.QMessageBox.warning(dialog, "Lỗi", str(result))
+                return
+
+            self._settings_cached_values["last_sync_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            _refresh_status_text()
+            QtWidgets.QMessageBox.information(dialog, "Thành công", str(result))
+
+        backup_btn.clicked.connect(_backup_now)
+        sync_btn.clicked.connect(_sync_now)
+        close_btn.clicked.connect(dialog.accept)
+
+        dialog.exec()
 
     @staticmethod
     def _extract_count(row):
