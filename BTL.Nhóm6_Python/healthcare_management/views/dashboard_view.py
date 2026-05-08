@@ -311,9 +311,24 @@ class DashboardView(QtWidgets.QWidget):
         # TRANG 0: DASHBOARD
         # ==========================================
         self.page_dashboard = QtWidgets.QWidget()
-        self.page_dashboard_layout = QtWidgets.QVBoxLayout(self.page_dashboard)
+        outer_layout = QtWidgets.QVBoxLayout(self.page_dashboard)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.dashboard_scroll = QtWidgets.QScrollArea()
+        self.dashboard_scroll.setWidgetResizable(True)
+        self.dashboard_scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.dashboard_scroll.setStyleSheet("background: transparent; border: none;")
+
+        self.dashboard_container = QtWidgets.QWidget()
+        self.dashboard_container.setStyleSheet("background-color: transparent;")
+
+        self.page_dashboard_layout = QtWidgets.QVBoxLayout(self.dashboard_container)
         self.page_dashboard_layout.setContentsMargins(0, 0, 0, 0)
         self.page_dashboard_layout.setSpacing(20)
+
+        self.dashboard_scroll.setWidget(self.dashboard_container)
+        outer_layout.addWidget(self.dashboard_scroll)
+
         self.dashboard_filter_state = {
             "range_key": "30d",
             "from_date": QtCore.QDate.currentDate().addDays(-29),
