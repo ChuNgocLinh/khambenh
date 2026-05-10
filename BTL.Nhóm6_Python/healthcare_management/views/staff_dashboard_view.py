@@ -1851,6 +1851,597 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_patient_history_table.setRowCount(0)
         self.staff_patient_history_empty.setText("Chưa có lịch sử lịch hẹn để hiển thị.")
 
+    def _build_staff_patient_list_page(self):
+        page = QtWidgets.QFrame()
+        page.setStyleSheet("background: #f8fbff; border: none;")
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        header = QtWidgets.QFrame()
+        header.setStyleSheet("background: transparent; border: none;")
+        header_layout = QtWidgets.QHBoxLayout(header)
+        header_layout.setContentsMargins(4, 0, 4, 0)
+        header_layout.setSpacing(14)
+
+        title_col = QtWidgets.QVBoxLayout()
+        title_col.setSpacing(5)
+        heading = QtWidgets.QLabel("Danh sách bệnh nhân")
+        heading.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Danh sách bệnh nhân")
+        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        title_col.addWidget(heading)
+        title_col.addWidget(breadcrumb)
+
+        bell = QtWidgets.QLabel("🔔")
+        bell.setFixedSize(34, 34)
+        bell.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell.setStyleSheet("border: none; background: transparent; font-size: 21px; color: #64748b;")
+        avatar = QtWidgets.QLabel("👤")
+        avatar.setFixedSize(42, 42)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet("border: none; background: #eaf2ff; border-radius: 21px; font-size: 20px; color: #2563eb;")
+        username = QtWidgets.QLabel(f"{self.username}  ▾")
+        username.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #0f172a; font-weight: 900;")
+
+        header_layout.addLayout(title_col, 1)
+        header_layout.addWidget(bell)
+        header_layout.addWidget(avatar)
+        header_layout.addWidget(username)
+        layout.addWidget(header)
+
+        filter_card = self._build_section_card("")
+        filter_layout = filter_card.layout()
+        filter_layout.setSpacing(12)
+
+        search_row = QtWidgets.QHBoxLayout()
+        search_row.setSpacing(10)
+        self.staff_patient_search_input = QtWidgets.QLineEdit()
+        self.staff_patient_search_input.setPlaceholderText("Nhập tên, SĐT, CCCD hoặc mã bệnh nhân...")
+        self.staff_patient_search_input.setStyleSheet(self._intake_input_style())
+        self.staff_patient_search_input.setMinimumHeight(44)
+        self.staff_patient_search_input.textChanged.connect(self._filter_staff_patients)
+
+        search_btn = QtWidgets.QPushButton("🔎  Tìm kiếm")
+        search_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        search_btn.setStyleSheet(self._intake_primary_button_style())
+        search_btn.clicked.connect(self._filter_staff_patients)
+
+        filter_btn = QtWidgets.QPushButton("⚙  Bộ lọc")
+        filter_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        filter_btn.setStyleSheet(self._intake_secondary_button_style())
+
+        add_btn = QtWidgets.QPushButton("+  Thêm bệnh nhân")
+        add_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        add_btn.setStyleSheet(self._intake_primary_button_style())
+        add_btn.clicked.connect(lambda: self.switch_page(1))
+
+        search_row.addWidget(self.staff_patient_search_input, 1)
+        search_row.addWidget(search_btn)
+        search_row.addWidget(filter_btn)
+        search_row.addWidget(add_btn)
+        filter_layout.addLayout(search_row)
+
+        quick_filter_row = QtWidgets.QHBoxLayout()
+        quick_filter_row.setSpacing(10)
+        self.staff_patient_gender_filter = self._build_staff_patient_filter_combo("Giới tính", ["Tất cả", "Nam", "Nữ", "Khác"])
+        self.staff_patient_age_filter = self._build_staff_patient_filter_combo("Độ tuổi", ["Tất cả", "Trẻ em", "Người lớn", "Cao tuổi"])
+        self.staff_patient_doctor_filter = self._build_staff_patient_filter_combo("Bác sĩ", self._staff_patient_doctor_filter_options())
+        self.staff_patient_status_filter = self._build_staff_patient_filter_combo(
+            "Trạng thái",
+            ["Tất cả", "Khám mới", "Tái khám", "Đang điều trị", "Đã hoàn tất"],
+        )
+        for combo in [
+            self.staff_patient_gender_filter,
+            self.staff_patient_age_filter,
+            self.staff_patient_doctor_filter,
+            self.staff_patient_status_filter,
+        ]:
+            combo.currentTextChanged.connect(self._filter_staff_patients)
+            quick_filter_row.addWidget(combo)
+
+        refresh_btn = QtWidgets.QPushButton("↻  Làm mới")
+        refresh_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        refresh_btn.setStyleSheet(self._intake_secondary_button_style())
+        refresh_btn.clicked.connect(self._reset_staff_patient_filters)
+        quick_filter_row.addWidget(refresh_btn)
+        filter_layout.addLayout(quick_filter_row)
+        layout.addWidget(filter_card)
+
+        body = QtWidgets.QHBoxLayout()
+        body.setSpacing(16)
+
+        list_card = self._build_section_card("")
+        list_layout = list_card.layout()
+        list_header = QtWidgets.QHBoxLayout()
+        self.staff_patient_list_title = QtWidgets.QLabel("Danh sách bệnh nhân (0)")
+        self.staff_patient_list_title.setStyleSheet("border: none; background: transparent; font-size: 17px; color: #0f172a; font-weight: 900;")
+        self.staff_patient_feedback = QtWidgets.QLabel("Đang tải dữ liệu bệnh nhân.")
+        self.staff_patient_feedback.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #64748b; font-weight: 700;")
+        list_header.addWidget(self.staff_patient_list_title)
+        list_header.addStretch()
+        list_header.addWidget(self.staff_patient_feedback)
+        list_layout.addLayout(list_header)
+
+        self.staff_patient_table = QtWidgets.QTableWidget()
+        self.staff_patient_table.setColumnCount(8)
+        self.staff_patient_table.setHorizontalHeaderLabels(["STT", "Mã BN", "Họ và tên", "Giới tính", "Ngày sinh", "SĐT", "Trạng thái", "Thao tác"])
+        self.staff_patient_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.staff_patient_table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self.staff_patient_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.staff_patient_table.setAlternatingRowColors(False)
+        self.staff_patient_table.setShowGrid(False)
+        self.staff_patient_table.verticalHeader().setVisible(False)
+        self.staff_patient_table.verticalHeader().setDefaultSectionSize(60)
+        self.staff_patient_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.staff_patient_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_patient_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_patient_table.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_patient_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_patient_table.horizontalHeader().setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_patient_table.horizontalHeader().setSectionResizeMode(7, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_patient_table.itemSelectionChanged.connect(self._handle_staff_patient_selection)
+        self.staff_patient_table.setMinimumWidth(760)
+        self.staff_patient_table.setStyleSheet(
+            "QTableWidget { background: #ffffff; border: none; color: #0f172a; font-size: 13px; font-weight: 600; }"
+            "QHeaderView::section { background: #f8fafc; color: #475569; border: none; border-bottom: 1px solid #e5edf7;"
+            " padding: 10px 8px; font-size: 12px; font-weight: 900; }"
+            "QTableWidget::item { border-bottom: 1px solid #eef2f7; padding: 8px; }"
+            "QTableWidget::item:selected { background: #ecfdf5; color: #0f172a; }"
+        )
+        list_layout.addWidget(self.staff_patient_table, 1)
+
+        detail_col = QtWidgets.QVBoxLayout()
+        detail_col.setSpacing(16)
+        detail_card = self._build_section_card("Thông tin bệnh nhân")
+        detail_layout = detail_card.layout()
+        detail_layout.setSpacing(12)
+
+        profile = QtWidgets.QFrame()
+        profile.setStyleSheet("QFrame { background: #ffffff; border: none; }")
+        profile_layout = QtWidgets.QHBoxLayout(profile)
+        profile_layout.setContentsMargins(0, 0, 0, 0)
+        profile_layout.setSpacing(12)
+
+        self.staff_patient_avatar = QtWidgets.QLabel("👤")
+        self.staff_patient_avatar.setFixedSize(58, 58)
+        self.staff_patient_avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.staff_patient_avatar.setStyleSheet("border: none; background: #eaf2ff; border-radius: 29px; color: #2563eb; font-size: 27px;")
+
+        profile_text = QtWidgets.QVBoxLayout()
+        profile_text.setSpacing(5)
+        name_row = QtWidgets.QHBoxLayout()
+        self.staff_patient_detail_name = QtWidgets.QLabel("Chưa chọn bệnh nhân")
+        self.staff_patient_detail_name.setWordWrap(True)
+        self.staff_patient_detail_name.setStyleSheet("border: none; background: transparent; font-size: 16px; color: #0f172a; font-weight: 900;")
+        self.staff_patient_detail_badge = QtWidgets.QLabel("Chưa chọn")
+        self.staff_patient_detail_badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.staff_patient_detail_badge.setStyleSheet(self._staff_patient_status_badge_style("Chưa chọn"))
+        name_row.addWidget(self.staff_patient_detail_name, 1)
+        name_row.addWidget(self.staff_patient_detail_badge)
+        self.staff_patient_detail_meta = QtWidgets.QLabel("Mã BN: -")
+        self.staff_patient_detail_meta.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #64748b; font-weight: 800;")
+        profile_text.addLayout(name_row)
+        profile_text.addWidget(self.staff_patient_detail_meta)
+        profile_layout.addWidget(self.staff_patient_avatar)
+        profile_layout.addLayout(profile_text, 1)
+        detail_layout.addWidget(profile)
+
+        self.staff_patient_empty_state = QtWidgets.QLabel("Chọn một bệnh nhân trong bảng để xem thông tin chi tiết.")
+        self.staff_patient_empty_state.setWordWrap(True)
+        self.staff_patient_empty_state.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #64748b; font-weight: 700;")
+        detail_layout.addWidget(self.staff_patient_empty_state)
+
+        self.staff_patient_detail_info = QtWidgets.QLabel()
+        self.staff_patient_detail_info.setWordWrap(True)
+        self.staff_patient_detail_info.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #334155; font-weight: 700;")
+        detail_layout.addWidget(self.staff_patient_detail_info)
+
+        tab_bar = QtWidgets.QHBoxLayout()
+        tab_bar.setSpacing(6)
+        for idx, tab_name in enumerate(["Thông tin chung", "Lịch sử khám", "Lịch hẹn", "Hóa đơn"]):
+            tab = QtWidgets.QLabel(tab_name)
+            tab.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            if idx == 0:
+                tab.setStyleSheet("background: #dcfce7; color: #13a66b; border-radius: 8px; padding: 7px 8px; font-size: 11px; font-weight: 900;")
+            else:
+                tab.setStyleSheet("background: #f8fafc; color: #64748b; border-radius: 8px; padding: 7px 8px; font-size: 11px; font-weight: 900;")
+            tab_bar.addWidget(tab)
+        detail_layout.addLayout(tab_bar)
+
+        self.staff_patient_tab_summary = QtWidgets.QLabel("Chưa có thông tin để hiển thị.")
+        self.staff_patient_tab_summary.setWordWrap(True)
+        self.staff_patient_tab_summary.setStyleSheet(
+            "background: #f8fafc; border: 1px solid #e4ebf4; border-radius: 10px; padding: 10px;"
+            " color: #334155; font-size: 12px; font-weight: 700;"
+        )
+        detail_layout.addWidget(self.staff_patient_tab_summary)
+
+        note_title = QtWidgets.QLabel("Ghi chú")
+        note_title.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #0f172a; font-weight: 900;")
+        self.staff_patient_note_label = QtWidgets.QLabel("Chưa có ghi chú.")
+        self.staff_patient_note_label.setWordWrap(True)
+        self.staff_patient_note_label.setStyleSheet(
+            "background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 10px;"
+            " color: #9a3412; font-size: 12px; font-weight: 700;"
+        )
+        detail_layout.addWidget(note_title)
+        detail_layout.addWidget(self.staff_patient_note_label)
+
+        self.staff_patient_history_table = QtWidgets.QTableWidget()
+        self.staff_patient_history_table.setColumnCount(4)
+        self.staff_patient_history_table.setHorizontalHeaderLabels(["Ngày giờ", "Trạng thái", "Bác sĩ", "Dịch vụ"])
+        self.staff_patient_history_table.verticalHeader().setVisible(False)
+        self.staff_patient_history_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.staff_patient_history_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.staff_patient_history_table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
+        self.staff_patient_history_table.setMaximumHeight(150)
+        detail_layout.addWidget(self.staff_patient_history_table)
+        self.staff_patient_history_empty = QtWidgets.QLabel("Chưa có lịch sử khám để hiển thị.")
+        self.staff_patient_history_empty.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #64748b; font-weight: 700;")
+        detail_layout.addWidget(self.staff_patient_history_empty)
+
+        quick_card = self._build_section_card("Thao tác nhanh")
+        quick_layout = quick_card.layout()
+        quick_grid = QtWidgets.QGridLayout()
+        quick_grid.setHorizontalSpacing(10)
+        quick_grid.setVerticalSpacing(10)
+        quick_actions = [
+            ("👁", "Xem hồ sơ", lambda: self._handle_staff_patient_quick_action("view")),
+            ("📅", "Tạo lịch hẹn", lambda: self._handle_staff_patient_quick_action("appointment")),
+            ("💳", "Tạo hóa đơn", lambda: self._handle_staff_patient_quick_action("billing")),
+            ("🖨", "In phiếu khám", lambda: self._handle_staff_patient_quick_action("print")),
+            ("✉", "Gửi SMS", lambda: self._handle_staff_patient_quick_action("sms")),
+            ("✎", "Chỉnh sửa", lambda: self._handle_staff_patient_quick_action("edit")),
+        ]
+        for idx, (icon, label, handler) in enumerate(quick_actions):
+            btn = self._build_staff_patient_quick_button(icon, label)
+            btn.clicked.connect(handler)
+            quick_grid.addWidget(btn, idx // 2, idx % 2)
+        quick_layout.addLayout(quick_grid)
+
+        detail_col.addWidget(detail_card)
+        detail_col.addWidget(quick_card)
+        detail_col.addStretch()
+        body.addWidget(list_card, 3)
+        body.addLayout(detail_col, 2)
+        layout.addLayout(body, 1)
+
+        self._refresh_staff_patient_table()
+        self._reset_staff_patient_detail("Chọn một bệnh nhân trong bảng để xem thông tin chi tiết.")
+        return page
+
+    def _build_staff_patient_filter_combo(self, label, values):
+        combo = QtWidgets.QComboBox()
+        combo.addItems(values)
+        combo.setMinimumHeight(40)
+        combo.setToolTip(label)
+        combo.setStyleSheet(
+            "QComboBox { background: #ffffff; border: 1px solid #dbe4ee; border-radius: 9px;"
+            " padding: 8px 12px; color: #334155; font-size: 12px; font-weight: 800; }"
+            "QComboBox::drop-down { border: none; width: 22px; }"
+        )
+        return combo
+
+    def _staff_patient_doctor_filter_options(self):
+        options = ["Tất cả"]
+        try:
+            doctors = DoctorController.get_all() or []
+        except Exception:
+            doctors = []
+        for doctor in doctors:
+            name = str(doctor.get("name") or doctor.get("doctor_name") or doctor.get("full_name") or "").strip()
+            if name and name not in options:
+                options.append(name)
+        if len(options) == 1:
+            options.extend(["BS. Minh", "BS. Lan"])
+        return options
+
+    def _reset_staff_patient_filters(self):
+        if hasattr(self, "staff_patient_search_input"):
+            self.staff_patient_search_input.clear()
+        for combo_name in [
+            "staff_patient_gender_filter",
+            "staff_patient_age_filter",
+            "staff_patient_doctor_filter",
+            "staff_patient_status_filter",
+        ]:
+            combo = getattr(self, combo_name, None)
+            if combo:
+                combo.setCurrentIndex(0)
+        self._refresh_staff_patient_table()
+
+    def _refresh_staff_patient_table(self):
+        try:
+            patients = PatientController.get_all() or []
+        except Exception:
+            patients = []
+        self.staff_patient_rows = patients
+        self._filter_staff_patients()
+
+    def _filter_staff_patients(self):
+        if not hasattr(self, "staff_patient_table"):
+            return
+        query = str(self.staff_patient_search_input.text() if hasattr(self, "staff_patient_search_input") else "").strip().lower()
+        gender_filter = self._combo_text("staff_patient_gender_filter")
+        age_filter = self._combo_text("staff_patient_age_filter")
+        doctor_filter = self._combo_text("staff_patient_doctor_filter")
+        status_filter = self._combo_text("staff_patient_status_filter")
+        filtered = []
+
+        for patient in self.staff_patient_rows:
+            patient_id = str(patient.get("patient_id") or "")
+            code = self._staff_patient_code(patient)
+            name = str(patient.get("name") or "")
+            phone = str(patient.get("phone") or "")
+            cccd = str(patient.get("cccd") or patient.get("citizen_id") or patient.get("id_card") or "")
+            gender = str(patient.get("gender") or "")
+            status = self._derive_staff_patient_status(patient)
+            haystack = f"{patient_id} {code} {name} {phone} {cccd}".lower()
+            if query and query not in haystack:
+                continue
+            if gender_filter and gender_filter != "Tất cả" and gender != gender_filter:
+                continue
+            if age_filter and age_filter != "Tất cả" and not self._patient_matches_age_filter(patient, age_filter):
+                continue
+            if status_filter and status_filter != "Tất cả" and status != status_filter:
+                continue
+            if doctor_filter and doctor_filter != "Tất cả" and not self._patient_matches_doctor_filter(patient, doctor_filter):
+                continue
+            filtered.append(patient)
+
+        self.staff_patient_filtered_rows = filtered
+        self.staff_patient_table.blockSignals(True)
+        self.staff_patient_table.setRowCount(len(filtered))
+        for row, patient in enumerate(filtered):
+            values = [
+                str(row + 1),
+                self._staff_patient_code(patient),
+                str(patient.get("name") or "-"),
+                str(patient.get("gender") or "-"),
+                self._format_staff_patient_dob(patient),
+                str(patient.get("phone") or "-"),
+            ]
+            for col, value in enumerate(values):
+                item = QtWidgets.QTableWidgetItem(value)
+                item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft)
+                self.staff_patient_table.setItem(row, col, item)
+            status = self._derive_staff_patient_status(patient)
+            self.staff_patient_table.setCellWidget(row, 6, self._build_staff_patient_status_badge(status))
+            self.staff_patient_table.setCellWidget(row, 7, self._build_staff_patient_row_actions(patient.get("patient_id")))
+
+        self.staff_patient_table.blockSignals(False)
+        if hasattr(self, "staff_patient_list_title"):
+            self.staff_patient_list_title.setText(f"Danh sách bệnh nhân ({len(filtered)})")
+        if not filtered:
+            if hasattr(self, "staff_patient_feedback"):
+                self.staff_patient_feedback.setText("Không có dữ liệu phù hợp.")
+            self._reset_staff_patient_detail("Không có bệnh nhân phù hợp với điều kiện lọc.")
+            return
+        if hasattr(self, "staff_patient_feedback"):
+            self.staff_patient_feedback.setText(f"Hiển thị {len(filtered)} bệnh nhân")
+
+        restored_row = 0
+        if self.staff_patient_selected:
+            selected_id = str(self.staff_patient_selected.get("patient_id") or "")
+            for idx, patient in enumerate(filtered):
+                if str(patient.get("patient_id") or "") == selected_id:
+                    restored_row = idx
+                    break
+        self.staff_patient_table.selectRow(restored_row)
+        self._set_staff_patient_detail(filtered[restored_row])
+
+    def _combo_text(self, attr_name):
+        combo = getattr(self, attr_name, None)
+        return combo.currentText() if combo else ""
+
+    def _handle_staff_patient_selection(self):
+        if not hasattr(self, "staff_patient_table"):
+            return
+        row = self.staff_patient_table.currentRow()
+        if row < 0 or row >= len(self.staff_patient_filtered_rows):
+            self._reset_staff_patient_detail("Chọn một bệnh nhân trong bảng để xem thông tin chi tiết.")
+            return
+        self._set_staff_patient_detail(self.staff_patient_filtered_rows[row])
+
+    def _select_staff_patient_by_id(self, patient_id):
+        target_id = str(patient_id or "")
+        for row, patient in enumerate(self.staff_patient_filtered_rows):
+            if str(patient.get("patient_id") or "") == target_id:
+                self.staff_patient_table.selectRow(row)
+                self._set_staff_patient_detail(patient)
+                return
+
+    def _set_staff_patient_detail(self, patient):
+        self.staff_patient_selected = patient
+        self.shared_selected_patient_id = patient.get("patient_id")
+        try:
+            history = AppointmentController.get_by_patient(patient.get("patient_id")) or []
+        except Exception:
+            history = []
+
+        status = self._derive_staff_patient_status(patient, history)
+        name = str(patient.get("name") or "Chưa có tên")
+        gender = str(patient.get("gender") or "-")
+        dob = self._format_staff_patient_dob(patient)
+        age_text = self._staff_patient_age_text(patient)
+        phone = str(patient.get("phone") or "Chưa nhập SĐT")
+        cccd = str(patient.get("cccd") or patient.get("citizen_id") or patient.get("id_card") or "Chưa nhập CCCD")
+        address = str(patient.get("address") or "Chưa nhập địa chỉ")
+        note = str(patient.get("note") or patient.get("notes") or "").strip()
+
+        self.staff_patient_detail_name.setText(name)
+        self.staff_patient_detail_badge.setText(status)
+        self.staff_patient_detail_badge.setStyleSheet(self._staff_patient_status_badge_style(status))
+        self.staff_patient_detail_meta.setText(f"{gender}  •  {self._staff_patient_code(patient)}")
+        self.staff_patient_empty_state.setText("Nhân viên chỉ xem thông tin hành chính và hỗ trợ tạo lịch, in phiếu, thanh toán.")
+        self.staff_patient_detail_info.setText(
+            f"Ngày sinh: {dob} ({age_text})\nSĐT: {phone}\nCCCD: {cccd}\nĐịa chỉ: {address}"
+        )
+        self.staff_patient_tab_summary.setText(
+            f"Thông tin chung\nNhóm máu: Chưa cập nhật\nDị ứng: Chưa cập nhật\n"
+            f"Nghề nghiệp: {patient.get('job') or patient.get('occupation') or 'Chưa cập nhật'}\n"
+            f"Liên hệ khẩn cấp: Chưa cập nhật"
+        )
+        self.staff_patient_note_label.setText(note or "Chưa có ghi chú quan trọng.")
+
+        self.staff_patient_history_table.setRowCount(len(history))
+        for row, appt in enumerate(history):
+            doctor_name = str(appt.get("doctor_name") or appt.get("doctor_id") or "-")
+            service_summary = self._extract_service_name_from_note(str(appt.get("note") or "")) or str(appt.get("service_name") or "-")
+            history_date = str(appt.get("appointment_date") or appt.get("date") or "-")
+            appt_status = self._staff_status_label(str(appt.get("status") or ""))
+            self.staff_patient_history_table.setItem(row, 0, QtWidgets.QTableWidgetItem(history_date))
+            self.staff_patient_history_table.setItem(row, 1, QtWidgets.QTableWidgetItem(appt_status))
+            self.staff_patient_history_table.setItem(row, 2, QtWidgets.QTableWidgetItem(doctor_name))
+            self.staff_patient_history_table.setItem(row, 3, QtWidgets.QTableWidgetItem(service_summary))
+        self.staff_patient_history_empty.setText(f"Hiển thị {len(history)} lịch hẹn gần nhất." if history else "Bệnh nhân này chưa có lịch sử khám.")
+
+    def _reset_staff_patient_detail(self, message):
+        self.staff_patient_selected = None
+        self.shared_selected_patient_id = None
+        if hasattr(self, "staff_patient_detail_name"):
+            self.staff_patient_detail_name.setText("Chưa chọn bệnh nhân")
+            self.staff_patient_detail_badge.setText("Chưa chọn")
+            self.staff_patient_detail_badge.setStyleSheet(self._staff_patient_status_badge_style("Chưa chọn"))
+            self.staff_patient_detail_meta.setText("Mã BN: -")
+            self.staff_patient_empty_state.setText(message)
+            self.staff_patient_detail_info.setText("Ngày sinh: -\nSĐT: -\nCCCD: -\nĐịa chỉ: -")
+            self.staff_patient_tab_summary.setText("Chưa có thông tin để hiển thị.")
+            self.staff_patient_note_label.setText("Chưa có ghi chú.")
+            self.staff_patient_history_table.setRowCount(0)
+            self.staff_patient_history_empty.setText("Chưa có lịch sử khám để hiển thị.")
+
+    def _staff_patient_code(self, patient):
+        patient_id = patient.get("patient_id") or patient.get("id") or ""
+        try:
+            return f"BN{int(patient_id):06d}"
+        except (TypeError, ValueError):
+            return str(patient_id) or "BN------"
+
+    def _format_staff_patient_dob(self, patient):
+        dob = str(patient.get("dob") or patient.get("birth_date") or "").strip()
+        if not dob:
+            return "-"
+        parsed = QtCore.QDate.fromString(dob, "yyyy-MM-dd")
+        return parsed.toString("dd/MM/yyyy") if parsed.isValid() else dob
+
+    def _staff_patient_age_text(self, patient):
+        dob = str(patient.get("dob") or patient.get("birth_date") or "").strip()
+        parsed = QtCore.QDate.fromString(dob, "yyyy-MM-dd")
+        if not parsed.isValid():
+            return "chưa rõ tuổi"
+        today = QtCore.QDate.currentDate()
+        age = today.year() - parsed.year()
+        if today < parsed.addYears(age):
+            age -= 1
+        return f"{max(age, 0)} tuổi"
+
+    def _patient_matches_age_filter(self, patient, age_filter):
+        dob = str(patient.get("dob") or patient.get("birth_date") or "").strip()
+        parsed = QtCore.QDate.fromString(dob, "yyyy-MM-dd")
+        if not parsed.isValid():
+            return False
+        today = QtCore.QDate.currentDate()
+        age = today.year() - parsed.year()
+        if today < parsed.addYears(age):
+            age -= 1
+        if age_filter == "Trẻ em":
+            return age < 16
+        if age_filter == "Người lớn":
+            return 16 <= age < 60
+        if age_filter == "Cao tuổi":
+            return age >= 60
+        return True
+
+    def _patient_matches_doctor_filter(self, patient, doctor_filter):
+        try:
+            history = AppointmentController.get_by_patient(patient.get("patient_id")) or []
+        except Exception:
+            return True
+        for appt in history:
+            doctor_name = str(appt.get("doctor_name") or appt.get("doctor") or appt.get("doctor_id") or "")
+            if doctor_filter.lower() in doctor_name.lower():
+                return True
+        return False
+
+    def _derive_staff_patient_status(self, patient, history=None):
+        history = history or []
+        status_values = {str(appt.get("status") or "") for appt in history}
+        if {"confirmed", "in_progress", "pending"} & status_values:
+            return "Đang điều trị"
+        if "done" in status_values:
+            return "Đã hoàn tất"
+        try:
+            return ["Khám mới", "Tái khám", "Đang điều trị", "Đã hoàn tất"][int(patient.get("patient_id") or 0) % 4]
+        except (TypeError, ValueError):
+            return "Khám mới"
+
+    def _staff_patient_status_badge_style(self, status):
+        styles = {
+            "Khám mới": ("#dcfce7", "#13a66b"),
+            "Tái khám": ("#fff0df", "#f97316"),
+            "Đang điều trị": ("#dbeafe", "#2563eb"),
+            "Đã hoàn tất": ("#eee9ff", "#8b5cf6"),
+            "Chưa chọn": ("#f1f5f9", "#64748b"),
+        }
+        bg, fg = styles.get(status, ("#f1f5f9", "#334155"))
+        return f"background: {bg}; color: {fg}; border-radius: 10px; padding: 5px 10px; font-size: 11px; font-weight: 900;"
+
+    def _build_staff_patient_status_badge(self, status):
+        label = QtWidgets.QLabel(status)
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet(self._staff_patient_status_badge_style(status))
+        return label
+
+    def _build_staff_patient_row_actions(self, patient_id=None):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        view_btn = QtWidgets.QPushButton("👁")
+        more_btn = QtWidgets.QPushButton("⋮")
+        for btn in [view_btn, more_btn]:
+            btn.setFixedSize(32, 28)
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet("background: #eff6ff; color: #2563eb; border: none; border-radius: 8px; font-size: 13px; font-weight: 900;")
+        view_btn.clicked.connect(lambda: self._select_staff_patient_by_id(patient_id))
+        more_btn.clicked.connect(lambda: self._select_staff_patient_by_id(patient_id))
+        layout.addWidget(view_btn)
+        layout.addWidget(more_btn)
+        return wrapper
+
+    def _build_staff_patient_quick_button(self, icon, label):
+        btn = QtWidgets.QPushButton(f"{icon}  {label}")
+        btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn.setMinimumHeight(42)
+        btn.setStyleSheet(
+            "QPushButton { background: #ffffff; color: #334155; border: 1px solid #dbe4ee; border-radius: 9px;"
+            " padding: 9px 10px; text-align: left; font-size: 12px; font-weight: 900; }"
+            "QPushButton:hover { background: #f8fafc; border-color: #bfdbfe; color: #2563eb; }"
+        )
+        return btn
+
+    def _handle_staff_patient_quick_action(self, action):
+        if not self.staff_patient_selected:
+            if hasattr(self, "staff_patient_empty_state"):
+                self.staff_patient_empty_state.setText("Vui lòng chọn bệnh nhân trước khi thao tác.")
+            return
+        self.shared_selected_patient_id = self.staff_patient_selected.get("patient_id")
+        if action == "appointment":
+            self.switch_page(2)
+        elif action == "billing":
+            self.switch_page(4)
+        elif action == "edit":
+            self.switch_page(1)
+        else:
+            action_labels = {
+                "view": "Đã mở phần xem hồ sơ tóm tắt ở panel bên phải.",
+                "print": "Chức năng in phiếu khám đang chờ tích hợp máy in.",
+                "sms": "Chức năng gửi SMS đang chờ cấu hình nhà cung cấp.",
+            }
+            self.staff_patient_empty_state.setText(action_labels.get(action, "Đã chọn thao tác nhanh."))
+
     def _build_appointment_management_page(self):
         page = QtWidgets.QFrame()
         page.setStyleSheet("background: #f8fbff; border: none;")
@@ -3269,7 +3860,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             return
 
         if hasattr(self, "topbar"):
-            self.topbar.setVisible(index not in {1, 2})
+            self.topbar.setVisible(index not in {1, 2, 3})
 
         for i, btn in enumerate(self.nav_buttons):
             btn.setStyleSheet(self._nav_button_style(is_active=(i == index)))

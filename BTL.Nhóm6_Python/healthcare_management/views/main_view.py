@@ -329,11 +329,10 @@ class MainView(QtWidgets.QMainWindow):
             layout = QtWidgets.QVBoxLayout(page)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(self.create_navbar(active_index))
-            layout.addWidget(page_content)
-            layout.addStretch()
+            layout.addWidget(page_content, 1)
             return page
 
-        self.page_service = create_page_with_navbar(ServicePage(), 1)
+        self.page_service = create_page_with_navbar(ServicePage(on_navigate=self.handle_doctor_page_navigation), 1)
         self.page_doctor = create_page_with_navbar(
             DoctorPage(
                 on_navigate=self.handle_doctor_page_navigation,
@@ -423,6 +422,38 @@ class MainView(QtWidgets.QMainWindow):
                 self,
                 "Đơn thuốc",
                 "Chức năng xem đơn thuốc đang trong quá trình phát triển.",
+            )
+            return
+
+        if action_key == "billing":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Thanh toán",
+                "Thanh toán online đang trong quá trình phát triển. Vui lòng thanh toán tại quầy hoặc liên hệ CarePlus.",
+            )
+            return
+
+        if action_key == "support":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Hỗ trợ khách hàng",
+                "Hotline hỗ trợ khẩn cấp: 1900 1234. Bộ phận CSKH hoạt động 24/7.",
+            )
+            return
+
+        if action_key == "insurance":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Bảo hiểm y tế",
+                "Thông tin bảo hiểm y tế và quyền lợi đang được cập nhật.",
+            )
+            return
+
+        if action_key == "notifications":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Thông báo",
+                "Thông báo lịch khám, kết quả và thanh toán sẽ được hiển thị tại đây trong phiên bản tiếp theo.",
             )
             return
 
