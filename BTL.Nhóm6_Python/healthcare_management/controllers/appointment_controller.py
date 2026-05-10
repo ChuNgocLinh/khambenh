@@ -6,6 +6,156 @@ from datetime import datetime
 
 class AppointmentController:
     VALID_STATUSES = {"pending", "confirmed", "in_progress", "done", "cancelled"}
+    ROLES = {"admin", "staff", "doctor", "patient"}
+    APPOINTMENT_ACTIONS = [
+        "list_all",
+        "list_own",
+        "view_detail",
+        "create",
+        "update_time",
+        "update_doctor",
+        "confirm",
+        "start_consultation",
+        "complete",
+        "cancel",
+        "print",
+    ]
+    APPOINTMENT_RBAC = {
+        "list_all": {
+            "allow": {"admin", "staff"},
+            "deny": {"doctor", "patient"},
+        },
+        "list_own": {
+            "allow": {"doctor", "patient"},
+            "deny": {"admin", "staff"},
+        },
+        "view_detail": {
+            "allow": {"admin", "staff", "doctor", "patient"},
+            "deny": set(),
+        },
+        "create": {
+            "allow": {"admin", "staff", "patient"},
+            "deny": {"doctor"},
+        },
+        "update_time": {
+            "allow": {"admin", "staff", "doctor", "patient"},
+            "deny": set(),
+        },
+        "update_doctor": {
+            "allow": {"admin", "staff"},
+            "deny": {"doctor", "patient"},
+        },
+        "confirm": {
+            "allow": {"admin", "staff"},
+            "deny": {"doctor", "patient"},
+        },
+        "start_consultation": {
+            "allow": {"admin", "staff", "doctor"},
+            "deny": {"patient"},
+        },
+        "complete": {
+            "allow": {"admin", "staff", "doctor"},
+            "deny": {"patient"},
+        },
+        "cancel": {
+            "allow": {"admin", "staff", "doctor", "patient"},
+            "deny": set(),
+        },
+        "print": {
+            "allow": {"admin", "staff", "doctor", "patient"},
+            "deny": set(),
+        },
+    }
+
+    @staticmethod
+    def _validate_rbac_matrix():
+        action_set = set(AppointmentController.APPOINTMENT_ACTIONS)
+        matrix_actions = set(AppointmentController.APPOINTMENT_RBAC.keys())
+
+        if action_set != matrix_actions:
+            missing = sorted(action_set - matrix_actions)
+            extra = sorted(matrix_actions - action_set)
+            return False, f"RBAC action mismatch - missing: {missing}, extra: {extra}"
+
+        for action in AppointmentController.APPOINTMENT_ACTIONS:
+            rule = AppointmentController.APPOINTMENT_RBAC.get(action, {})
+            allow = set(rule.get("allow", set()))
+            deny = set(rule.get("deny", set()))
+
+            if allow & deny:
+                return False, f"RBAC invalid: overlap allow/deny for action '{action}'"
+
+            covered = allow | deny
+            if covered != AppointmentController.ROLES:
+                missing_roles = sorted(AppointmentController.ROLES - covered)
+                extra_roles = sorted(covered - AppointmentController.ROLES)
+                return (
+                    False,
+                    f"RBAC invalid for '{action}' - missing roles: {missing_roles}, extra roles: {extra_roles}",
+                )
+
+        return True, "RBAC matrix is valid and complete."
+
+    @staticmethod
+    def _is_patient_owner(user_patient_id, appointment_patient_id):
+        return str(user_patient_id) == str(appointment_patient_id)
+
+    @staticmethod
+    def _is_doctor_owner(user_doctor_id, appointment_doctor_id):
+        return str(user_doctor_id) == str(appointment_doctor_id)
+
+    @staticmethod
+    def debug_validate_rbac_matrix():
+        is_valid, detail = AppointmentController._validate_rbac_matrix()
+        if not is_valid:
+            return {"status": False, "message": f"RBAC validation failed: {detail}"}
+        return {"status": True, "message": detail}
+
+    @staticmethod
+    def _deny(message="Bạn không có quyền thực hiện thao tác này."):
+        return {"status": False, "message": message}
+
+    @staticmethod
+    def _get_context_value(user_context, key):
+        if user_context is None:
+            return None
+        if isinstance(user_context, dict):
+            return user_context.get(key)
+        return getattr(user_context, key, None)
+
+    @staticmethod
+    def authorize(role, action, user_context=None, appointment=None):
+        normalized_role = str(role or "").strip().lower()
+        rule = AppointmentController.APPOINTMENT_RBAC.get(action)
+
+        if normalized_role not in AppointmentController.ROLES or not rule:
+            return False, "Vai trò hoặc hành động không hợp lệ."
+
+        if normalized_role in set(rule.get("deny", set())):
+            return False, "Bạn không có quyền thực hiện thao tác này."
+
+        if normalized_role not in set(rule.get("allow", set())):
+            return False, "Bạn không có quyền thực hiện thao tác này."
+
+        if appointment and normalized_role in {"doctor", "patient"}:
+            appointment_patient_id = appointment.get("patient_id")
+            appointment_doctor_id = appointment.get("doctor_id")
+
+            if normalized_role == "patient":
+                user_patient_id = AppointmentController._get_context_value(user_context, "patient_id")
+                if not user_patient_id:
+                    return False, "Thiếu thông tin bệnh nhân để xác thực quyền truy cập."
+                if not AppointmentController._is_patient_owner(user_patient_id, appointment_patient_id):
+                    return False, "Bạn chỉ có thể thao tác trên lịch hẹn của chính mình."
+
+            if normalized_role == "doctor":
+                user_doctor_id = AppointmentController._get_context_value(user_context, "doctor_id")
+                if not user_doctor_id:
+                    return False, "Thiếu thông tin bác sĩ để xác thực quyền truy cập."
+                if not AppointmentController._is_doctor_owner(user_doctor_id, appointment_doctor_id):
+                    return False, "Bạn chỉ có thể thao tác trên lịch hẹn của chính mình."
+
+        return True, ""
 
     @staticmethod
     def _can_transition(current_status, target_status):
@@ -46,6 +196,27 @@ class AppointmentController:
     @staticmethod
     def get_all():
         return AppointmentModel.get_all()
+
+    @staticmethod
+    def get_all_for_role(role, user_context):
+        normalized_role = str(role or "").strip().lower()
+
+        if normalized_role in {"admin", "staff"}:
+            return AppointmentController.get_all()
+
+        if normalized_role == "doctor":
+            doctor_id = AppointmentController._get_context_value(user_context, "doctor_id")
+            if not doctor_id:
+                return AppointmentController._deny("Thiếu thông tin bác sĩ để xem danh sách lịch hẹn.")
+            return AppointmentController.get_by_doctor(doctor_id)
+
+        if normalized_role == "patient":
+            patient_id = AppointmentController._get_context_value(user_context, "patient_id")
+            if not patient_id:
+                return AppointmentController._deny("Thiếu thông tin bệnh nhân để xem danh sách lịch hẹn.")
+            return AppointmentController.get_by_patient(patient_id)
+
+        return AppointmentController._deny()
         
     @staticmethod
     def get_by_patient(patient_id):
@@ -63,7 +234,20 @@ class AppointmentController:
 
     # 🔹 TẠO LỊCH HẸN (TỪ FORM WEB/APP)
     @staticmethod
-    def create(patient_id, doctor_id, date):
+    def create(patient_id, doctor_id, date, role=None, user_context=None):
+        if role is not None:
+            allowed, message = AppointmentController.authorize(role, "create", user_context=user_context)
+            if not allowed:
+                return AppointmentController._deny(message)
+
+            normalized_role = str(role or "").strip().lower()
+            if normalized_role == "patient":
+                context_patient_id = AppointmentController._get_context_value(user_context, "patient_id")
+                if not context_patient_id:
+                    return AppointmentController._deny("Thiếu thông tin bệnh nhân để tạo lịch hẹn.")
+                if not AppointmentController._is_patient_owner(context_patient_id, patient_id):
+                    return AppointmentController._deny("Bạn chỉ có thể tạo lịch hẹn cho chính mình.")
+
         return AppointmentModel.create(patient_id, doctor_id, date, "pending", "")
 
     @staticmethod
@@ -154,13 +338,24 @@ class AppointmentController:
 
     # 🔹 CẬP NHẬT TRẠNG THÁI
     @staticmethod
-    def update_status(appointment_id, status):
+    def update_status(appointment_id, status, role=None, user_context=None):
         if status not in AppointmentController.VALID_STATUSES:
             return False
 
         existing = AppointmentModel.get_by_id(appointment_id)
         if not existing:
             return False
+
+        if role is not None:
+            action = "cancel" if status == "cancelled" else "update_time"
+            allowed, message = AppointmentController.authorize(
+                role,
+                action,
+                user_context=user_context,
+                appointment=existing,
+            )
+            if not allowed:
+                return AppointmentController._deny(message)
 
         current_status = str(existing.get("status", ""))
         if not AppointmentController._can_transition(current_status, status):
@@ -177,7 +372,7 @@ class AppointmentController:
         return AppointmentModel.get_by_id(appointment_id)
 
     @staticmethod
-    def update_full(appointment_id, patient_id, doctor_id, date_str, time_str, status, service_name, note):
+    def update_full(appointment_id, patient_id, doctor_id, date_str, time_str, status, service_name, note, role=None, user_context=None):
         required_fields = [appointment_id, patient_id, doctor_id, date_str, time_str]
         if not all(required_fields):
             return {
@@ -209,6 +404,17 @@ class AppointmentController:
                 "status": False,
                 "message": "Không tìm thấy lịch hẹn cần cập nhật.",
             }
+
+        if role is not None:
+            action = "cancel" if status == "cancelled" else "update_time"
+            allowed, message = AppointmentController.authorize(
+                role,
+                action,
+                user_context=user_context,
+                appointment=existing,
+            )
+            if not allowed:
+                return AppointmentController._deny(message)
 
         existing_status = str(existing.get("status", ""))
         if not AppointmentController._can_transition(existing_status, status):
@@ -271,6 +477,35 @@ class AppointmentController:
             "status": True,
             "message": "Cập nhật lịch hẹn thành công.",
         }
+
+    @staticmethod
+    def cancel(appointment_id, role=None, user_context=None):
+        existing = AppointmentModel.get_by_id(appointment_id)
+        if not existing:
+            return {"status": False, "message": "Không tìm thấy lịch hẹn."}
+
+        if role is not None:
+            allowed, message = AppointmentController.authorize(
+                role,
+                "cancel",
+                user_context=user_context,
+                appointment=existing,
+            )
+            if not allowed:
+                return AppointmentController._deny(message)
+
+        current_status = str(existing.get("status", ""))
+        if not AppointmentController._can_transition(current_status, "cancelled"):
+            return {
+                "status": False,
+                "message": "Không thể hủy lịch hẹn đã kết thúc hoặc đã hủy.",
+            }
+
+        is_updated = AppointmentModel.update_status(appointment_id, "cancelled")
+        if not is_updated:
+            return {"status": False, "message": "Không thể hủy lịch hẹn."}
+
+        return {"status": True, "message": "Hủy lịch hẹn thành công."}
 
     @staticmethod
     def create_with_details(patient_id, doctor_id, date_str, time_str, status, service_name, note):

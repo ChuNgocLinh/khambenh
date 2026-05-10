@@ -1,0 +1,4 @@
+intended scenario: Verify staff sidebar behavior evidence gate for remediation bundle completeness.
+observed verification method (static/tooling): Evidence artifact audit (file presence + truthful status entry).
+result/status: PARTIAL/UNVERIFIED RUNTIME - artifact created; no runtime UI interaction executed.
+limitations: No browser/UI runtime verification performed in this remediation step.

@@ -1,0 +1,4 @@
+intended scenario: Capture appointments runtime errors.
+observed verification method (static/tooling): Runtime execution not performed.
+result/status: No runtime error output captured.
+limitations: Cannot report runtime failures without execution.

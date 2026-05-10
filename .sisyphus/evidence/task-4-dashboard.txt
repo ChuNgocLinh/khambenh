@@ -1,0 +1,4 @@
+intended scenario: Verify staff dashboard behavior evidence entry exists and is truthful.
+observed verification method (static/tooling): Evidence bundle generation with explicit non-runtime status.
+result/status: PARTIAL/UNVERIFIED RUNTIME.
+limitations: Dashboard runtime flow not executed in this remediation pass.

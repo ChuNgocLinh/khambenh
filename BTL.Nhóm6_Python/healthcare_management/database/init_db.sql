@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS Users (
     role VARCHAR(20) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- Canonical roles phải đồng bộ với migrate.py: admin/doctor/patient/staff
     CHECK (role IN ('admin','doctor','patient','staff'))
 );
 

@@ -1,0 +1,4 @@
+intended scenario: Capture billing runtime errors.
+observed verification method (static/tooling): No runtime billing run.
+result/status: No runtime error captured.
+limitations: Runtime environment not exercised for billing flow.

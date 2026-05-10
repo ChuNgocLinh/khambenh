@@ -1,0 +1,9 @@
+﻿Task 5 Empty Source Fallback Evidence
+Timestamp: 2026-05-10 12:04:45
+Target: BTL.Nhóm6_Python/healthcare_management/views/staff_dashboard_view.py
+
+[PASS] Service fallback placeholder exists and combobox disabled when empty
+[PASS] Doctor fallback placeholder exists and combobox disabled when empty
+[PASS] Controller load guarded with try/except and safe empty list
+
+Overall: PASS

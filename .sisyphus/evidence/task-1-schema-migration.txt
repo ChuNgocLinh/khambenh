@@ -1,0 +1,16 @@
+﻿Task 1 - Schema Migration Evidence
+Timestamp: 2026-05-10
+Method: Execute init_db.sql on fresh temporary MySQL database (HealthcareDB_task1_tmp2) using mysql-connector multi-statement execution.
+Result: PASS
+Command Output:
+TMP_DB=HealthcareDB_task1_tmp2
+MULTI_OK=33
+MULTI_FAIL=0
+FIRST_ERROR=NONE
+PATIENT_COLS=["cccd", "email", "intake_notes", "occupation", "patient_type"]
+WAITINGQUEUE_EXISTS=1
+Checks:
+- Migration/init entrypoint succeeded on new DB with no statement failures.
+- Required intake columns exist on Patients.
+- WaitingQueue table exists.
+SUMMARY: PASS

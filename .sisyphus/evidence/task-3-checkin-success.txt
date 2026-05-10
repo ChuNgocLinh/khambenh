@@ -1,0 +1,2 @@
+result={'status': True, 'message': 'Xác nhận tiếp nhận thành công.', 'appointment_id': 990301, 'next_status': 'confirmed', 'intake_time': '2026-05-11 11:23:00', 'note': 'Dịch vụ: Task3 Service | Lý do tiếp nhận: ly do tiep nhan'}
+row={'status': 'confirmed', 'note': 'Dịch vụ: Task3 Service | Lý do tiếp nhận: ly do tiep nhan'}

@@ -1,0 +1,4 @@
+intended scenario: Capture permission-related runtime errors.
+observed verification method (static/tooling): No runtime command executed.
+result/status: No runtime error captured.
+limitations: Environment constraints and task scope prevented runtime permission test execution.

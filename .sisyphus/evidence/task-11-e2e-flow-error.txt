@@ -1,0 +1,7 @@
+﻿intended scenario: Capture e2e-flow runtime errors.
+execution timestamp (UTC): 2026-05-09T18:11:45Z
+observed verification method (runtime/tooling): Re-verified runtime prerequisites (VC++ x64 runtime, PyQt6-Qt6==6.5.2, pyodbc present) and executed bounded startup smoke (`python main.py`, 20s timeout).
+result/status: No immediate startup traceback captured during bounded run.
+captured errors:
+- None observed in this run before timeout.
+limitations: This was a bounded non-interactive smoke run; it does not replace manual GUI end-to-end flow validation.

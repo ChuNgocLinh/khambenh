@@ -1,0 +1,4 @@
+intended scenario: Capture any staff sidebar runtime errors.
+observed verification method (static/tooling): No runtime run; documentation-only evidence update.
+result/status: No runtime error log available.
+limitations: Runtime/browser execution not performed in current environment.

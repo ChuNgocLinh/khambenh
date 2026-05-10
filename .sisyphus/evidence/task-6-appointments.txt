@@ -1,0 +1,4 @@
+intended scenario: Verify appointments flow evidence gate.
+observed verification method (static/tooling): Evidence artifact creation with explicit verification boundaries.
+result/status: PARTIAL/UNVERIFIED RUNTIME.
+limitations: Appointment flow not executed in current environment during remediation.

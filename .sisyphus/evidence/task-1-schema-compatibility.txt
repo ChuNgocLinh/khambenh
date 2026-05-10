@@ -1,0 +1,7 @@
+﻿Task 1 - Schema Backward Compatibility Evidence
+Timestamp: 2026-05-10
+Command: compatibility reads on active DB via healthcare_management.database.db.fetch_one
+Result: PASS
+- SELECT COUNT(*) AS total FROM Patients -> PASS
+- SELECT COUNT(*) AS total FROM Appointments -> PASS
+SUMMARY: PASS

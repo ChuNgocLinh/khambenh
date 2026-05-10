@@ -1,0 +1,4 @@
+intended scenario: Verify patient list evidence gate.
+observed verification method (static/tooling): Documentary/static evidence only.
+result/status: PARTIAL/UNVERIFIED RUNTIME.
+limitations: No UI/runtime patient list validation executed here.

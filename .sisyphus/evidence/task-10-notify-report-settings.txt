@@ -1,0 +1,4 @@
+intended scenario: Verify notifications/reports/settings evidence gate.
+observed verification method (static/tooling): Bundle completeness + truthful status declaration.
+result/status: PARTIAL/UNVERIFIED RUNTIME.
+limitations: No runtime traversal of notify/report/settings screens executed.

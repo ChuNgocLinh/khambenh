@@ -1,0 +1,24 @@
+Task 10 - Staff Navigation Regression
+Timestamp: 2026-05-10 13:39:53
+
+Init: content_stack_exists=True, nav_buttons=9
+Navigation checks (switch_page + currentIndex + widget existence):
+- PASS | idx=0 | page=Dashboard | currentIndex=0, widget=QFrame, active_btn_hint=True
+- PASS | idx=1 | page=Ti?p nh?n b?nh nh?n | currentIndex=1, widget=QFrame, active_btn_hint=True
+- PASS | idx=2 | page=Qu?n l? l?ch h?n | currentIndex=2, widget=QFrame, active_btn_hint=True
+- PASS | idx=3 | page=Danh s?ch b?nh nh?n | currentIndex=3, widget=QFrame, active_btn_hint=True
+- PASS | idx=4 | page=Thanh to?n & H?a ??n | currentIndex=4, widget=QFrame, active_btn_hint=True
+- PASS | idx=5 | page=D?ch v? & G?i kh?m | currentIndex=5, widget=QFrame, active_btn_hint=True
+- PASS | idx=6 | page=Th?ng b?o | currentIndex=6, widget=QFrame, active_btn_hint=True
+- PASS | idx=7 | page=B?o c?o | currentIndex=7, widget=QFrame, active_btn_hint=True
+- PASS | idx=8 | page=C?i ??t | currentIndex=8, widget=QFrame, active_btn_hint=True
+
+Required scope pages:
+- PASS | Dashboard (idx=0)
+- PASS | Ti?p nh?n b?nh nh?n (idx=1)
+- PASS | Qu?n l? l?ch h?n (idx=2)
+- PASS | Danh s?ch b?nh nh?n (idx=3)
+- PASS | Th?ng b?o (idx=6)
+- PASS | C?i ??t (idx=8)
+
+SUMMARY: PASS | total_failures=0

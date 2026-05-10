@@ -1,0 +1,41 @@
+﻿{
+  "case_cccd_and_phone": {
+    "calls": [
+      [
+        "cccd",
+        "001234567890"
+      ]
+    ],
+    "expected_calls": [
+      [
+        "cccd",
+        "001234567890"
+      ]
+    ],
+    "pass": true,
+    "payload": {
+      "patient_id": 101,
+      "cccd": "001234567890"
+    }
+  },
+  "case_cccd_missing_phone_fallback": {
+    "calls": [
+      [
+        "phone",
+        "0901112222"
+      ]
+    ],
+    "expected_calls": [
+      [
+        "phone",
+        "0901112222"
+      ]
+    ],
+    "pass": true,
+    "payload": {
+      "patient_id": 202,
+      "phone": "0901112222"
+    }
+  }
+}
+

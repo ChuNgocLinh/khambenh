@@ -1,0 +1,8 @@
+﻿Task 6 Save Success Evidence
+Timestamp: 2026-05-10 12:22:00
+Lookup branch: HAS_RECORD
+Lookup message: Đã tìm thấy hồ sơ BN #999: Nguyen Van A - SĐT 0912345678.
+Save action: create_with_status(payload)
+Save status: True
+Save feedback: Tạo hồ sơ bệnh nhân thành công.
+Result: SUCCESS PATH VERIFIED

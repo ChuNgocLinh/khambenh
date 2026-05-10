@@ -1,0 +1,4 @@
+intended scenario: Capture notify/report/settings runtime errors.
+observed verification method (static/tooling): Runtime checks not performed.
+result/status: No runtime error captured.
+limitations: Runtime execution absent, therefore no error trace.

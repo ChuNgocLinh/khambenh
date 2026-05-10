@@ -1,0 +1,4 @@
+intended scenario: Verify permissions gate evidence for staff flows.
+observed verification method (static/tooling): Remediation evidence completeness check and code-level hardening scope confirmation.
+result/status: PARTIAL/UNVERIFIED RUNTIME - no executed permission test in this wave.
+limitations: Permission behavior not exercised at runtime; only static/documentary verification recorded.

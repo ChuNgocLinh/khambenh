@@ -1,0 +1,31 @@
+Task F3 text-readable supplement (visual scenarios fallback)
+Timestamp: 2026-05-10
+
+Scope: Provide non-image evidence mapping for scenarios where PNG could not be parsed in reviewer runtime.
+
+1) Layout + resize coverage
+- Source refs: task-10-staff-regression.txt lines showing content_stack_exists=True, nav_buttons=9, page indices 0..8 PASS.
+- Code refs: staff_dashboard_view.py builds intake page and uses QFrame/QStackedWidget structure with navigation switch_page.
+- Outcome: structural navigation stability PASS, no page-switch failures.
+
+2) Validation/save coverage
+- Source refs: task-6-save-success.txt (lookup has-record branch, create_with_status status True, success feedback).
+- Code refs: _handle_intake_create_or_update and _validate_intake_form paths enforce required fields and block invalid inputs.
+- Outcome: save success path and validation gate behavior PASS.
+
+3) Reset coverage
+- Source refs: task-7-reset-save.txt indicates reset then confirm is safely blocked with missing state feedback.
+- Code refs: reset handler clears selected patient/appointment and feedback, preventing unsafe check-in.
+- Outcome: reset safety behavior PASS.
+
+4) Confirm + waiting queue sync coverage
+- Code refs: _handle_intake_checkin validates patient/doctor/service, opens confirm dialog, calls AppointmentController.confirm_intake_checkin, then _refresh_staff_waiting_pipeline and success feedback.
+- Source refs: task-10-staff-regression confirms intake page remains stable after integrations.
+- Outcome: confirm path + waiting sync wiring present and guarded.
+
+5) Style/feedback semantic coverage
+- Source refs: task-9 evidence files exist and task-9 learnings note token alignment (#1A9B6C) + distinct info/success/error states.
+- Code refs: intake feedback/state styling helpers in staff_dashboard_view.py applied on intake controls.
+- Outcome: style/feedback semantic states implemented.
+
+SUMMARY: PASS (text-readable fallback evidence bundle)

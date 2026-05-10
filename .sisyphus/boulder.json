@@ -1,0 +1,108 @@
+{
+  "active_plan": "C:\\code\\khambenh\\.sisyphus\\plans\\phan-quyen-lich-hen-4-role.md",
+  "started_at": "2026-05-10T07:33:34.752Z",
+  "session_ids": [
+    "ses_1f02cc82bffehyRhggoI7gxu2Y",
+    "ses_1edce6967ffe3L7JpKwMAGdIpZ",
+    "ses_1ed43bf04ffeKcb5R5yE4aVqK4"
+  ],
+  "plan_name": "phan-quyen-lich-hen-4-role",
+  "agent": "atlas",
+  "session_origins": {
+    "ses_1f02cc82bffehyRhggoI7gxu2Y": "direct",
+    "ses_1edce6967ffe3L7JpKwMAGdIpZ": "direct",
+    "ses_1ed43bf04ffeKcb5R5yE4aVqK4": "direct"
+  },
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Định nghĩa ma trận quyền RBAC cho lịch hẹn",
+      "session_id": "ses_1eeddf5cbffe7TYR1MVjXGOA16",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-10T10:43:43.640Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Chuẩn hóa DB role và migration legacy staff",
+      "session_id": "ses_1ee814c0cffeN5bsxk17CKqRpj",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-10T10:50:48.824Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Chuẩn hóa login role resolution",
+      "session_id": "ses_1ee7b1876ffe0LFDpQthtOYpSM",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-10T10:56:12.056Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Enforce quyền trong AppointmentController",
+      "session_id": "ses_1ee75bc79ffeemtUrOlZd8dOvt",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-10T11:06:12.728Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Bổ sung query role-scoped ở AppointmentModel",
+      "session_id": "ses_1ee6d48c5ffe6yC4P0fyjqOp2g",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-10T11:12:12.168Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Gating role điều hướng vào đúng dashboard/view",
+      "session_id": "ses_1ee674051ffe01CjAt7qUBj5KJ",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-10T11:17:52.595Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Hoàn thiện UI shell màn Staff Appointment theo spec",
+      "session_id": "ses_1ee623790ffeMYz6DGtP5bHlZg",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-05-10T11:24:13.588Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Bảng lịch hẹn + trạng thái + action theo quyền",
+      "session_id": "ses_1ee5b38d6ffeAagzE6QX9zCCOM",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-05-10T11:33:27.922Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Right panel chi tiết + timeline + 3 nút thao tác",
+      "session_id": "ses_1ee54a060ffeLY4ZmH5E4lb1BY",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-05-10T14:11:31.104Z"
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "Bootstrap test infra + RBAC tests",
+      "session_id": "ses_1edab1be1ffePeMejnzg2jM2AC",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-10T14:48:36.976Z"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+﻿runtime verification timestamp (UTC): 2026-05-09T18:11:45Z
+command: C:\Users\manhc\AppData\Local\Programs\Python\Python312\python.exe -m pip show PyQt6-Qt6
+result: installed and pinned at Version: 6.5.2
+
+command: C:\Users\manhc\AppData\Local\Programs\Python\Python312\python.exe -m pip show pyodbc
+result: installed at Version: 5.3.0
+
+command: C:\Users\manhc\AppData\Local\Programs\Python\Python312\python.exe -m pip install --upgrade pyodbc
+result: Requirement already satisfied (pyodbc 5.3.0)
+
+command: Get-ItemProperty HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64
+result: VC++ 2015+ x64 runtime installed/upgraded (Installed=1, Version=v14.50.35719.00)
+
+command: C:\Users\manhc\AppData\Local\Programs\Python\Python312\python.exe main.py (timeout 20s)
+workdir: BTL.Nhóm6_Python\healthcare_management
+result: no immediate traceback; process stayed alive until 20s timeout (GUI/event-loop likely running)

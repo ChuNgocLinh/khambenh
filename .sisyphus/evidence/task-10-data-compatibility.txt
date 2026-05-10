@@ -1,0 +1,13 @@
+Task 10 - Data Compatibility Regression
+Timestamp: 2026-05-10 13:38:10
+
+- PASS | patients_total | rows=1 | sample=[{'total': 4}]
+- PASS | appointments_total | rows=1 | sample=[{'total': 4}]
+- PASS | patients_new_intake_like | rows=1 | sample=[{'total': 4}]
+- PASS | patients_legacy_like | rows=1 | sample=[{'total': 0}]
+- PASS | appointments_join_patients | rows=1 | sample=[{'total': 4}]
+- PASS | appointments_missing_patient | rows=1 | sample=[{'total': 0}]
+- PASS | new_intake_mapping_sample | rows=4 | sample=[{'patient_id': 900302, 'name': 'Task3 Patient Fail', 'phone': '0900000302', 'cccd': None, 'occupation': None, 'patient_type': 'general', 'intake_notes': None}, {'patient_id': 900301, 'name': 'Task3 Patient', 'phone': '0900000301', 'cccd': None, 'occupation': None, 'patient_type': 'general', 'intake_notes': None}]
+- PASS | legacy_mapping_sample | rows=0 | sample=[]
+
+SUMMARY: PASS

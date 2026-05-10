@@ -1,0 +1,4 @@
+intended scenario: Capture patient list runtime errors.
+observed verification method (static/tooling): No runtime patient list execution.
+result/status: No runtime error captured.
+limitations: Runtime check unavailable in this remediation execution.

@@ -1,18 +1,40 @@
 from database.db import fetch_one, execute
 import hashlib
+import logging
 import re
 
 class UserModel:
+    LEGACY_STAFF_ROLE_FALLBACK: bool = True
+    CANONICAL_ROLES: set[str] = {"admin", "staff", "doctor", "patient"}
 
     @staticmethod
-    def normalize_role(role, username=""):
+    def normalize_role(role):
         normalized_role = str(role or "").lower().strip()
+        return normalized_role
+
+    @staticmethod
+    def resolve_login_role(role, username=""):
+        normalized_role = UserModel.normalize_role(role)
         normalized_username = str(username or "").lower().strip()
 
-        # Hỗ trợ dữ liệu cũ: chỉ ánh xạ các username staff dạng legacy rõ ràng (staff + số)
-        # để tránh false-positive cho patient username bắt đầu bằng "staff".
-        if normalized_role == "patient" and re.match(r"^staff\d+$", normalized_username):
+        # Canonical DB-first: dùng role trong DB nếu đã canonical.
+        if normalized_role in UserModel.CANONICAL_ROLES and normalized_role != "patient":
+            return normalized_role
+
+        # Guarded legacy fallback: chỉ map patient legacy username staff{number} -> staff.
+        if (
+            UserModel.LEGACY_STAFF_ROLE_FALLBACK
+            and normalized_role == "patient"
+            and re.match(r"^staff\d+$", normalized_username)
+        ):
+            logging.warning(
+                "LEGACY_STAFF_ROLE_FALLBACK applied for username='%s': role '%s' -> 'staff'",
+                normalized_username,
+                normalized_role,
+            )
             return "staff"
+
+        # Giữ nguyên canonical hoặc unknown role còn lại để không thay đổi behavior hiện có.
         return normalized_role
 
     @staticmethod
@@ -40,7 +62,10 @@ class UserModel:
         else:
             return None
 
-        user_data["role"] = UserModel.normalize_role(user_data.get("role"), user_data.get("username"))
+        user_data["role"] = UserModel.resolve_login_role(
+            user_data.get("role"),
+            user_data.get("username") or "",
+        )
             
         # Dựa vào role, lấy thêm id của patient hoặc doctor
         if user_data["role"] in ("patient", "staff"):

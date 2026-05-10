@@ -1,0 +1,4 @@
+intended scenario: Verify billing evidence gate.
+observed verification method (static/tooling): Evidence completeness pass only.
+result/status: PARTIAL/UNVERIFIED RUNTIME.
+limitations: Billing flow was not executed in runtime/test harness.

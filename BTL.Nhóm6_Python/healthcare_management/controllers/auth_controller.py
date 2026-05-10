@@ -1,4 +1,4 @@
-from models.user_model import UserModel
+from models.user_model import UserModel  # pyright: ignore[reportImplicitRelativeImport]
 
 class AuthController:
 
@@ -7,7 +7,7 @@ class AuthController:
         user = UserModel.login(username, password)
 
         if user:
-            role = UserModel.normalize_role(user.get("role"), user.get("username"))
+            role = UserModel.resolve_login_role(user.get("role"), user.get("username") or "")
             user["role"] = role
             return {
                 "status": True,

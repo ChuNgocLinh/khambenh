@@ -1,0 +1,5 @@
+Task 7 reset-then-save evidence
+Timestamp: 2026-05-10 12:24:38
+Step 1: Trigger reset button Xoa thong tin.
+Step 2: Attempt confirm check-in with cleared state.
+Observed: flow is blocked safely with validation feedback for missing patient/appointment; navigation context unchanged.

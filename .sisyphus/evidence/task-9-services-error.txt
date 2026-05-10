@@ -1,0 +1,4 @@
+intended scenario: Capture services runtime errors.
+observed verification method (static/tooling): No runtime services execution.
+result/status: No runtime error captured.
+limitations: Cannot derive runtime errors from static-only validation.

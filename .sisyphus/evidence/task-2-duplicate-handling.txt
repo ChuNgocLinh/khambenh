@@ -1,0 +1,23 @@
+﻿
+{
+  "create_duplicate": {
+    "pass": true,
+    "payload": {
+      "status": false,
+      "message": "B\u1ec7nh nh\u00e2n \u0111\u00e3 t\u1ed3n t\u1ea1i theo CCCD.",
+      "data": {
+        "patient_id": 999
+      }
+    }
+  },
+  "update_duplicate": {
+    "pass": true,
+    "payload": {
+      "status": false,
+      "message": "Th\u00f4ng tin tr\u00f9ng v\u1edbi b\u1ec7nh nh\u00e2n kh\u00e1c theo S\u0110T.",
+      "data": {
+        "patient_id": 777
+      }
+    }
+  }
+}

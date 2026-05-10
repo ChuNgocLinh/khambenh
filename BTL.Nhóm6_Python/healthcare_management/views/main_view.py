@@ -5,10 +5,18 @@ from models.doctor_model import DoctorModel
 from controllers.appointment_controller import AppointmentController
 from controllers.service_controller import ServiceController
 
+CANONICAL_ROLES = {"admin", "staff", "doctor", "patient"}
+
+
+def normalize_role(role):
+    normalized = str(role or "").strip().lower()
+    return normalized if normalized in CANONICAL_ROLES else "unknown"
+
 class MainView(QtWidgets.QMainWindow):
     def __init__(self, role, user_data, login_window=None):
         super().__init__()
-        self.role = str(role).lower().strip() 
+        self.raw_role = str(role or "").strip()
+        self.role = normalize_role(role)
         self.user_data = user_data if isinstance(user_data, dict) else {"username": "Unknown", "patient_id": 1, "doctor_id": 1}
         self.user_data["role"] = self.role
         self.username = self.user_data.get("name") or self.user_data.get("username")
@@ -18,7 +26,8 @@ class MainView(QtWidgets.QMainWindow):
         self.selected_time = None
         self._time_buttons = []
 
-        self.setWindowTitle(f"CarePlus - {self.role.upper()}")
+        role_title = self.role.upper() if self.role != "unknown" else "UNKNOWN ROLE"
+        self.setWindowTitle(f"CarePlus - {role_title}")
         self.resize(1150, 850) 
 
         central = QtWidgets.QWidget()
@@ -29,23 +38,33 @@ class MainView(QtWidgets.QMainWindow):
         self.main_layout.setContentsMargins(0, 0, 0, 0) 
         self.main_layout.setSpacing(0)
 
+        self._route_role_view()
+
+    def _route_role_view(self):
         if self.role == "admin":
             self.admin_dashboard = AdminDashboardView(self.user_data)
             self.admin_dashboard.btn_logout.clicked.connect(self.logout)
             self.main_layout.addWidget(self.admin_dashboard)
-        elif self.role == "doctor":
+            return
+
+        if self.role == "doctor":
             self.doctor_dashboard = DashboardView(self.user_data)
             self.doctor_dashboard.user_name_lbl.setText(f"Bác sĩ {self.username} ▿")
             self.doctor_dashboard.btn_logout.clicked.connect(self.logout)
             self.main_layout.addWidget(self.doctor_dashboard)
-        elif self.role == "staff":
+            return
+
+        if self.role == "staff":
             self.staff_dashboard = StaffDashboardView(self.user_data)
             self.staff_dashboard.btn_logout.clicked.connect(self.logout)
             self.main_layout.addWidget(self.staff_dashboard)
-        elif self.role == "patient":
+            return
+
+        if self.role == "patient":
             self.init_patient_ui()
-        else:
-            self.init_unknown_role_ui()
+            return
+
+        self.init_unknown_role_ui()
 
     def init_unknown_role_ui(self):
         unknown_widget = QtWidgets.QWidget()
@@ -56,7 +75,7 @@ class MainView(QtWidgets.QMainWindow):
         title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: #1f2937;")
 
-        detail = QtWidgets.QLabel(f"Hệ thống chưa có giao diện cho vai trò: {self.role or 'unknown'}")
+        detail = QtWidgets.QLabel(f"Hệ thống chưa có giao diện cho vai trò: {self.raw_role or 'unknown'}")
         detail.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         detail.setWordWrap(True)
         detail.setStyleSheet("font-size: 14px; color: #4b5563;")

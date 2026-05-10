@@ -1,0 +1,21 @@
+﻿intended scenario: Verify end-to-end staff flow evidence gate.
+execution timestamp (UTC): 2026-05-09T18:11:45Z
+observed verification method (runtime/tooling): Verified VC++ x64 runtime presence, confirmed PyQt6-Qt6 pinned to 6.5.2, confirmed pyodbc installed, then executed bounded `python main.py` startup smoke for 20s.
+result/status: RUNTIME SMOKE PROGRESSED. App produced no immediate traceback and remained alive until timeout, indicating GUI/event loop startup path is no longer failing immediately.
+manual remainder: Full interactive staff click-through (login -> intake -> appointments -> patient list -> billing -> services -> notifications/report/settings -> logout) remains manual and not executed in this host run.
+
+additional execution timestamp (UTC): 2026-05-09T22:58:00Z
+additional observed verification method (runtime/tooling): Offscreen runtime interaction probe with controller monkeypatches to bypass unavailable DB DSN and exercise staff shell navigation.
+additional executed outcomes:
+- HAS_STAFF_DASHBOARD True
+- SWITCH_OK 0
+- SWITCH_OK 1
+- SWITCH_OK 2
+- SWITCH_OK 3
+- SWITCH_OK 4
+- SWITCH_OK 5
+- SWITCH_OK 6
+- SWITCH_OK 7
+- SWITCH_OK 8
+- OFFSCREEN_FLOW_RESULT PASS
+additional limitation: this validates runtime page-switch behavior in headless mode but is still not a human-visual manual GUI session.

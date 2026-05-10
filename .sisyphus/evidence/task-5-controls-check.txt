@@ -1,0 +1,11 @@
+﻿Task 5 Controls Availability Evidence
+Timestamp: 2026-05-10 12:04:30
+Target: BTL.Nhóm6_Python/healthcare_management/views/staff_dashboard_view.py
+
+[PASS] Section 1: lookup inputs/button/result/OR
+[PASS] Section 2: radio mode + full patient form fields
+[PASS] Section 3: date/time/service/doctor/reason
+[PASS] Section 4: summary card + info badge + confirm CTA
+[PASS] State: summary refresh + mode/sync hooks
+
+Overall: PASS

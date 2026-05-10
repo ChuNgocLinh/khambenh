@@ -1,0 +1,4 @@
+intended scenario: Staff login role normalization should not promote arbitrary patient usernames that merely start with "staff".
+observed verification method (static/tooling): Reviewed `healthcare_management/models/user_model.py` normalize_role logic after hardening.
+result/status: PASS (static) - legacy mapping now only applies to strict `^staff\d+$` usernames when stored role is `patient`.
+limitations: Runtime login flow not executed in this environment; behavior confirmed by static code inspection only.
