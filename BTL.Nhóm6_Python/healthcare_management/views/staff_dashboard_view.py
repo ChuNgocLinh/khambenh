@@ -1853,22 +1853,66 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_appointment_management_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: white; border: 1px solid #e5e7eb; border-radius: 16px;")
+        page.setStyleSheet("background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
 
+        header = QtWidgets.QFrame()
+        header.setStyleSheet("background: transparent; border: none;")
+        header_layout = QtWidgets.QHBoxLayout(header)
+        header_layout.setContentsMargins(4, 0, 4, 0)
+        header_layout.setSpacing(14)
+
+        title_col = QtWidgets.QVBoxLayout()
+        title_col.setSpacing(5)
         heading = QtWidgets.QLabel("Quản lý lịch hẹn")
-        heading.setStyleSheet("font-size: 24px; color: #0f172a; font-weight: 900;")
-        sub = QtWidgets.QLabel(
-            "Tạo mới, dời lịch, hủy lịch hẹn cho quầy tiếp đón. Không bao gồm chỉnh sửa kết quả khám lâm sàng."
-        )
-        sub.setStyleSheet("font-size: 13px; color: #64748b;")
-        sub.setWordWrap(True)
-        layout.addWidget(heading)
-        layout.addWidget(sub)
+        heading.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Quản lý lịch hẹn")
+        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        title_col.addWidget(heading)
+        title_col.addWidget(breadcrumb)
+
+        bell = QtWidgets.QLabel("🔔")
+        bell.setFixedSize(34, 34)
+        bell.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell.setStyleSheet("border: none; background: transparent; font-size: 21px; color: #64748b;")
+        avatar = QtWidgets.QLabel("👤")
+        avatar.setFixedSize(42, 42)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet("background: #eaf2ff; border-radius: 21px; font-size: 22px;")
+        user_lbl = QtWidgets.QLabel(f"{self.username}  ▾")
+        user_lbl.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #0f172a; font-weight: 900;")
+        header_layout.addLayout(title_col)
+        header_layout.addStretch()
+        header_layout.addWidget(bell)
+        header_layout.addWidget(avatar)
+        header_layout.addWidget(user_lbl)
+        layout.addWidget(header)
+
+        tabs = QtWidgets.QHBoxLayout()
+        tabs.setSpacing(28)
+        for index, label in enumerate(["Lịch hẹn hôm nay", "Lịch hẹn ngày mai", "📅  Lịch hẹn theo ngày"]):
+            tab = QtWidgets.QPushButton(label)
+            tab.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            tab.setStyleSheet(
+                "QPushButton { border: none; background: transparent; padding: 8px 12px; color: #64748b; font-size: 15px; font-weight: 800; }"
+                "QPushButton:hover { color: #13a66b; }"
+            )
+            if index == 0:
+                tab.setStyleSheet(
+                    "QPushButton { border: none; border-bottom: 3px solid #13a66b; background: transparent; padding: 8px 12px; color: #13a66b; font-size: 15px; font-weight: 900; }"
+                )
+            tabs.addWidget(tab)
+        tabs.addStretch()
+        layout.addLayout(tabs)
+
+        content = QtWidgets.QHBoxLayout()
+        content.setSpacing(22)
 
         form_card = self._build_section_card("Thông tin lịch hẹn")
+        self.staff_appt_form_card = form_card
+        self.staff_appt_form_card.setVisible(False)
         form_grid = QtWidgets.QGridLayout()
         form_grid.setHorizontalSpacing(10)
         form_grid.setVerticalSpacing(8)
@@ -1939,21 +1983,125 @@ class StaffDashboardView(QtWidgets.QWidget):
         form_card.layout().addLayout(form_grid)
         form_card.layout().addLayout(actions)
         form_card.layout().addWidget(self.staff_appt_feedback)
-        layout.addWidget(form_card)
 
-        table_card = self._build_section_card("Danh sách lịch hẹn")
+        left_panel = self._build_section_card("")
+        left_layout = left_panel.layout()
+        search_row = QtWidgets.QHBoxLayout()
+        search_row.setSpacing(10)
+        self.staff_appt_search_input = QtWidgets.QLineEdit()
+        self.staff_appt_search_input.setPlaceholderText("Tìm kiếm bệnh nhân, SĐT, dịch vụ...")
+        self.staff_appt_search_input.setMinimumHeight(42)
+        self.staff_appt_search_input.textChanged.connect(self._apply_staff_appointment_filters)
+        create_btn = QtWidgets.QPushButton("+  Tạo lịch hẹn")
+        create_btn.setFixedWidth(150)
+        create_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        create_btn.setStyleSheet(self._intake_primary_button_style())
+        create_btn.clicked.connect(self._toggle_staff_appointment_form)
+        search_row.addWidget(self.staff_appt_search_input, 1)
+        search_row.addWidget(create_btn)
+        left_layout.addLayout(search_row)
+
+        filters = QtWidgets.QHBoxLayout()
+        filters.setSpacing(10)
+        self.staff_appt_filter_doctor_combo = QtWidgets.QComboBox()
+        self.staff_appt_filter_service_combo = QtWidgets.QComboBox()
+        self.staff_appt_filter_status_combo = QtWidgets.QComboBox()
+        self.staff_appt_filter_status_combo.addItems(["Trạng thái", "pending", "confirmed", "in_progress", "done", "cancelled"])
+        self.staff_appt_filter_date_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
+        self.staff_appt_filter_date_input.setDisplayFormat("dd/MM/yyyy")
+        self.staff_appt_filter_date_input.setCalendarPopup(True)
+        for widget in [
+            self.staff_appt_search_input,
+            self.staff_appt_filter_doctor_combo,
+            self.staff_appt_filter_service_combo,
+            self.staff_appt_filter_status_combo,
+            self.staff_appt_filter_date_input,
+        ]:
+            widget.setStyleSheet(self._intake_input_style())
+        for combo in [self.staff_appt_filter_doctor_combo, self.staff_appt_filter_service_combo, self.staff_appt_filter_status_combo]:
+            combo.currentIndexChanged.connect(self._apply_staff_appointment_filters)
+        self.staff_appt_filter_date_input.dateChanged.connect(self._apply_staff_appointment_filters)
+        filters.addWidget(self.staff_appt_filter_doctor_combo)
+        filters.addWidget(self.staff_appt_filter_service_combo)
+        filters.addWidget(self.staff_appt_filter_status_combo)
+        filters.addWidget(self.staff_appt_filter_date_input)
+        left_layout.addLayout(filters)
+        left_layout.addWidget(self.staff_appt_form_card)
+
         self.staff_appt_table = QtWidgets.QTableWidget()
-        self.staff_appt_table.setColumnCount(7)
-        self.staff_appt_table.setHorizontalHeaderLabels([
-            "ID", "Ngày giờ", "Patient ID", "Bệnh nhân", "Bác sĩ", "Trạng thái", "Dịch vụ"
-        ])
+        self.staff_appt_table.setColumnCount(6)
+        self.staff_appt_table.setHorizontalHeaderLabels(["Giờ hẹn", "Bệnh nhân", "Dịch vụ", "Bác sĩ", "Trạng thái", "Thao tác"])
         self.staff_appt_table.setSelectionBehavior(QtWidgets.QTableWidget.SelectionBehavior.SelectRows)
         self.staff_appt_table.setSelectionMode(QtWidgets.QTableWidget.SelectionMode.SingleSelection)
         self.staff_appt_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.staff_appt_table.horizontalHeader().setStretchLastSection(True)
+        self.staff_appt_table.setShowGrid(False)
+        self.staff_appt_table.verticalHeader().setVisible(False)
+        self.staff_appt_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.staff_appt_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_appt_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_appt_table.setStyleSheet(
+            "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 900; border: none; padding: 10px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; color: #0f172a; font-weight: 700; }"
+        )
         self.staff_appt_table.itemSelectionChanged.connect(self._handle_staff_appointment_selection)
-        table_card.layout().addWidget(self.staff_appt_table)
-        layout.addWidget(table_card, 1)
+        left_layout.addWidget(self.staff_appt_table, 1)
+
+        self.staff_appt_paging_label = QtWidgets.QLabel("Hiển thị 0 lịch hẹn")
+        self.staff_appt_paging_label.setStyleSheet("border: none; background: transparent; color: #64748b; font-size: 12px; font-weight: 700;")
+        left_layout.addWidget(self.staff_appt_paging_label)
+
+        legend = QtWidgets.QHBoxLayout()
+        legend.setSpacing(18)
+        for text, color, note in [
+            ("Đang chờ", "#f59e0b", "Bệnh nhân chưa đến/chưa xác nhận"),
+            ("Đã xác nhận", "#13a66b", "Bệnh nhân và chờ đến lượt"),
+            ("Đang khám", "#2563eb", "Bệnh nhân đang được bác sĩ khám"),
+            ("Đã hoàn tất", "#8b5cf6", "Khám xong và đã thanh toán"),
+            ("Đã hủy", "#ef4444", "Lịch hẹn đã bị hủy"),
+        ]:
+            legend.addWidget(self._build_staff_status_legend_item(text, color, note))
+        left_layout.addLayout(legend)
+
+        detail_panel = self._build_section_card("Chi tiết lịch hẹn")
+        detail_layout = detail_panel.layout()
+        self.staff_appt_detail_patient = QtWidgets.QLabel("Chưa chọn lịch hẹn")
+        self.staff_appt_detail_patient.setWordWrap(True)
+        self.staff_appt_detail_patient.setStyleSheet("border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;")
+        self.staff_appt_detail_info = QtWidgets.QLabel("Chọn một lịch hẹn ở bảng bên trái để xem chi tiết.")
+        self.staff_appt_detail_info.setWordWrap(True)
+        self.staff_appt_detail_info.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #475569; font-weight: 700; line-height: 1.5;")
+        self.staff_appt_detail_timeline = QtWidgets.QLabel("Lịch sử cập nhật sẽ hiển thị tại đây.")
+        self.staff_appt_detail_timeline.setWordWrap(True)
+        self.staff_appt_detail_timeline.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #475569; font-weight: 700;")
+        detail_layout.addWidget(self.staff_appt_detail_patient)
+        detail_layout.addWidget(self.staff_appt_detail_info)
+        detail_layout.addSpacing(10)
+        timeline_title = QtWidgets.QLabel("Lịch sử cập nhật")
+        timeline_title.setStyleSheet("border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;")
+        detail_layout.addWidget(timeline_title)
+        detail_layout.addWidget(self.staff_appt_detail_timeline)
+        detail_layout.addStretch()
+
+        detail_actions_title = QtWidgets.QLabel("Thao tác")
+        detail_actions_title.setStyleSheet("border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;")
+        edit_btn = QtWidgets.QPushButton("✎  Sửa lịch hẹn")
+        cancel_btn = QtWidgets.QPushButton("🗑  Hủy lịch hẹn")
+        print_btn = QtWidgets.QPushButton("🖨  In phiếu hẹn")
+        edit_btn.clicked.connect(self._show_staff_appointment_form_for_selected)
+        cancel_btn.clicked.connect(self._handle_staff_appointment_cancel)
+        print_btn.clicked.connect(lambda checked: self._set_staff_appt_feedback("Đã gửi phiếu hẹn sang hàng đợi in.", is_error=False))
+        edit_btn.setStyleSheet("background: #ffffff; color: #13a66b; border: 1px solid #13a66b; border-radius: 9px; padding: 10px; font-weight: 900;")
+        cancel_btn.setStyleSheet("background: #ffffff; color: #ef4444; border: 1px solid #ef4444; border-radius: 9px; padding: 10px; font-weight: 900;")
+        print_btn.setStyleSheet(self._intake_primary_button_style())
+        detail_layout.addWidget(detail_actions_title)
+        detail_layout.addWidget(edit_btn)
+        detail_layout.addWidget(cancel_btn)
+        detail_layout.addWidget(print_btn)
+
+        content.addWidget(left_panel, 7)
+        content.addWidget(detail_panel, 3)
+        layout.addLayout(content, 1)
 
         self._load_staff_appointment_dropdowns()
         self._refresh_staff_appointment_table()
@@ -1962,6 +2110,12 @@ class StaffDashboardView(QtWidgets.QWidget):
     def _load_staff_appointment_dropdowns(self):
         self.staff_appt_doctor_combo.clear()
         self.staff_appt_service_combo.clear()
+        if hasattr(self, "staff_appt_filter_doctor_combo"):
+            self.staff_appt_filter_doctor_combo.clear()
+            self.staff_appt_filter_doctor_combo.addItem("Chọn bác sĩ", None)
+        if hasattr(self, "staff_appt_filter_service_combo"):
+            self.staff_appt_filter_service_combo.clear()
+            self.staff_appt_filter_service_combo.addItem("Chọn dịch vụ", "")
 
         doctors = DoctorController.get_all() or []
         services = ServiceController.get_all() or []
@@ -1973,30 +2127,74 @@ class StaffDashboardView(QtWidgets.QWidget):
                 doctor_id = d.get("doctor_id")
                 label = f"#{doctor_id} - {d.get('name', '')}"
                 self.staff_appt_doctor_combo.addItem(label, doctor_id)
+                if hasattr(self, "staff_appt_filter_doctor_combo"):
+                    self.staff_appt_filter_doctor_combo.addItem(str(d.get("name") or label), doctor_id)
 
         if not services:
             self.staff_appt_service_combo.addItem("Chưa có dịch vụ", "")
         else:
             for s in services:
-                service_name = str(s.get("name") or "").strip()
+                service_name = str(s.get("service_name") or s.get("name") or "").strip()
                 if service_name:
                     self.staff_appt_service_combo.addItem(service_name, service_name)
+                    if hasattr(self, "staff_appt_filter_service_combo"):
+                        self.staff_appt_filter_service_combo.addItem(service_name, service_name)
 
     def _refresh_staff_appointment_table(self):
         self.staff_appointment_rows = AppointmentController.get_all() or []
-        self.staff_appt_table.setRowCount(len(self.staff_appointment_rows))
+        self._apply_staff_appointment_filters()
 
-        for row, a in enumerate(self.staff_appointment_rows):
+    def _apply_staff_appointment_filters(self):
+        if not hasattr(self, "staff_appt_table"):
+            return
+
+        search_text = str(self.staff_appt_search_input.text() if hasattr(self, "staff_appt_search_input") else "").strip().lower()
+        doctor_filter = self.staff_appt_filter_doctor_combo.currentData() if hasattr(self, "staff_appt_filter_doctor_combo") else None
+        service_filter = str(self.staff_appt_filter_service_combo.currentData() or "").strip().lower() if hasattr(self, "staff_appt_filter_service_combo") else ""
+        status_filter = str(self.staff_appt_filter_status_combo.currentText() if hasattr(self, "staff_appt_filter_status_combo") else "").strip()
+
+        filtered = []
+        for item in self.staff_appointment_rows:
+            service_text = self._extract_service_name_from_note(str(item.get("note") or ""))
+            haystack = " ".join([
+                str(item.get("patient_name") or ""),
+                str(item.get("patient_phone") or ""),
+                str(item.get("note") or ""),
+                service_text,
+                str(item.get("doctor_name") or ""),
+            ]).lower()
+            if search_text and search_text not in haystack:
+                continue
+            if doctor_filter and item.get("doctor_id") != doctor_filter:
+                continue
+            if service_filter and service_text.lower() != service_filter:
+                continue
+            if status_filter and status_filter != "Trạng thái" and str(item.get("status") or "") != status_filter:
+                continue
+            filtered.append(item)
+
+        self.staff_appointment_filtered_rows = filtered
+        self.staff_appt_table.setRowCount(len(filtered))
+
+        for row, a in enumerate(filtered):
             service_text = self._extract_service_name_from_note(str(a.get("note") or ""))
-            self.staff_appt_table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(a.get("appointment_id", ""))))
-            self.staff_appt_table.setItem(row, 1, QtWidgets.QTableWidgetItem(str(a.get("appointment_date", ""))))
-            self.staff_appt_table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(a.get("patient_id", ""))))
-            self.staff_appt_table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(a.get("patient_name", ""))))
-            self.staff_appt_table.setItem(row, 4, QtWidgets.QTableWidgetItem(str(a.get("doctor_name", ""))))
-            self.staff_appt_table.setItem(row, 5, QtWidgets.QTableWidgetItem(str(a.get("status", ""))))
-            self.staff_appt_table.setItem(row, 6, QtWidgets.QTableWidgetItem(service_text))
+            appt_dt = str(a.get("appointment_date") or "")
+            time_text = appt_dt[11:16] if len(appt_dt) >= 16 else appt_dt
+            patient_text = f"{a.get('patient_name', '')}\n{a.get('patient_phone', '') or 'Chưa có SĐT'}"
+            self.staff_appt_table.setRowHeight(row, 74)
+            self.staff_appt_table.setItem(row, 0, QtWidgets.QTableWidgetItem(time_text))
+            self.staff_appt_table.setItem(row, 1, QtWidgets.QTableWidgetItem(patient_text))
+            self.staff_appt_table.setItem(row, 2, QtWidgets.QTableWidgetItem(service_text or "-"))
+            self.staff_appt_table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(a.get("doctor_name", ""))))
+            self.staff_appt_table.setCellWidget(row, 4, self._build_staff_appointment_status_badge(str(a.get("status", ""))))
+            self.staff_appt_table.setCellWidget(row, 5, self._build_staff_appointment_row_actions())
 
-        self.staff_appt_table.resizeColumnsToContents()
+        if hasattr(self, "staff_appt_paging_label"):
+            self.staff_appt_paging_label.setText(f"Hiển thị {len(filtered)} trong {len(self.staff_appointment_rows)} lịch hẹn")
+        if filtered:
+            self.staff_appt_table.selectRow(0)
+        else:
+            self._reset_staff_appointment_detail()
 
     def _handle_staff_appointment_selection(self):
         selected = self.staff_appt_table.selectedItems()
@@ -2004,10 +2202,11 @@ class StaffDashboardView(QtWidgets.QWidget):
             return
 
         row = selected[0].row()
-        if row < 0 or row >= len(self.staff_appointment_rows):
+        rows = getattr(self, "staff_appointment_filtered_rows", self.staff_appointment_rows)
+        if row < 0 or row >= len(rows):
             return
 
-        appt = self.staff_appointment_rows[row]
+        appt = rows[row]
         self.staff_appointment_selected_id = appt.get("appointment_id")
         self.shared_selected_appointment_id = self.staff_appointment_selected_id
         self.shared_selected_patient_id = appt.get("patient_id")
@@ -2040,6 +2239,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             f"Đã chọn lịch hẹn #{self.staff_appointment_selected_id} để cập nhật/hủy.",
             is_error=False,
         )
+        self._set_staff_appointment_detail(appt)
 
     def _collect_staff_appointment_payload(self):
         patient_id = str(self.staff_appt_patient_id_input.text() or "").strip()
@@ -2451,6 +2651,113 @@ class StaffDashboardView(QtWidgets.QWidget):
         color = "#b91c1c" if is_error else "#166534"
         self.staff_appt_feedback.setStyleSheet(f"font-size: 12px; color: {color}; font-weight: 600;")
 
+    def _toggle_staff_appointment_form(self):
+        is_visible = self.staff_appt_form_card.isVisible()
+        self.staff_appt_form_card.setVisible(not is_visible)
+        if not is_visible:
+            self._reset_staff_appointment_form()
+
+    def _show_staff_appointment_form_for_selected(self):
+        if not self.staff_appointment_selected_id:
+            self._set_staff_appt_feedback("Vui lòng chọn một lịch hẹn trước khi sửa.", is_error=True)
+            return
+        self.staff_appt_form_card.setVisible(True)
+
+    def _reset_staff_appointment_detail(self):
+        if not hasattr(self, "staff_appt_detail_patient"):
+            return
+        self.staff_appt_detail_patient.setText("Chưa chọn lịch hẹn")
+        self.staff_appt_detail_info.setText("Chọn một lịch hẹn ở bảng bên trái để xem chi tiết.")
+        self.staff_appt_detail_timeline.setText("Lịch sử cập nhật sẽ hiển thị tại đây.")
+
+    def _set_staff_appointment_detail(self, appt):
+        service_text = self._extract_service_name_from_note(str(appt.get("note") or "")) or "-"
+        status = str(appt.get("status") or "")
+        patient_name = str(appt.get("patient_name") or "Chưa có tên")
+        appointment_date = str(appt.get("appointment_date") or "")
+        self.staff_appt_detail_patient.setText(
+            f"👤  {patient_name}\n"
+            f"BN #{appt.get('patient_id', '')}  •  {appt.get('patient_phone', 'Chưa có SĐT')}"
+        )
+        self.staff_appt_detail_info.setText(
+            f"Thời gian hẹn: {appointment_date}\n"
+            f"Dịch vụ khám: {service_text}\n"
+            f"Bác sĩ: {appt.get('doctor_name', '')}\n"
+            f"Phòng khám: Phòng khám 1\n"
+            f"Trạng thái: {self._staff_status_label(status)}\n"
+            f"Ghi chú: {appt.get('note') or 'Không có'}"
+        )
+        date_part = appointment_date[:10] if appointment_date else "Hôm nay"
+        self.staff_appt_detail_timeline.setText(
+            f"● {date_part} 07:30\n  Nhân viên tạo lịch hẹn\n\n"
+            f"● {date_part} 07:35\n  Bệnh nhân xác nhận lịch hẹn\n\n"
+            f"● {date_part} 07:40\n  Nhân viên xác nhận lịch hẹn"
+        )
+
+    @staticmethod
+    def _staff_status_label(status):
+        labels = {
+            "pending": "Đang chờ",
+            "confirmed": "Đã xác nhận",
+            "in_progress": "Đang khám",
+            "done": "Đã hoàn tất",
+            "cancelled": "Đã hủy",
+        }
+        return labels.get(status, status or "-")
+
+    def _build_staff_appointment_status_badge(self, status):
+        styles = {
+            "pending": ("#fff0df", "#f97316"),
+            "confirmed": ("#dcfce7", "#13a66b"),
+            "in_progress": ("#e4f0ff", "#2563eb"),
+            "done": ("#eee9ff", "#8b5cf6"),
+            "cancelled": ("#fee2e2", "#ef4444"),
+        }
+        bg, fg = styles.get(status, ("#eef2f7", "#334155"))
+        label = QtWidgets.QLabel(self._staff_status_label(status))
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet(f"background: {bg}; color: {fg}; border-radius: 10px; padding: 4px 10px; font-size: 11px; font-weight: 900;")
+        return label
+
+    def _build_staff_appointment_row_actions(self):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        view_btn = QtWidgets.QPushButton("👁")
+        more_btn = QtWidgets.QPushButton("⋮")
+        for btn in [view_btn, more_btn]:
+            btn.setFixedSize(34, 30)
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet("background: #eff6ff; color: #2563eb; border: none; border-radius: 8px; font-weight: 900;")
+        view_btn.clicked.connect(self._handle_staff_appointment_selection)
+        more_btn.clicked.connect(self._show_staff_appointment_form_for_selected)
+        layout.addWidget(view_btn)
+        layout.addWidget(more_btn)
+        return wrapper
+
+    def _build_staff_status_legend_item(self, title, color, note):
+        item = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(item)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        title_row = QtWidgets.QHBoxLayout()
+        title_row.setSpacing(6)
+        dot = QtWidgets.QLabel()
+        dot.setFixedSize(10, 10)
+        dot.setStyleSheet(f"background: {color}; border-radius: 5px;")
+        title_lbl = QtWidgets.QLabel(title)
+        title_lbl.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #0f172a; font-weight: 900;")
+        note_lbl = QtWidgets.QLabel(note)
+        note_lbl.setWordWrap(True)
+        note_lbl.setStyleSheet("border: none; background: transparent; font-size: 11px; color: #64748b; font-weight: 700;")
+        title_row.addWidget(dot)
+        title_row.addWidget(title_lbl)
+        title_row.addStretch()
+        layout.addLayout(title_row)
+        layout.addWidget(note_lbl)
+        return item
+
     def _refresh_staff_notifications(self):
         rows = []
         appts = AppointmentController.get_all() or []
@@ -2631,9 +2938,10 @@ class StaffDashboardView(QtWidgets.QWidget):
         card_layout.setContentsMargins(16, 16, 16, 16)
         card_layout.setSpacing(10)
 
-        title_lbl = QtWidgets.QLabel(title)
-        title_lbl.setStyleSheet("border: none; background: transparent; font-size: 17px; font-weight: 900; color: #0f172a;")
-        card_layout.addWidget(title_lbl)
+        if title:
+            title_lbl = QtWidgets.QLabel(title)
+            title_lbl.setStyleSheet("border: none; background: transparent; font-size: 17px; font-weight: 900; color: #0f172a;")
+            card_layout.addWidget(title_lbl)
         return card
 
     def _build_kpi_card(self, title, value, note, accent, icon_bg="#f1f5f9", icon_text=""):
@@ -2782,7 +3090,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             return
 
         if hasattr(self, "topbar"):
-            self.topbar.setVisible(index != 1)
+            self.topbar.setVisible(index not in {1, 2})
 
         for i, btn in enumerate(self.nav_buttons):
             btn.setStyleSheet(self._nav_button_style(is_active=(i == index)))
