@@ -13,26 +13,76 @@ class PatientModel:
     @staticmethod
     def get_by_phone(phone):
         return fetch_one(
-            "SELECT * FROM Patients WHERE phone=? ORDER BY patient_id DESC LIMIT 1",
+            "SELECT * FROM Patients WHERE phone=? ORDER BY patient_id DESC",
             (phone,),
         )
 
     @staticmethod
-    def create(name, dob, gender, phone, address):
-        query = """
-        INSERT INTO Patients (name, dob, gender, phone, address)
-        VALUES (?, ?, ?, ?, ?)
-        """
-        return execute(query, (name, dob, gender, phone, address))
+    def get_by_cccd(cccd):
+        return fetch_one(
+            "SELECT * FROM Patients WHERE cccd=? ORDER BY patient_id DESC",
+            (cccd,),
+        )
 
     @staticmethod
-    def update(patient_id, name, dob, gender, phone, address):
+    def create(
+        name,
+        dob,
+        gender,
+        phone,
+        cccd,
+        address,
+        email,
+        occupation,
+        intake_notes,
+        patient_type,
+    ):
+        query = """
+        INSERT INTO Patients (
+            name, dob, gender, phone, cccd, address, email, occupation, intake_notes, patient_type
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        return execute(
+            query,
+            (name, dob, gender, phone, cccd, address, email, occupation, intake_notes, patient_type),
+        )
+
+    @staticmethod
+    def update(
+        patient_id,
+        name,
+        dob,
+        gender,
+        phone,
+        cccd,
+        address,
+        email,
+        occupation,
+        intake_notes,
+        patient_type,
+    ):
         query = """
         UPDATE Patients 
-        SET name=?, dob=?, gender=?, phone=?, address=?
+        SET name=?, dob=?, gender=?, phone=?, cccd=?, address=?, email=?, occupation=?, intake_notes=?, patient_type=?
         WHERE patient_id=?
         """
-        return execute(query, (name, dob, gender, phone, address, patient_id))
+        return execute(
+            query,
+            (
+                name,
+                dob,
+                gender,
+                phone,
+                cccd,
+                address,
+                email,
+                occupation,
+                intake_notes,
+                patient_type,
+                patient_id,
+            ),
+        )
 
     @staticmethod
     def delete(patient_id):

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS Users (
     role VARCHAR(20) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    CHECK (role IN ('admin','doctor','patient'))
+    CHECK (role IN ('admin','doctor','patient','staff'))
 );
 
 -- ========================================
@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS Patients (
     dob DATE,
     gender VARCHAR(10),
     phone VARCHAR(20),
+    cccd VARCHAR(20),
+    email VARCHAR(100),
+    patient_type VARCHAR(30) DEFAULT 'general',
+    occupation VARCHAR(100),
+    intake_notes VARCHAR(500),
     address VARCHAR(255),
     user_id INT UNIQUE,
     is_active BOOLEAN DEFAULT TRUE,
@@ -89,6 +94,29 @@ CREATE TABLE IF NOT EXISTS Appointments (
     FOREIGN KEY (doctor_id) REFERENCES Doctors(doctor_id),
     CHECK (status IN ('pending','confirmed','in_progress','done','cancelled'))
 );
+
+-- ========================================
+-- 5.1 BẢNG WAITING QUEUE (HÀNG CHỜ KHÁM - STAFF 3B)
+-- ========================================
+CREATE TABLE IF NOT EXISTS WaitingQueue (
+    queue_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT NOT NULL,
+    appointment_id INT NULL,
+    queue_no VARCHAR(20) NOT NULL,
+    queue_area VARCHAR(20) NOT NULL DEFAULT '3B',
+    status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+    intake_note VARCHAR(500),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES Patients(patient_id),
+    FOREIGN KEY (appointment_id) REFERENCES Appointments(appointment_id),
+    CHECK (status IN ('waiting','called','in_consultation','done','cancelled'))
+);
+
+CREATE UNIQUE INDEX UQ_Patients_CCCD ON Patients(cccd);
+CREATE UNIQUE INDEX UQ_Patients_Phone ON Patients(phone);
+CREATE UNIQUE INDEX UQ_WaitingQueue_QueueNo_Area ON WaitingQueue(queue_no, queue_area);
+CREATE INDEX IX_Patients_Phone ON Patients(phone);
 
 -- ========================================
 -- 6. BẢNG MEDICAL RECORD (HỒ SƠ KHÁM)

@@ -1,9 +1,46 @@
-from models.appointment_model import AppointmentModel
+from healthcare_management.models.appointment_model import AppointmentModel
+from healthcare_management.models.doctor_model import DoctorModel
+from healthcare_management.models.service_model import ServiceModel
 from datetime import datetime
 
 
 class AppointmentController:
     VALID_STATUSES = {"pending", "confirmed", "in_progress", "done", "cancelled"}
+
+    @staticmethod
+    def _can_transition(current_status, target_status):
+        current = str(current_status or "")
+        target = str(target_status or "")
+
+        if target not in AppointmentController.VALID_STATUSES:
+            return False
+
+        if current in {"done", "cancelled"} and target != current:
+            return False
+
+        return True
+
+    @staticmethod
+    def _resolve_checkin_status(current_status):
+        current = str(current_status or "")
+        if current == "pending":
+            return "confirmed"
+        if current == "confirmed":
+            return "in_progress"
+        return None
+
+    @staticmethod
+    def _service_exists(service_name):
+        normalized = (service_name or "").strip().lower()
+        if not normalized:
+            return False
+
+        services = ServiceModel.get_all() or []
+        for service in services:
+            current_name = str(service.get("service_name", "")).strip().lower()
+            if current_name == normalized:
+                return True
+        return False
 
     # 🔹 LẤY TẤT CẢ LỊCH HẸN
     @staticmethod
@@ -126,7 +163,7 @@ class AppointmentController:
             return False
 
         current_status = str(existing.get("status", ""))
-        if current_status in {"done", "cancelled"} and status != current_status:
+        if not AppointmentController._can_transition(current_status, status):
             return False
 
         return AppointmentModel.update_status(appointment_id, status)
@@ -174,7 +211,7 @@ class AppointmentController:
             }
 
         existing_status = str(existing.get("status", ""))
-        if existing_status in {"done", "cancelled"} and status != existing_status:
+        if not AppointmentController._can_transition(existing_status, status):
             return {
                 "status": False,
                 "message": "Không thể thay đổi trạng thái của lịch hẹn đã kết thúc hoặc đã hủy.",
@@ -306,4 +343,104 @@ class AppointmentController:
         return {
             "status": True,
             "message": "Đã thêm lịch hẹn mới.",
+        }
+
+    @staticmethod
+    def confirm_intake_checkin(appointment_id, patient_id, doctor_id, service_name, intake_date_str, intake_time_str, reason_note):
+        required_fields = [appointment_id, patient_id, doctor_id, service_name, intake_date_str, intake_time_str]
+        if not all(required_fields):
+            return {
+                "status": False,
+                "message": "Thiếu dữ liệu check-in: cần bệnh nhân, dịch vụ, bác sĩ, ngày và giờ tiếp nhận.",
+            }
+
+        doctor = DoctorModel.get_by_id(doctor_id)
+        if not doctor:
+            return {
+                "status": False,
+                "message": "Bác sĩ không tồn tại.",
+            }
+
+        if not AppointmentController._service_exists(service_name):
+            return {
+                "status": False,
+                "message": "Dịch vụ không tồn tại.",
+            }
+
+        try:
+            intake_date = datetime.strptime(intake_date_str, "%Y-%m-%d").date()
+            intake_time = datetime.strptime(intake_time_str, "%H:%M").time()
+        except ValueError:
+            return {
+                "status": False,
+                "message": "Ngày hoặc giờ tiếp nhận không hợp lệ.",
+            }
+
+        intake_datetime = datetime.combine(intake_date, intake_time)
+        intake_dt_str = intake_datetime.strftime("%Y-%m-%d %H:%M:%S")
+
+        existing = AppointmentModel.get_by_id(appointment_id)
+        if not existing or int(existing.get("patient_id", 0)) != int(patient_id):
+            return {
+                "status": False,
+                "message": "Không tìm thấy lịch hẹn phù hợp với bệnh nhân.",
+            }
+
+        next_status = AppointmentController._resolve_checkin_status(existing.get("status"))
+        if not next_status:
+            return {
+                "status": False,
+                "message": "Trạng thái hiện tại không hợp lệ để check-in (chỉ hỗ trợ pending -> confirmed hoặc confirmed -> in_progress).",
+            }
+
+        if not AppointmentController._can_transition(existing.get("status"), next_status):
+            return {
+                "status": False,
+                "message": "Không thể chuyển trạng thái check-in theo quy tắc hiện tại.",
+            }
+
+        doctor_conflict, patient_conflict = AppointmentModel.has_conflict(
+            doctor_id,
+            patient_id,
+            intake_dt_str,
+            appointment_id,
+        )
+        if doctor_conflict:
+            return {
+                "status": False,
+                "message": "Bác sĩ đã có lịch ở khung giờ tiếp nhận này.",
+            }
+        if patient_conflict:
+            return {
+                "status": False,
+                "message": "Bệnh nhân đã có lịch ở khung giờ tiếp nhận này.",
+            }
+
+        normalized_service = (service_name or "").strip()
+        normalized_reason = (reason_note or "").strip()
+        combined_note = f"Dịch vụ: {normalized_service}"
+        if normalized_reason:
+            combined_note += f" | Lý do tiếp nhận: {normalized_reason}"
+
+        is_updated = AppointmentModel.update_intake_checkin(
+            appointment_id,
+            patient_id,
+            doctor_id,
+            intake_dt_str,
+            next_status,
+            combined_note,
+        )
+        if not is_updated:
+            return {
+                "status": False,
+                "message": "Không thể xác nhận check-in. Vui lòng thử lại.",
+            }
+
+        return {
+            "status": True,
+            "message": "Xác nhận tiếp nhận thành công.",
+            "appointment_id": appointment_id,
+            "next_status": next_status,
+            "intake_time": intake_dt_str,
+            "note": combined_note,
         }

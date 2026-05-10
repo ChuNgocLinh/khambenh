@@ -158,3 +158,14 @@ class AppointmentModel:
             """,
             (patient_id, doctor_id, appointment_date, status, note, appointment_id),
         )
+
+    @staticmethod
+    def update_intake_checkin(appointment_id, patient_id, doctor_id, intake_datetime, status, note):
+        return execute(
+            """
+            UPDATE Appointments
+            SET doctor_id = ?, appointment_date = ?, status = ?, note = ?
+            WHERE appointment_id = ? AND patient_id = ?
+            """,
+            (doctor_id, intake_datetime, status, note, appointment_id, patient_id),
+        )
