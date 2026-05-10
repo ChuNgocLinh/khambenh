@@ -517,103 +517,106 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_patient_intake_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px;")
+        page.setStyleSheet("background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(18)
 
         topbar = QtWidgets.QFrame()
-        topbar.setStyleSheet("background: #ffffff; border: 1px solid #dbe4ee; border-radius: 12px;")
+        topbar.setStyleSheet("background: transparent; border: none;")
         topbar_layout = QtWidgets.QHBoxLayout(topbar)
-        topbar_layout.setContentsMargins(18, 12, 18, 12)
-        topbar_layout.setSpacing(12)
+        topbar_layout.setContentsMargins(4, 0, 4, 0)
+        topbar_layout.setSpacing(14)
 
         topbar_left = QtWidgets.QVBoxLayout()
-        topbar_left.setSpacing(2)
+        topbar_left.setSpacing(5)
         heading = QtWidgets.QLabel("Tiếp nhận bệnh nhân")
-        heading.setStyleSheet("font-size: 22px; color: #0f172a; font-weight: 900;")
-        breadcrumb = QtWidgets.QLabel("Staff Dashboard / Tiếp nhận bệnh nhân")
-        breadcrumb.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 600;")
+        heading.setStyleSheet("font-size: 25px; color: #0f172a; font-weight: 900;")
+        breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Tiếp nhận bệnh nhân")
+        breadcrumb.setStyleSheet("font-size: 14px; color: #64748b; font-weight: 700;")
         topbar_left.addWidget(heading)
         topbar_left.addWidget(breadcrumb)
 
         topbar_right = QtWidgets.QHBoxLayout()
-        topbar_right.setSpacing(10)
-        notify_btn = QtWidgets.QPushButton("🔔 3 thông báo")
-        notify_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-        notify_btn.setStyleSheet(
-            "QPushButton { background: #f8fafc; border: 1px solid #d7dee7; border-radius: 8px; "
-            "padding: 7px 10px; color: #0f172a; font-size: 12px; font-weight: 700; }"
-            "QPushButton:hover { background: #f1f5f9; }"
-        )
-        avatar_lbl = QtWidgets.QLabel(f"👤 {self.username}")
-        avatar_lbl.setStyleSheet(
-            "background: #ecfdf5; border: 1px solid #9fe8cb; border-radius: 8px; "
-            "padding: 7px 10px; color: #065f46; font-size: 12px; font-weight: 800;"
-        )
-        topbar_right.addWidget(notify_btn)
-        topbar_right.addWidget(avatar_lbl)
+        topbar_right.setSpacing(12)
+        bell = QtWidgets.QLabel("🔔")
+        bell.setFixedSize(34, 34)
+        bell.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell.setStyleSheet("font-size: 21px; color: #64748b;")
+        avatar = QtWidgets.QLabel("👤")
+        avatar.setFixedSize(38, 38)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet("background: #eaf2ff; border-radius: 19px; font-size: 20px;")
+        user_lbl = QtWidgets.QLabel(f"{self.username}  ▾")
+        user_lbl.setStyleSheet("font-size: 13px; color: #0f172a; font-weight: 900;")
+        topbar_right.addWidget(bell)
+        topbar_right.addWidget(avatar)
+        topbar_right.addWidget(user_lbl)
 
         topbar_layout.addLayout(topbar_left)
         topbar_layout.addStretch()
         topbar_layout.addLayout(topbar_right)
         layout.addWidget(topbar)
 
-        sub = QtWidgets.QLabel("Tra cứu theo CCCD/SĐT, cập nhật hồ sơ và xác nhận check-in bệnh nhân vào hàng chờ khám.")
-        sub.setStyleSheet("font-size: 13px; color: #64748b;")
-        sub.setWordWrap(True)
-        layout.addWidget(sub)
-
         content_wrap = QtWidgets.QHBoxLayout()
-        content_wrap.setSpacing(16)
+        content_wrap.setSpacing(22)
 
         left_col = QtWidgets.QVBoxLayout()
-        left_col.setSpacing(14)
+        left_col.setSpacing(16)
 
         right_col = QtWidgets.QVBoxLayout()
-        right_col.setSpacing(14)
+        right_col.setSpacing(16)
 
-        lookup_card = self._build_section_card("1) Tra cứu hồ sơ")
-        lookup_form = QtWidgets.QGridLayout()
-        lookup_form.setHorizontalSpacing(10)
-        lookup_form.setVerticalSpacing(8)
+        lookup_card = self._build_section_card("1. Tìm kiếm bệnh nhân")
+        lookup_form = QtWidgets.QHBoxLayout()
+        lookup_form.setSpacing(10)
 
-        self.intake_cccd_input = QtWidgets.QLineEdit()
-        self.intake_cccd_input.setPlaceholderText("Nhập CCCD")
         self.intake_phone_input = QtWidgets.QLineEdit()
-        self.intake_phone_input.setPlaceholderText("Nhập số điện thoại")
+        self.intake_phone_input.setPlaceholderText("Nhập số điện thoại, CCCD hoặc mã bệnh nhân")
+        self.intake_cccd_input = QtWidgets.QLineEdit()
+        self.intake_cccd_input.hide()
 
-        lookup_form.addWidget(QtWidgets.QLabel("CCCD:"), 0, 0)
-        lookup_form.addWidget(self.intake_cccd_input, 0, 1)
-        lookup_form.addWidget(QtWidgets.QLabel("SĐT:"), 1, 0)
-        lookup_form.addWidget(self.intake_phone_input, 1, 1)
-
-        btn_lookup = QtWidgets.QPushButton("🔍 Tra cứu")
+        btn_lookup = QtWidgets.QPushButton("🔎  Tìm kiếm")
+        btn_lookup.setFixedWidth(145)
         btn_lookup.setStyleSheet(self._intake_primary_button_style())
         btn_lookup.clicked.connect(self._handle_intake_lookup)
-        lookup_form.addWidget(btn_lookup, 0, 2, 2, 1)
+        lookup_form.addWidget(self.intake_phone_input, 1)
+        lookup_form.addWidget(btn_lookup)
 
         lookup_card.layout().addLayout(lookup_form)
+        result_title = QtWidgets.QLabel("Kết quả tìm kiếm")
+        result_title.setStyleSheet("font-size: 13px; color: #0f172a; font-weight: 800;")
+        lookup_card.layout().addWidget(result_title)
         self.intake_lookup_result_card = QtWidgets.QFrame()
-        self.intake_lookup_result_card.setStyleSheet("background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;")
-        lookup_result_layout = QtWidgets.QVBoxLayout(self.intake_lookup_result_card)
-        lookup_result_layout.setContentsMargins(10, 8, 10, 8)
-        self.intake_lookup_result_label = QtWidgets.QLabel("Kết quả tra cứu sẽ hiển thị tại đây.")
+        self.intake_lookup_result_card.setStyleSheet("background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px;")
+        lookup_result_layout = QtWidgets.QHBoxLayout(self.intake_lookup_result_card)
+        lookup_result_layout.setContentsMargins(14, 12, 14, 12)
+        lookup_result_layout.setSpacing(12)
+        patient_avatar = QtWidgets.QLabel("👤")
+        patient_avatar.setFixedSize(58, 58)
+        patient_avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        patient_avatar.setStyleSheet("background: #eaf2ff; border-radius: 29px; font-size: 28px;")
+        self.intake_lookup_result_label = QtWidgets.QLabel("Nhập SĐT/CCCD/mã bệnh nhân để tìm hồ sơ đã có.")
         self.intake_lookup_result_label.setWordWrap(True)
-        self.intake_lookup_result_label.setStyleSheet("font-size: 12px; color: #475569; font-weight: 600;")
-        lookup_result_layout.addWidget(self.intake_lookup_result_label)
+        self.intake_lookup_result_label.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700;")
+        detail_btn = QtWidgets.QPushButton("Xem chi tiết ›")
+        detail_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        detail_btn.setStyleSheet("border: none; color: #2563eb; font-size: 13px; font-weight: 900;")
+        detail_btn.clicked.connect(lambda checked: self.switch_page(3))
+        lookup_result_layout.addWidget(patient_avatar)
+        lookup_result_layout.addWidget(self.intake_lookup_result_label, 1)
+        lookup_result_layout.addWidget(detail_btn)
         lookup_card.layout().addWidget(self.intake_lookup_result_card)
 
-        intake_or_divider = QtWidgets.QLabel("──────────── OR ────────────")
+        intake_or_divider = QtWidgets.QLabel("────────────  HOẶC  ────────────")
         intake_or_divider.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         intake_or_divider.setStyleSheet("font-size: 12px; color: #94a3b8; font-weight: 700;")
         lookup_card.layout().addWidget(intake_or_divider)
         left_col.addWidget(lookup_card)
 
-        profile_card = self._build_section_card("2) Hồ sơ bệnh nhân")
+        profile_card = self._build_section_card("2. Thông tin bệnh nhân mới")
         intake_mode_row = QtWidgets.QHBoxLayout()
-        intake_mode_row.setSpacing(10)
-        intake_mode_row.addWidget(QtWidgets.QLabel("Chế độ tiếp nhận *:"))
+        intake_mode_row.setSpacing(28)
         self.intake_mode_new_radio = QtWidgets.QRadioButton("Bệnh nhân mới")
         self.intake_mode_walkin_radio = QtWidgets.QRadioButton("Bệnh nhân vãng lai")
         self.intake_mode_new_radio.setStyleSheet(self._intake_radio_style())
@@ -627,10 +630,11 @@ class StaffDashboardView(QtWidgets.QWidget):
         profile_card.layout().addLayout(intake_mode_row)
 
         profile_form = QtWidgets.QGridLayout()
-        profile_form.setHorizontalSpacing(10)
-        profile_form.setVerticalSpacing(8)
+        profile_form.setHorizontalSpacing(18)
+        profile_form.setVerticalSpacing(12)
 
         self.intake_name_input = QtWidgets.QLineEdit()
+        self.intake_name_input.setPlaceholderText("Nhập họ và tên")
         self.intake_name_input.textChanged.connect(self._refresh_intake_summary_card)
         self.intake_phone_profile_input = QtWidgets.QLineEdit()
         self.intake_phone_profile_input.setPlaceholderText("Nhập số điện thoại")
@@ -640,127 +644,112 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_cccd_profile_input.textChanged.connect(self._sync_intake_cccd_inputs)
         self.intake_dob_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
         self.intake_dob_input.setCalendarPopup(True)
+        self.intake_dob_input.setDisplayFormat("dd/MM/yyyy")
         self.intake_dob_input.dateChanged.connect(self._refresh_intake_summary_card)
         self.intake_gender_input = QtWidgets.QComboBox()
-        self.intake_gender_input.addItems(["Nam", "Nữ"])
+        self.intake_gender_input.addItems(["Nam", "Nữ", "Khác"])
         self.intake_gender_input.currentTextChanged.connect(self._refresh_intake_summary_card)
         self.intake_email_input = QtWidgets.QLineEdit()
-        self.intake_email_input.setPlaceholderText("Nhập email")
+        self.intake_email_input.setPlaceholderText("Nhập email (nếu có)")
         self.intake_email_input.textChanged.connect(self._refresh_intake_summary_card)
         self.intake_occupation_input = QtWidgets.QLineEdit()
         self.intake_occupation_input.setPlaceholderText("Nhập nghề nghiệp")
         self.intake_occupation_input.textChanged.connect(self._refresh_intake_summary_card)
         self.intake_address_input = QtWidgets.QLineEdit()
+        self.intake_address_input.setPlaceholderText("Nhập địa chỉ")
         self.intake_address_input.textChanged.connect(self._refresh_intake_summary_card)
         self.intake_note_input = QtWidgets.QPlainTextEdit()
-        self.intake_note_input.setPlaceholderText("Ghi chú thêm (dị ứng/tiền sử/yêu cầu)...")
-        self.intake_note_input.setFixedHeight(72)
+        self.intake_note_input.setPlaceholderText("Ghi chú thêm (nếu có)")
+        self.intake_note_input.setFixedHeight(78)
         self.intake_note_input.textChanged.connect(self._refresh_intake_summary_card)
 
-        profile_form.addWidget(QtWidgets.QLabel("Họ tên *:"), 0, 0)
-        profile_form.addWidget(self.intake_name_input, 0, 1)
-        profile_form.addWidget(QtWidgets.QLabel("SĐT *:"), 1, 0)
-        profile_form.addWidget(self.intake_phone_profile_input, 1, 1)
-        profile_form.addWidget(QtWidgets.QLabel("CCCD *:"), 2, 0)
-        profile_form.addWidget(self.intake_cccd_profile_input, 2, 1)
-        profile_form.addWidget(QtWidgets.QLabel("Ngày sinh *:"), 3, 0)
-        profile_form.addWidget(self.intake_dob_input, 3, 1)
-        profile_form.addWidget(QtWidgets.QLabel("Giới tính *:"), 4, 0)
-        profile_form.addWidget(self.intake_gender_input, 4, 1)
-        profile_form.addWidget(QtWidgets.QLabel("Email *:"), 5, 0)
-        profile_form.addWidget(self.intake_email_input, 5, 1)
-        profile_form.addWidget(QtWidgets.QLabel("Nghề nghiệp *:"), 6, 0)
-        profile_form.addWidget(self.intake_occupation_input, 6, 1)
-        profile_form.addWidget(QtWidgets.QLabel("Địa chỉ *:"), 7, 0)
-        profile_form.addWidget(self.intake_address_input, 7, 1)
-        profile_form.addWidget(QtWidgets.QLabel("Ghi chú:"), 8, 0)
-        profile_form.addWidget(self.intake_note_input, 8, 1)
+        profile_form.addWidget(self._build_intake_field("Họ và tên *", self.intake_name_input), 0, 0)
+        profile_form.addWidget(self._build_intake_field("Ngày sinh *", self.intake_dob_input), 0, 1)
+        profile_form.addWidget(self._build_intake_field("Giới tính *", self.intake_gender_input), 1, 0)
+        profile_form.addWidget(self._build_intake_field("Số điện thoại *", self.intake_phone_profile_input), 1, 1)
+        profile_form.addWidget(self._build_intake_field("CCCD/CMND", self.intake_cccd_profile_input), 2, 0)
+        profile_form.addWidget(self._build_intake_field("Địa chỉ", self.intake_address_input), 2, 1)
+        profile_form.addWidget(self._build_intake_field("Email", self.intake_email_input), 3, 0)
+        profile_form.addWidget(self._build_intake_field("Nghề nghiệp", self.intake_occupation_input), 3, 1)
+        profile_form.addWidget(self._build_intake_field("Ghi chú", self.intake_note_input), 4, 1)
 
-        btn_create_or_update = QtWidgets.QPushButton("💾 Tạo/Cập nhật hồ sơ")
+        btn_create_or_update = QtWidgets.QPushButton("👥  Lưu thông tin")
         btn_create_or_update.setStyleSheet(self._intake_primary_button_style())
         btn_create_or_update.clicked.connect(self._handle_intake_create_or_update)
-        profile_form.addWidget(btn_create_or_update, 0, 2, 9, 1)
+        intake_clear_profile_btn = QtWidgets.QPushButton("🗑  Xóa thông tin")
+        intake_clear_profile_btn.setStyleSheet(self._intake_secondary_button_style())
+        intake_clear_profile_btn.clicked.connect(self._handle_intake_reset)
+        profile_form.addWidget(intake_clear_profile_btn, 5, 0)
+        profile_form.addWidget(btn_create_or_update, 5, 1)
 
         profile_card.layout().addLayout(profile_form)
         left_col.addWidget(profile_card)
 
-        queue_card = self._build_section_card("3) Thông tin tiếp nhận")
+        queue_card = self._build_section_card("3. Thông tin tiếp nhận")
         queue_layout = queue_card.layout()
 
         intake_schedule_form = QtWidgets.QGridLayout()
-        intake_schedule_form.setHorizontalSpacing(10)
-        intake_schedule_form.setVerticalSpacing(8)
+        intake_schedule_form.setHorizontalSpacing(18)
+        intake_schedule_form.setVerticalSpacing(12)
         self.intake_date_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
         self.intake_date_input.setCalendarPopup(True)
+        self.intake_date_input.setDisplayFormat("dd/MM/yyyy")
         self.intake_date_input.dateChanged.connect(self._refresh_intake_summary_card)
         self.intake_time_input = QtWidgets.QTimeEdit(QtCore.QTime.currentTime())
+        self.intake_time_input.setDisplayFormat("HH:mm")
         self.intake_time_input.timeChanged.connect(self._refresh_intake_summary_card)
         self.intake_service_combo = QtWidgets.QComboBox()
         self.intake_doctor_combo = QtWidgets.QComboBox()
         self.intake_service_combo.currentTextChanged.connect(self._refresh_intake_summary_card)
         self.intake_doctor_combo.currentTextChanged.connect(self._refresh_intake_summary_card)
-        self.intake_reason_input = QtWidgets.QLineEdit()
-        self.intake_reason_input.setPlaceholderText("Ví dụ: Đau bụng, sốt, tái khám...")
+        self.intake_reason_input = QtWidgets.QPlainTextEdit()
+        self.intake_reason_input.setPlaceholderText("Nhập lý do khám (nếu có)")
+        self.intake_reason_input.setFixedHeight(94)
         self.intake_reason_input.textChanged.connect(self._refresh_intake_summary_card)
 
-        intake_schedule_form.addWidget(QtWidgets.QLabel("Ngày tiếp nhận *:"), 0, 0)
-        intake_schedule_form.addWidget(self.intake_date_input, 0, 1)
-        intake_schedule_form.addWidget(QtWidgets.QLabel("Giờ tiếp nhận *:"), 1, 0)
-        intake_schedule_form.addWidget(self.intake_time_input, 1, 1)
-        intake_schedule_form.addWidget(QtWidgets.QLabel("Dịch vụ *:"), 2, 0)
-        intake_schedule_form.addWidget(self.intake_service_combo, 2, 1)
-        intake_schedule_form.addWidget(QtWidgets.QLabel("Bác sĩ *:"), 3, 0)
-        intake_schedule_form.addWidget(self.intake_doctor_combo, 3, 1)
-        intake_schedule_form.addWidget(QtWidgets.QLabel("Lý do khám *:"), 4, 0)
-        intake_schedule_form.addWidget(self.intake_reason_input, 4, 1)
+        intake_schedule_form.addWidget(self._build_intake_field("Ngày tiếp nhận", self.intake_date_input), 0, 0)
+        intake_schedule_form.addWidget(self._build_intake_field("Giờ tiếp nhận", self.intake_time_input), 0, 1)
+        intake_schedule_form.addWidget(self._build_intake_field("Dịch vụ khám *", self.intake_service_combo), 1, 0, 1, 2)
+        intake_schedule_form.addWidget(self._build_intake_field("Bác sĩ khám *", self.intake_doctor_combo), 2, 0, 1, 2)
+        intake_schedule_form.addWidget(self._build_intake_field("Lý do khám", self.intake_reason_input), 3, 0, 1, 2)
         queue_layout.addLayout(intake_schedule_form)
 
         self._load_intake_service_options()
         self._load_intake_doctor_options()
 
-        self.intake_patient_summary = QtWidgets.QLabel("Chưa chọn bệnh nhân.")
-        self.intake_patient_summary.setStyleSheet("font-size: 13px; color: #334155;")
-        self.intake_appointment_summary = QtWidgets.QLabel("Chưa tìm thấy lịch hẹn phù hợp.")
-        self.intake_appointment_summary.setStyleSheet("font-size: 13px; color: #64748b;")
-
-        btn_checkin = QtWidgets.QPushButton("✅ Xác nhận check-in")
-        btn_checkin.setStyleSheet(self._intake_primary_button_style())
-        btn_checkin.clicked.connect(self._handle_intake_checkin)
-
         self.intake_feedback = QtWidgets.QLabel("")
         self.intake_feedback.setWordWrap(True)
         self.intake_feedback.setStyleSheet(self._intake_feedback_style("info"))
 
-        queue_layout.addWidget(self.intake_patient_summary)
-        queue_layout.addWidget(self.intake_appointment_summary)
-        queue_layout.addWidget(btn_checkin)
         queue_layout.addWidget(self.intake_feedback)
         right_col.addWidget(queue_card)
 
-        next_steps_card = self._build_section_card("4) Tóm tắt & xác nhận")
-        self.intake_info_badge = QtWidgets.QLabel("ℹ️ Hoàn thành các trường bắt buộc (*) trước khi xác nhận tiếp nhận")
-        self.intake_info_badge.setStyleSheet(
-            "background: #ecfdf5; border: 1px solid #86efac; color: #166534; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700;"
-        )
-        next_steps_card.layout().addWidget(self.intake_info_badge, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
-
+        next_steps_card = self._build_section_card("4. Xác nhận tiếp nhận")
+        self.intake_patient_summary = QtWidgets.QLabel("Chưa chọn bệnh nhân.")
+        self.intake_patient_summary.setStyleSheet("font-size: 13px; color: #334155; font-weight: 800;")
         self.intake_summary_card = QtWidgets.QLabel("Chưa có dữ liệu tiếp nhận.")
         self.intake_summary_card.setWordWrap(True)
         self.intake_summary_card.setStyleSheet(
-            "background: #f8fafc; border: 1px solid #dbe4ee; border-radius: 10px; padding: 10px; font-size: 13px; color: #0f172a;"
+            "background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px; padding: 16px; font-size: 13px; color: #0f172a; font-weight: 700;"
         )
+        self.intake_appointment_summary = QtWidgets.QLabel("Trạng thái: Chờ khám")
+        self.intake_appointment_summary.setStyleSheet("font-size: 13px; color: #f97316; font-weight: 900;")
+        self.intake_info_badge = QtWidgets.QLabel("ⓘ  Bệnh nhân sẽ được chuyển vào danh sách chờ khám của bác sĩ.\n    Vui lòng hướng dẫn bệnh nhân ngồi chờ.")
+        self.intake_info_badge.setWordWrap(True)
+        self.intake_info_badge.setStyleSheet(
+            "background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; border-radius: 10px; padding: 12px 14px; font-size: 13px; font-weight: 800;"
+        )
+        next_steps_card.layout().addWidget(self.intake_patient_summary)
         next_steps_card.layout().addWidget(self.intake_summary_card)
+        next_steps_card.layout().addWidget(self.intake_appointment_summary)
+        next_steps_card.layout().addWidget(self.intake_info_badge)
 
-        self.intake_confirm_btn = QtWidgets.QPushButton("✅ Xác nhận tiếp nhận")
+        self.intake_confirm_btn = QtWidgets.QPushButton("✅  Xác nhận tiếp nhận")
         self.intake_confirm_btn.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
         self.intake_confirm_btn.setStyleSheet(self._intake_primary_button_style())
         self.intake_confirm_btn.clicked.connect(self._handle_intake_checkin)
-        intake_clear_btn = QtWidgets.QPushButton("🧹 Xóa thông tin")
-        intake_clear_btn.setStyleSheet(self._intake_secondary_button_style())
-        intake_clear_btn.clicked.connect(self._handle_intake_reset)
 
         next_steps_card.layout().addWidget(self.intake_confirm_btn)
-        next_steps_card.layout().addWidget(intake_clear_btn)
         right_col.addWidget(next_steps_card)
 
         content_wrap.addLayout(left_col, 55)
@@ -789,7 +778,6 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         self._refresh_intake_summary_card()
 
-        layout.addStretch()
         return page
 
     def _build_staff_service_lookup_page(self):
@@ -1046,14 +1034,14 @@ class StaffDashboardView(QtWidgets.QWidget):
             return
         if has_record:
             self.intake_lookup_result_card.setStyleSheet(
-                "background: #ecfdf5; border: 1px solid #86efac; border-radius: 8px;"
+                "background: #ffffff; border: 1px solid #d7f2e4; border-radius: 12px;"
             )
-            self.intake_lookup_result_label.setStyleSheet("font-size: 12px; color: #166534; font-weight: 700;")
+            self.intake_lookup_result_label.setStyleSheet("font-size: 13px; color: #166534; font-weight: 800;")
         else:
             self.intake_lookup_result_card.setStyleSheet(
-                "background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px;"
+                "background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px;"
             )
-            self.intake_lookup_result_label.setStyleSheet("font-size: 12px; color: #991b1b; font-weight: 700;")
+            self.intake_lookup_result_label.setStyleSheet("font-size: 13px; color: #9a3412; font-weight: 800;")
         self.intake_lookup_result_label.setText(message)
 
     def _validate_intake_form(self, data):
@@ -1157,7 +1145,10 @@ class StaffDashboardView(QtWidgets.QWidget):
             self.intake_doctor_combo.addItem("[Không có dữ liệu bác sĩ]")
             self.intake_doctor_combo.setEnabled(False)
         else:
-            self.intake_doctor_combo.addItems(names)
+            for doctor in doctors:
+                name = str(doctor.get("doctor_name") or doctor.get("name") or "").strip()
+                if name:
+                    self.intake_doctor_combo.addItem(name, doctor.get("doctor_id"))
             self.intake_doctor_combo.setEnabled(True)
 
     def _refresh_intake_summary_card(self):
@@ -1165,18 +1156,21 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_time_value = self.intake_time_input.time() if hasattr(self, "intake_time_input") else QtCore.QTime.currentTime()
         self.intake_selected_service = self.intake_service_combo.currentText().strip() if hasattr(self, "intake_service_combo") else ""
         self.intake_selected_doctor = self.intake_doctor_combo.currentText().strip() if hasattr(self, "intake_doctor_combo") else ""
-        self.intake_reason_value = self.intake_reason_input.text().strip() if hasattr(self, "intake_reason_input") else ""
+        self.intake_reason_value = self._plain_text_value(self.intake_reason_input) if hasattr(self, "intake_reason_input") else ""
 
         patient_name = self.intake_name_input.text().strip() if hasattr(self, "intake_name_input") else ""
         patient_phone = self.intake_phone_profile_input.text().strip() if hasattr(self, "intake_phone_profile_input") else ""
-        mode_label = "Bệnh nhân vãng lai" if self.intake_patient_mode == "walkin" else "Bệnh nhân mới"
+        patient_gender = self.intake_gender_input.currentText().strip() if hasattr(self, "intake_gender_input") else ""
+        patient_cccd = self.intake_cccd_profile_input.text().strip() if hasattr(self, "intake_cccd_profile_input") else ""
 
         summary_text = (
-            f"Chế độ: {mode_label}\n"
-            f"Bệnh nhân: {patient_name or 'Chưa nhập'} - SĐT: {patient_phone or 'Chưa nhập'}\n"
-            f"Tiếp nhận lúc: {self.intake_date_value.toString('dd/MM/yyyy')} {self.intake_time_value.toString('HH:mm')}\n"
-            f"Dịch vụ: {self.intake_selected_service or 'Chưa chọn'} | Bác sĩ: {self.intake_selected_doctor or 'Chưa chọn'}\n"
-            f"Lý do khám: {self.intake_reason_value or 'Chưa nhập'}"
+            f"{patient_name or 'Chưa nhập bệnh nhân'}\n"
+            f"{patient_gender or 'Chưa rõ giới tính'}  •  {patient_phone or 'Chưa nhập SĐT'}\n"
+            f"CCCD: {patient_cccd or 'Chưa nhập'}\n\n"
+            f"🧾  Dịch vụ khám: {self.intake_selected_service or 'Chưa chọn'}\n"
+            f"👨‍⚕️  Bác sĩ khám: {self.intake_selected_doctor or 'Chưa chọn'}\n"
+            f"🕒  Thời gian khám dự kiến: {self.intake_time_value.toString('HH:mm')}\n"
+            f"✅  Trạng thái: Chờ khám"
         )
 
         if hasattr(self, "intake_summary_card"):
@@ -1185,6 +1179,13 @@ class StaffDashboardView(QtWidgets.QWidget):
     def _handle_intake_lookup(self):
         cccd = self.intake_cccd_input.text().strip()
         phone = self.intake_phone_input.text().strip()
+        if not cccd and phone:
+            compact = re.sub(r"\s+", "", phone)
+            if re.fullmatch(r"\d{12}", compact):
+                cccd = compact
+                phone = ""
+            elif compact.upper().startswith("BN"):
+                phone = compact
         if not cccd and not phone:
             self._set_intake_feedback("Vui lòng nhập CCCD hoặc SĐT để tra cứu.", is_error=True)
             return
@@ -1223,7 +1224,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_occupation_input.setText(str(patient.get("occupation") or ""))
         self.intake_note_input.setText(str(patient.get("intake_notes") or ""))
         gender = str(patient.get("gender") or "Nam")
-        self.intake_gender_input.setCurrentText(gender if gender in {"Nam", "Nữ"} else "Nam")
+        self.intake_gender_input.setCurrentText(gender if gender in {"Nam", "Nữ", "Khác"} else "Nam")
 
         dob_str = str(patient.get("dob") or "")
         dob = QtCore.QDate.fromString(dob_str, "yyyy-MM-dd")
@@ -1252,7 +1253,7 @@ class StaffDashboardView(QtWidgets.QWidget):
                 f"{checkin_target.get('appointment_date', '')}"
             )
         else:
-            self.intake_appointment_summary.setText("Không có lịch hẹn pending/confirmed để check-in.")
+            self.intake_appointment_summary.setText("Chưa có lịch hẹn; hệ thống sẽ tạo lượt khám mới khi xác nhận.")
 
         self._set_intake_lookup_result(
             f"Đã tìm thấy hồ sơ BN #{patient_id}: {patient.get('name', '')} - SĐT {patient.get('phone', '')}.",
@@ -1270,7 +1271,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         gender = self.intake_gender_input.currentText()
         email = self.intake_email_input.text().strip()
         occupation = self.intake_occupation_input.text().strip()
-        intake_notes = self.intake_note_input.text().strip()
+        intake_notes = self._plain_text_value(self.intake_note_input)
 
         payload = {
             "name": name,
@@ -1330,15 +1331,6 @@ class StaffDashboardView(QtWidgets.QWidget):
         if not self.intake_selected_patient:
             self._set_intake_feedback("Chưa có bệnh nhân để check-in. Vui lòng tra cứu hoặc tạo hồ sơ trước.", is_error=True)
             return
-
-        if not self.intake_selected_appointment:
-            self._set_intake_feedback(
-                "Không có lịch hẹn pending/confirmed để check-in. Vui lòng tạo/lên lịch hẹn trước.",
-                is_error=True,
-            )
-            return
-
-        appointment_id = self.intake_selected_appointment.get("appointment_id")
         patient_id = self.intake_selected_patient.get("patient_id")
         if not patient_id:
             self._set_intake_feedback("Thiếu mã bệnh nhân. Vui lòng tra cứu/chọn lại hồ sơ trước khi xác nhận tiếp nhận.", is_error=True)
@@ -1356,7 +1348,32 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         intake_date_str = self.intake_date_input.date().toString("yyyy-MM-dd")
         intake_time_str = self.intake_time_input.time().toString("HH:mm")
-        reason_note = str(self.intake_reason_input.text() or "").strip()
+        reason_note = self._plain_text_value(self.intake_reason_input)
+
+        if not self.intake_selected_appointment:
+            create_result = AppointmentController.create_with_details(
+                patient_id,
+                doctor_id,
+                intake_date_str,
+                intake_time_str,
+                "pending",
+                service_name,
+                reason_note,
+            )
+            if not create_result.get("status"):
+                self._set_intake_feedback(
+                    create_result.get("message") or "Không thể tạo lượt khám mới để tiếp nhận.",
+                    is_error=True,
+                )
+                return
+
+            created_appts = AppointmentController.get_by_patient(patient_id) or []
+            self.intake_selected_appointment = created_appts[0] if created_appts else None
+            if not self.intake_selected_appointment:
+                self._set_intake_feedback("Đã tạo lịch nhưng chưa đọc lại được dữ liệu lịch hẹn.", is_error=True)
+                return
+
+        appointment_id = self.intake_selected_appointment.get("appointment_id")
 
         confirm_message = (
             f"Bạn có chắc muốn xác nhận tiếp nhận lịch hẹn #{appointment_id}?\n"
@@ -1475,12 +1492,12 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_reason_input.clear()
 
         self.intake_patient_summary.setText("Chưa chọn bệnh nhân.")
-        self.intake_appointment_summary.setText("Chưa tìm thấy lịch hẹn phù hợp.")
+        self.intake_appointment_summary.setText("Trạng thái: Chờ khám")
         self.intake_lookup_result_card.setStyleSheet(
-            "background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 8px;"
+            "background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px;"
         )
-        self.intake_lookup_result_label.setStyleSheet("font-size: 12px; color: #334155; font-weight: 600;")
-        self.intake_lookup_result_label.setText("Kết quả tra cứu sẽ hiển thị tại đây.")
+        self.intake_lookup_result_label.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700;")
+        self.intake_lookup_result_label.setText("Nhập SĐT/CCCD/mã bệnh nhân để tìm hồ sơ đã có.")
 
         self.intake_feedback.setStyleSheet(self._intake_feedback_style("info"))
         self.intake_feedback.setText("Đã xóa toàn bộ thông tin tiếp nhận. Bạn có thể nhập mới.")
@@ -1489,20 +1506,40 @@ class StaffDashboardView(QtWidgets.QWidget):
     @staticmethod
     def _intake_input_style():
         return (
-            "QLineEdit, QComboBox, QDateEdit, QTimeEdit {"
-            " background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px;"
-            " padding: 7px 10px; color: #0f172a; font-size: 13px; }"
-            "QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTimeEdit:focus {"
-            " border: 1px solid #1A9B6C; }"
-            "QLineEdit:disabled, QComboBox:disabled, QDateEdit:disabled, QTimeEdit:disabled {"
+            "QLineEdit, QComboBox, QDateEdit, QTimeEdit, QPlainTextEdit {"
+            " background: #ffffff; border: 1px solid #dbe4ee; border-radius: 9px;"
+            " padding: 9px 12px; color: #0f172a; font-size: 13px; }"
+            "QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTimeEdit:focus, QPlainTextEdit:focus {"
+            " border: 1px solid #18a66d; }"
+            "QLineEdit:disabled, QComboBox:disabled, QDateEdit:disabled, QTimeEdit:disabled, QPlainTextEdit:disabled {"
             " background: #f1f5f9; border: 1px solid #d1d5db; color: #94a3b8; }"
         )
 
     @staticmethod
+    def _plain_text_value(widget):
+        if hasattr(widget, "toPlainText"):
+            return str(widget.toPlainText() or "").strip()
+        if hasattr(widget, "text"):
+            return str(widget.text() or "").strip()
+        return ""
+
+    @staticmethod
+    def _build_intake_field(label_text, widget):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        label = QtWidgets.QLabel(label_text)
+        label.setStyleSheet("font-size: 12px; color: #334155; font-weight: 800;")
+        layout.addWidget(label)
+        layout.addWidget(widget)
+        return wrapper
+
+    @staticmethod
     def _intake_primary_button_style():
         return (
-            "QPushButton { background: #1A9B6C; color: white; padding: 8px 12px;"
-            " border: 1px solid #15803d; border-radius: 6px; font-weight: 700; }"
+            "QPushButton { background: #13a66b; color: white; padding: 11px 14px;"
+            " border: 1px solid #12915f; border-radius: 9px; font-weight: 900; font-size: 13px; }"
             "QPushButton:hover { background: #178a60; }"
             "QPushButton:pressed { background: #147a55; }"
             "QPushButton:disabled { background: #a7f3d0; color: #ecfdf5; border: 1px solid #86efac; }"
@@ -1511,8 +1548,8 @@ class StaffDashboardView(QtWidgets.QWidget):
     @staticmethod
     def _intake_secondary_button_style():
         return (
-            "QPushButton { background: #f8fafc; color: #0f172a; padding: 8px 12px;"
-            " border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 700; }"
+            "QPushButton { background: #ffffff; color: #334155; padding: 11px 14px;"
+            " border: 1px solid #dbe4ee; border-radius: 9px; font-weight: 900; font-size: 13px; }"
             "QPushButton:hover { background: #e2e8f0; }"
             "QPushButton:pressed { background: #cbd5e1; }"
             "QPushButton:disabled { background: #f1f5f9; color: #94a3b8; border: 1px solid #d1d5db; }"
