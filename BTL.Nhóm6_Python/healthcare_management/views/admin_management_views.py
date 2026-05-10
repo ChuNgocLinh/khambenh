@@ -177,6 +177,7 @@ class ServiceDialog(QtWidgets.QDialog):
 class BaseManagementView(QtWidgets.QWidget):
     def __init__(self, title_text, headers, parent=None):
         super().__init__(parent)
+        self.role = "admin"
         self.layout = QtWidgets.QVBoxLayout(self)
         
         title = QtWidgets.QLabel(title_text)
@@ -224,6 +225,16 @@ class BaseManagementView(QtWidgets.QWidget):
     def add_new(self):
         pass
 
+    def _has_admin_access(self, action_label):
+        if str(getattr(self, "role", "") or "").lower().strip() == "admin":
+            return True
+        QtWidgets.QMessageBox.warning(
+            self,
+            "Từ chối truy cập",
+            f"Bạn không có quyền {action_label}. Chức năng này chỉ dành cho quản trị viên.",
+        )
+        return False
+
 class PatientManagementView(BaseManagementView):
     def __init__(self):
         super().__init__("Quản lý Bệnh nhân", ["ID", "Họ tên", "Ngày sinh", "Giới tính", "SĐT", "Địa chỉ", "Hành động"])
@@ -263,6 +274,8 @@ class PatientManagementView(BaseManagementView):
             self.table.setCellWidget(row, 6, action_widget)
 
     def add_new(self):
+        if not self._has_admin_access("thêm bệnh nhân"):
+            return
         dialog = PatientDialog(parent=self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             data = dialog.get_data()
@@ -270,6 +283,8 @@ class PatientManagementView(BaseManagementView):
             self.load_data()
             
     def edit_patient(self, patient):
+        if not self._has_admin_access("sửa thông tin bệnh nhân"):
+            return
         dialog = PatientDialog(patient, self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             data = dialog.get_data()
@@ -277,6 +292,8 @@ class PatientManagementView(BaseManagementView):
             self.load_data()
             
     def delete_patient(self, pid):
+        if not self._has_admin_access("xóa bệnh nhân"):
+            return
         # Soft delete logic in controller / model is required or hard delete
         PatientController.delete(pid)
         self.load_data()
@@ -317,6 +334,8 @@ class DoctorManagementView(BaseManagementView):
             self.table.setCellWidget(row, 4, action_widget)
 
     def add_new(self):
+        if not self._has_admin_access("thêm bác sĩ"):
+            return
         dialog = DoctorDialog(parent=self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             data = dialog.get_data()
@@ -324,6 +343,8 @@ class DoctorManagementView(BaseManagementView):
             self.load_data()
             
     def edit_doctor(self, doctor):
+        if not self._has_admin_access("sửa thông tin bác sĩ"):
+            return
         dialog = DoctorDialog(doctor, self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             data = dialog.get_data()
@@ -331,6 +352,8 @@ class DoctorManagementView(BaseManagementView):
             self.load_data()
             
     def delete_doctor(self, did):
+        if not self._has_admin_access("xóa bác sĩ"):
+            return
         DoctorController.delete(did)
         self.load_data()
 
@@ -353,12 +376,24 @@ class AppointmentManagementView(BaseManagementView):
             cb_status = QtWidgets.QComboBox()
             cb_status.addItems(["pending", "confirmed", "in_progress", "done", "cancelled"])
             cb_status.setCurrentText(str(a.get("status", "pending")))
-            cb_status.currentTextChanged.connect(lambda text, a_id=a["appointment_id"]: AppointmentController.update_status(a_id, text))
+            cb_status.currentTextChanged.connect(lambda text, a_id=a["appointment_id"]: self._update_appointment_status(a_id, text))
             self.table.setCellWidget(row, 4, cb_status)
             
             btn_del = QtWidgets.QPushButton("Hủy lịch")
-            btn_del.clicked.connect(lambda _, a_id=a["appointment_id"]: AppointmentController.update_status(a_id, "cancelled"))
+            btn_del.clicked.connect(lambda _, a_id=a["appointment_id"]: self._cancel_appointment(a_id))
             self.table.setCellWidget(row, 5, btn_del)
+
+    def _update_appointment_status(self, appointment_id, status):
+        if not self._has_admin_access("cập nhật trạng thái lịch hẹn"):
+            self.load_data()
+            return
+        AppointmentController.update_status(appointment_id, status)
+
+    def _cancel_appointment(self, appointment_id):
+        if not self._has_admin_access("hủy lịch hẹn"):
+            return
+        AppointmentController.update_status(appointment_id, "cancelled")
+        self.load_data()
 
 
 class MedicineManagementView(BaseManagementView):
@@ -393,18 +428,24 @@ class MedicineManagementView(BaseManagementView):
             self.table.setCellWidget(row, 5, action_widget)
 
     def add_new(self):
+        if not self._has_admin_access("thêm thuốc"):
+            return
         dialog = MedicineDialog(parent=self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             MedicineController.create(dialog.get_data())
             self.load_data()
             
     def edit_medicine(self, medicine):
+        if not self._has_admin_access("sửa thuốc"):
+            return
         dialog = MedicineDialog(medicine, self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             MedicineController.update(medicine["medicine_id"], dialog.get_data())
             self.load_data()
             
     def delete_medicine(self, mid):
+        if not self._has_admin_access("xóa thuốc"):
+            return
         MedicineController.delete(mid)
         self.load_data()
 
@@ -437,18 +478,24 @@ class ServiceManagementView(BaseManagementView):
             self.table.setCellWidget(row, 4, action_widget)
 
     def add_new(self):
+        if not self._has_admin_access("thêm dịch vụ"):
+            return
         dialog = ServiceDialog(parent=self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             ServiceController.create(dialog.get_data())
             self.load_data()
             
     def edit_service(self, service):
+        if not self._has_admin_access("sửa dịch vụ"):
+            return
         dialog = ServiceDialog(service, self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             ServiceController.update(service["service_id"], dialog.get_data())
             self.load_data()
             
     def delete_service(self, sid):
+        if not self._has_admin_access("xóa dịch vụ"):
+            return
         ServiceController.delete(sid)
         self.load_data()
 
@@ -471,11 +518,17 @@ class PaymentManagementView(BaseManagementView):
             cb_status = QtWidgets.QComboBox()
             cb_status.addItems(["unpaid", "paid"])
             cb_status.setCurrentText(str(p.get("status", "unpaid")))
-            cb_status.currentTextChanged.connect(lambda text, p_id=p["payment_id"]: PaymentController.update_status(p_id, text))
+            cb_status.currentTextChanged.connect(lambda text, p_id=p["payment_id"]: self._update_payment_status(p_id, text))
             self.table.setCellWidget(row, 4, cb_status)
             
             btn_inv = QtWidgets.QPushButton("Hóa đơn")
             self.table.setCellWidget(row, 5, btn_inv)
+
+    def _update_payment_status(self, payment_id, status):
+        if not self._has_admin_access("cập nhật trạng thái thanh toán"):
+            self.load_data()
+            return
+        PaymentController.update_status(payment_id, status)
 
 
 class ReportStatsView(QtWidgets.QWidget):

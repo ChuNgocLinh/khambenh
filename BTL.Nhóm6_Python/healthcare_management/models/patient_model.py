@@ -11,6 +11,13 @@ class PatientModel:
         return fetch_one("SELECT * FROM Patients WHERE patient_id=?", (patient_id,))
 
     @staticmethod
+    def get_by_phone(phone):
+        return fetch_one(
+            "SELECT * FROM Patients WHERE phone=? ORDER BY patient_id DESC LIMIT 1",
+            (phone,),
+        )
+
+    @staticmethod
     def create(name, dob, gender, phone, address):
         query = """
         INSERT INTO Patients (name, dob, gender, phone, address)

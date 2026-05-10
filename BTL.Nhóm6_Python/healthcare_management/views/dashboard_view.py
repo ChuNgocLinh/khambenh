@@ -346,6 +346,12 @@ class DashboardView(QtWidgets.QWidget):
         self.page_doctor_appts = DoctorAppointmentView(self.user_data.get("doctor_id"))
         self.page_medical_record = MedicalRecordView(self.user_data.get("doctor_id"))
         self.page_prescription = PrescriptionView(self.user_data.get("doctor_id"))
+
+        role = str(self.user_data.get("role") or "doctor").lower().strip()
+        self.page_patient_list.role = role
+        self.page_doctor_appts.role = role
+        self.page_medical_record.role = role
+        self.page_prescription.role = role
         
         self.content_stack.addWidget(self.page_doctor_appts)   # 1: Lịch hẹn
         self.content_stack.addWidget(self.page_patient_list)    # 2: Bệnh nhân của tôi
@@ -2192,6 +2198,14 @@ class AdminDashboardView(QtWidgets.QWidget):
         self.page_med_mgmt = MedicineManagementView()
         self.page_pay_mgmt = PaymentManagementView()
         self.page_report = ReportStatsView()
+
+        role = str(self.user_data.get("role") or "admin").lower().strip()
+        self.page_patient_mgmt.role = role
+        self.page_doctor_mgmt.role = role
+        self.page_appt_mgmt.role = role
+        self.page_service_mgmt.role = role
+        self.page_med_mgmt.role = role
+        self.page_pay_mgmt.role = role
         
         self.content_stack.addWidget(self.page_patient_mgmt) # Index 1: Quản lý bệnh nhân
         self.content_stack.addWidget(self.page_doctor_mgmt) # Index 2: Quản lý bác sĩ

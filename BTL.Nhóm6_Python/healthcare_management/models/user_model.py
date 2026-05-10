@@ -1,7 +1,19 @@
 from database.db import fetch_one, execute
 import hashlib
+import re
 
 class UserModel:
+
+    @staticmethod
+    def normalize_role(role, username=""):
+        normalized_role = str(role or "").lower().strip()
+        normalized_username = str(username or "").lower().strip()
+
+        # Hỗ trợ dữ liệu cũ: chỉ ánh xạ các username staff dạng legacy rõ ràng (staff + số)
+        # để tránh false-positive cho patient username bắt đầu bằng "staff".
+        if normalized_role == "patient" and re.match(r"^staff\d+$", normalized_username):
+            return "staff"
+        return normalized_role
 
     @staticmethod
     def hash_password(password):
@@ -27,14 +39,18 @@ class UserModel:
             user_data = row
         else:
             return None
+
+        user_data["role"] = UserModel.normalize_role(user_data.get("role"), user_data.get("username"))
             
         # Dựa vào role, lấy thêm id của patient hoặc doctor
-        if user_data["role"] == "patient":
+        if user_data["role"] in ("patient", "staff"):
             p_row = fetch_one("SELECT patient_id, name FROM Patients WHERE user_id=?", (user_data["user_id"],))
             if p_row:
                 p_dict = p_row if isinstance(p_row, dict) else {"patient_id": p_row[0], "name": p_row[1]}
                 user_data["patient_id"] = p_dict.get("patient_id")
                 user_data["name"] = p_dict.get("name")
+            else:
+                user_data["name"] = user_data.get("username")
         elif user_data["role"] == "doctor":
             d_row = fetch_one("SELECT doctor_id, name FROM Doctors WHERE user_id=?", (user_data["user_id"],))
             if d_row:
@@ -43,6 +59,8 @@ class UserModel:
                 user_data["name"] = d_dict.get("name")
         elif user_data["role"] == "admin":
             user_data["name"] = "Admin"
+        else:
+            user_data.setdefault("name", user_data.get("username", "Unknown"))
                 
         return user_data
 

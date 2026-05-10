@@ -7,10 +7,12 @@ class AuthController:
         user = UserModel.login(username, password)
 
         if user:
+            role = UserModel.normalize_role(user.get("role"), user.get("username"))
+            user["role"] = role
             return {
                 "status": True,
                 "user": user,
-                "role": user["role"]
+                "role": role
             }
         return {
             "status": False,

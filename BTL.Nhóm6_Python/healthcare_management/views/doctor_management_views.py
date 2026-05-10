@@ -11,6 +11,7 @@ class BaseDoctorView(QtWidgets.QWidget):
     def __init__(self, title_text, headers, doctor_id, parent=None):
         super().__init__(parent)
         self.doctor_id = doctor_id
+        self.role = "doctor"
         self.layout = QtWidgets.QVBoxLayout(self)
         
         title = QtWidgets.QLabel(title_text)
@@ -51,12 +52,22 @@ class BaseDoctorView(QtWidgets.QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         self.layout.addWidget(self.table)
-        
+
     def load_data(self):
         pass
-        
+
     def add_new(self):
         pass
+
+    def _has_staff_write_access(self, action_label):
+        if str(getattr(self, "role", "") or "").lower().strip() != "staff":
+            return True
+        QtWidgets.QMessageBox.warning(
+            self,
+            "Từ chối truy cập",
+            f"Nhân viên không có quyền {action_label}. Vui lòng liên hệ bác sĩ hoặc quản trị viên.",
+        )
+        return False
 
 
 class PatientCreateDialog(QtWidgets.QDialog):
@@ -528,6 +539,8 @@ class MedicalRecordView(BaseDoctorView):
             self.table.setCellWidget(row, 5, btn_presc)
 
     def add_new(self):
+        if not self._has_staff_write_access("chỉnh sửa hồ sơ bệnh án"):
+            return
         dialog = MedicalRecordDialog(self.doctor_id, self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             data = dialog.get_data()
@@ -558,6 +571,8 @@ class MedicalRecordView(BaseDoctorView):
                 self.load_data()
                 
     def add_prescription(self, record_id):
+        if not self._has_staff_write_access("chỉnh sửa đơn thuốc"):
+            return
         dialog = PrescriptionDialog(record_id, self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             data = dialog.get_data()
@@ -1915,6 +1930,8 @@ class DoctorPatientListView(BaseDoctorView):
         self._open_record({**patient_detail, **dialog.get_data()})
 
     def _start_exam_from_record_dialog(self, patient_detail, detail_dialog):
+        if not self._has_staff_write_access("thực hiện khám và cập nhật chẩn đoán"):
+            return
         from database.db import fetch_one
 
         active_appointment = fetch_one(

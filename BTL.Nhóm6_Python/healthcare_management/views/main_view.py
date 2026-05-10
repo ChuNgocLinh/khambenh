@@ -1,5 +1,6 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from views.dashboard_view import DashboardView, AdminDashboardView 
+from views.staff_dashboard_view import StaffDashboardView
 from models.doctor_model import DoctorModel
 from controllers.appointment_controller import AppointmentController
 from controllers.service_controller import ServiceController
@@ -9,6 +10,7 @@ class MainView(QtWidgets.QMainWindow):
         super().__init__()
         self.role = str(role).lower().strip() 
         self.user_data = user_data if isinstance(user_data, dict) else {"username": "Unknown", "patient_id": 1, "doctor_id": 1}
+        self.user_data["role"] = self.role
         self.username = self.user_data.get("name") or self.user_data.get("username")
         
         # QUAN TRỌNG: Lưu tham chiếu cửa sổ đăng nhập
@@ -36,8 +38,51 @@ class MainView(QtWidgets.QMainWindow):
             self.doctor_dashboard.user_name_lbl.setText(f"Bác sĩ {self.username} ▿")
             self.doctor_dashboard.btn_logout.clicked.connect(self.logout)
             self.main_layout.addWidget(self.doctor_dashboard)
-        else:
+        elif self.role == "staff":
+            self.staff_dashboard = StaffDashboardView(self.user_data)
+            self.staff_dashboard.btn_logout.clicked.connect(self.logout)
+            self.main_layout.addWidget(self.staff_dashboard)
+        elif self.role == "patient":
             self.init_patient_ui()
+        else:
+            self.init_unknown_role_ui()
+
+    def init_unknown_role_ui(self):
+        unknown_widget = QtWidgets.QWidget()
+        unknown_layout = QtWidgets.QVBoxLayout(unknown_widget)
+        unknown_layout.setContentsMargins(40, 40, 40, 40)
+
+        title = QtWidgets.QLabel("Vai trò không được hỗ trợ")
+        title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #1f2937;")
+
+        detail = QtWidgets.QLabel(f"Hệ thống chưa có giao diện cho vai trò: {self.role or 'unknown'}")
+        detail.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        detail.setWordWrap(True)
+        detail.setStyleSheet("font-size: 14px; color: #4b5563;")
+
+        logout_btn = QtWidgets.QPushButton("Đăng xuất")
+        logout_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        logout_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #006fe6;
+                color: white;
+                font-weight: bold;
+                border-radius: 10px;
+                padding: 10px 20px;
+            }
+            QPushButton:hover { background-color: #0056b3; }
+        """)
+        logout_btn.clicked.connect(self.logout)
+
+        unknown_layout.addStretch()
+        unknown_layout.addWidget(title)
+        unknown_layout.addWidget(detail)
+        unknown_layout.addSpacing(16)
+        unknown_layout.addWidget(logout_btn, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+        unknown_layout.addStretch()
+
+        self.main_layout.addWidget(unknown_widget)
 
     def init_patient_ui(self):
         # Tạo StackedWidget để quản lý các trang

@@ -368,7 +368,8 @@ class LoginView(QWidget):
         res = AuthController.login(user, pwd)
         if res and res.get("status"):
             user_data = res.get("user")
-            self.main_window = MainView(res.get("role"), user_data, self)
+            role = str(res.get("role") or "").lower().strip()
+            self.main_window = MainView(role, user_data, self)
             self.main_window.show()
             self.close()
         else:
