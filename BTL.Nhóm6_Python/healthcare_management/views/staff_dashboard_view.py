@@ -155,6 +155,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         topbar_layout.addWidget(bell)
         topbar_layout.addWidget(avatar)
         topbar_layout.addWidget(user_lbl)
+        self.topbar = topbar
 
         self.content_stack = QtWidgets.QStackedWidget()
         self.content_stack.setStyleSheet("QStackedWidget { background: transparent; }")
@@ -169,7 +170,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.content_stack.addWidget(self._build_staff_reports_page())
         self.content_stack.addWidget(self._build_staff_settings_page())
 
-        right_layout.addWidget(topbar)
+        right_layout.addWidget(self.topbar)
         right_layout.addWidget(self.content_stack, 1)
         self.main_layout.addWidget(right, 1)
 
@@ -537,25 +538,21 @@ class StaffDashboardView(QtWidgets.QWidget):
         topbar_left.addWidget(heading)
         topbar_left.addWidget(breadcrumb)
 
-        topbar_right = QtWidgets.QHBoxLayout()
-        topbar_right.setSpacing(12)
-        bell = QtWidgets.QLabel("🔔")
-        bell.setFixedSize(34, 34)
-        bell.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        bell.setStyleSheet("font-size: 21px; color: #64748b;")
-        avatar = QtWidgets.QLabel("👤")
-        avatar.setFixedSize(38, 38)
-        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        avatar.setStyleSheet("background: #eaf2ff; border-radius: 19px; font-size: 20px;")
-        user_lbl = QtWidgets.QLabel(f"{self.username}  ▾")
-        user_lbl.setStyleSheet("font-size: 13px; color: #0f172a; font-weight: 900;")
-        topbar_right.addWidget(bell)
-        topbar_right.addWidget(avatar)
-        topbar_right.addWidget(user_lbl)
-
         topbar_layout.addLayout(topbar_left)
         topbar_layout.addStretch()
-        topbar_layout.addLayout(topbar_right)
+        intake_bell = QtWidgets.QLabel("🔔")
+        intake_bell.setFixedSize(34, 34)
+        intake_bell.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        intake_bell.setStyleSheet("border: none; background: transparent; font-size: 21px; color: #64748b;")
+        intake_avatar = QtWidgets.QLabel("👤")
+        intake_avatar.setFixedSize(42, 42)
+        intake_avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        intake_avatar.setStyleSheet("background: #eaf2ff; border-radius: 21px; font-size: 22px;")
+        intake_user_lbl = QtWidgets.QLabel(f"{self.username}  ▾")
+        intake_user_lbl.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #0f172a; font-weight: 900;")
+        topbar_layout.addWidget(intake_bell)
+        topbar_layout.addWidget(intake_avatar)
+        topbar_layout.addWidget(intake_user_lbl)
         layout.addWidget(topbar)
 
         content_wrap = QtWidgets.QHBoxLayout()
@@ -588,7 +585,10 @@ class StaffDashboardView(QtWidgets.QWidget):
         result_title.setStyleSheet("font-size: 13px; color: #0f172a; font-weight: 800;")
         lookup_card.layout().addWidget(result_title)
         self.intake_lookup_result_card = QtWidgets.QFrame()
-        self.intake_lookup_result_card.setStyleSheet("background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px;")
+        self.intake_lookup_result_card.setObjectName("intakeLookupResult")
+        self.intake_lookup_result_card.setStyleSheet(
+            "QFrame#intakeLookupResult { background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px; }"
+        )
         lookup_result_layout = QtWidgets.QHBoxLayout(self.intake_lookup_result_card)
         lookup_result_layout.setContentsMargins(14, 12, 14, 12)
         lookup_result_layout.setSpacing(12)
@@ -648,7 +648,10 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_dob_input.dateChanged.connect(self._refresh_intake_summary_card)
         self.intake_gender_input = QtWidgets.QComboBox()
         self.intake_gender_input.addItems(["Nam", "Nữ", "Khác"])
+        self.intake_gender_input.hide()
+        self.intake_gender_input.currentTextChanged.connect(self._sync_intake_gender_radios)
         self.intake_gender_input.currentTextChanged.connect(self._refresh_intake_summary_card)
+        self.intake_gender_selector = self._build_intake_gender_selector()
         self.intake_email_input = QtWidgets.QLineEdit()
         self.intake_email_input.setPlaceholderText("Nhập email (nếu có)")
         self.intake_email_input.textChanged.connect(self._refresh_intake_summary_card)
@@ -665,7 +668,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         profile_form.addWidget(self._build_intake_field("Họ và tên *", self.intake_name_input), 0, 0)
         profile_form.addWidget(self._build_intake_field("Ngày sinh *", self.intake_dob_input), 0, 1)
-        profile_form.addWidget(self._build_intake_field("Giới tính *", self.intake_gender_input), 1, 0)
+        profile_form.addWidget(self._build_intake_field("Giới tính *", self.intake_gender_selector), 1, 0)
         profile_form.addWidget(self._build_intake_field("Số điện thoại *", self.intake_phone_profile_input), 1, 1)
         profile_form.addWidget(self._build_intake_field("CCCD/CMND", self.intake_cccd_profile_input), 2, 0)
         profile_form.addWidget(self._build_intake_field("Địa chỉ", self.intake_address_input), 2, 1)
@@ -720,6 +723,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_feedback = QtWidgets.QLabel("")
         self.intake_feedback.setWordWrap(True)
         self.intake_feedback.setStyleSheet(self._intake_feedback_style("info"))
+        self.intake_feedback.setVisible(False)
 
         queue_layout.addWidget(self.intake_feedback)
         right_col.addWidget(queue_card)
@@ -1028,18 +1032,19 @@ class StaffDashboardView(QtWidgets.QWidget):
         state = "error" if is_error else "success"
         self.intake_feedback.setStyleSheet(self._intake_feedback_style(state))
         self.intake_feedback.setText(message)
+        self.intake_feedback.setVisible(bool(message))
 
     def _set_intake_lookup_result(self, message, has_record=False):
         if not hasattr(self, "intake_lookup_result_card") or not hasattr(self, "intake_lookup_result_label"):
             return
         if has_record:
             self.intake_lookup_result_card.setStyleSheet(
-                "background: #ffffff; border: 1px solid #d7f2e4; border-radius: 12px;"
+                "QFrame#intakeLookupResult { background: #ffffff; border: 1px solid #d7f2e4; border-radius: 12px; }"
             )
             self.intake_lookup_result_label.setStyleSheet("font-size: 13px; color: #166534; font-weight: 800;")
         else:
             self.intake_lookup_result_card.setStyleSheet(
-                "background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px;"
+                "QFrame#intakeLookupResult { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; }"
             )
             self.intake_lookup_result_label.setStyleSheet("font-size: 13px; color: #9a3412; font-weight: 800;")
         self.intake_lookup_result_label.setText(message)
@@ -1494,13 +1499,14 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_patient_summary.setText("Chưa chọn bệnh nhân.")
         self.intake_appointment_summary.setText("Trạng thái: Chờ khám")
         self.intake_lookup_result_card.setStyleSheet(
-            "background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px;"
+            "QFrame#intakeLookupResult { background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px; }"
         )
         self.intake_lookup_result_label.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700;")
         self.intake_lookup_result_label.setText("Nhập SĐT/CCCD/mã bệnh nhân để tìm hồ sơ đã có.")
 
         self.intake_feedback.setStyleSheet(self._intake_feedback_style("info"))
         self.intake_feedback.setText("Đã xóa toàn bộ thông tin tiếp nhận. Bạn có thể nhập mới.")
+        self.intake_feedback.setVisible(True)
         self._refresh_intake_summary_card()
 
     @staticmethod
@@ -1508,7 +1514,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         return (
             "QLineEdit, QComboBox, QDateEdit, QTimeEdit, QPlainTextEdit {"
             " background: #ffffff; border: 1px solid #dbe4ee; border-radius: 9px;"
-            " padding: 9px 12px; color: #0f172a; font-size: 13px; }"
+            " padding: 9px 12px; color: #0f172a; font-size: 13px; min-height: 24px; }"
             "QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTimeEdit:focus, QPlainTextEdit:focus {"
             " border: 1px solid #18a66d; }"
             "QLineEdit:disabled, QComboBox:disabled, QDateEdit:disabled, QTimeEdit:disabled, QPlainTextEdit:disabled {"
@@ -1530,10 +1536,49 @@ class StaffDashboardView(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         label = QtWidgets.QLabel(label_text)
-        label.setStyleSheet("font-size: 12px; color: #334155; font-weight: 800;")
+        label.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #334155; font-weight: 800;")
+        if isinstance(widget, (QtWidgets.QLineEdit, QtWidgets.QComboBox, QtWidgets.QDateEdit, QtWidgets.QTimeEdit)):
+            widget.setMinimumHeight(42)
         layout.addWidget(label)
         layout.addWidget(widget)
         return wrapper
+
+    def _build_intake_gender_selector(self):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(0, 7, 0, 7)
+        layout.setSpacing(24)
+        self.intake_gender_male_radio = QtWidgets.QRadioButton("Nam")
+        self.intake_gender_female_radio = QtWidgets.QRadioButton("Nữ")
+        self.intake_gender_other_radio = QtWidgets.QRadioButton("Khác")
+        radios = [
+            ("Nam", self.intake_gender_male_radio),
+            ("Nữ", self.intake_gender_female_radio),
+            ("Khác", self.intake_gender_other_radio),
+        ]
+        for value, radio in radios:
+            radio.setStyleSheet(self._intake_radio_style())
+            radio.toggled.connect(lambda checked, gender=value: self._set_intake_gender_value(gender, checked))
+            layout.addWidget(radio)
+        layout.addStretch()
+        self.intake_gender_male_radio.setChecked(True)
+        return wrapper
+
+    def _set_intake_gender_value(self, gender, checked):
+        if checked and self.intake_gender_input.currentText() != gender:
+            self.intake_gender_input.setCurrentText(gender)
+
+    def _sync_intake_gender_radios(self, gender):
+        mapping = {
+            "Nam": self.intake_gender_male_radio,
+            "Nữ": self.intake_gender_female_radio,
+            "Khác": self.intake_gender_other_radio,
+        }
+        radio = mapping.get(gender)
+        if radio and not radio.isChecked():
+            radio.blockSignals(True)
+            radio.setChecked(True)
+            radio.blockSignals(False)
 
     @staticmethod
     def _intake_primary_button_style():
@@ -2578,13 +2623,16 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_section_card(self, title):
         card = QtWidgets.QFrame()
-        card.setStyleSheet("background: #ffffff; border: 1px solid #e4ebf4; border-radius: 14px;")
+        card.setObjectName("sectionCard")
+        card.setStyleSheet(
+            "QFrame#sectionCard { background: #ffffff; border: 1px solid #e4ebf4; border-radius: 14px; }"
+        )
         card_layout = QtWidgets.QVBoxLayout(card)
         card_layout.setContentsMargins(16, 16, 16, 16)
         card_layout.setSpacing(10)
 
         title_lbl = QtWidgets.QLabel(title)
-        title_lbl.setStyleSheet("font-size: 17px; font-weight: 900; color: #0f172a;")
+        title_lbl.setStyleSheet("border: none; background: transparent; font-size: 17px; font-weight: 900; color: #0f172a;")
         card_layout.addWidget(title_lbl)
         return card
 
@@ -2732,6 +2780,9 @@ class StaffDashboardView(QtWidgets.QWidget):
     def switch_page(self, index):
         if index < 0 or index >= len(self.nav_buttons):
             return
+
+        if hasattr(self, "topbar"):
+            self.topbar.setVisible(index != 1)
 
         for i, btn in enumerate(self.nav_buttons):
             btn.setStyleSheet(self._nav_button_style(is_active=(i == index)))
