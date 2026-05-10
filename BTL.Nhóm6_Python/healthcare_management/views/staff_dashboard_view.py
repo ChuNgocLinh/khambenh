@@ -9,6 +9,37 @@ from controllers.payment_controller import PaymentController
 from controllers.settings_controller import SettingsController
 
 
+class StaffServiceDonutChart(QtWidgets.QWidget):
+    def __init__(self, segments, parent=None):
+        super().__init__(parent)
+        self.segments = segments
+        self.setMinimumSize(150, 150)
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        size = min(self.width(), self.height()) - 18
+        rect = QtCore.QRectF(
+            (self.width() - size) / 2,
+            (self.height() - size) / 2,
+            size,
+            size,
+        )
+
+        start_angle = 90 * 16
+        for _, value, color in self.segments:
+            span_angle = -int(360 * 16 * value / 100)
+            painter.setPen(QtCore.Qt.PenStyle.NoPen)
+            painter.setBrush(QtGui.QColor(color))
+            painter.drawPie(rect, start_angle, span_angle)
+            start_angle += span_angle
+
+        inner = rect.adjusted(size * 0.28, size * 0.28, -size * 0.28, -size * 0.28)
+        painter.setBrush(QtGui.QColor("#ffffff"))
+        painter.drawEllipse(inner)
+
+
 class StaffDashboardView(QtWidgets.QWidget):
     def __init__(self, user_data=None):
         super().__init__()
@@ -44,14 +75,14 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         # Sidebar
         self.sidebar = QtWidgets.QFrame()
-        self.sidebar.setFixedWidth(260)
-        self.sidebar.setStyleSheet("background-color: white; border-right: 1px solid #e2e8f0;")
+        self.sidebar.setFixedWidth(275)
+        self.sidebar.setStyleSheet("background-color: white; border-right: 1px solid #e7edf5;")
         sidebar_layout = QtWidgets.QVBoxLayout(self.sidebar)
-        sidebar_layout.setContentsMargins(15, 25, 15, 25)
-        sidebar_layout.setSpacing(5)
+        sidebar_layout.setContentsMargins(14, 30, 14, 28)
+        sidebar_layout.setSpacing(10)
 
-        logo = QtWidgets.QLabel("⊕ CarePlus Staff")
-        logo.setStyleSheet("color: #69c0a5; font-size: 22px; font-weight: 900; margin-bottom: 20px;")
+        logo = QtWidgets.QLabel("✚  CarePlus")
+        logo.setStyleSheet("color: #24b47e; font-size: 25px; font-weight: 900; margin: 0 0 24px 14px;")
         sidebar_layout.addWidget(logo)
 
         self.menu_items = [
@@ -88,24 +119,41 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         # Main content
         right = QtWidgets.QWidget()
-        right.setStyleSheet("background: #f8fafc;")
+        right.setStyleSheet("background: #f8fbff;")
         right_layout = QtWidgets.QVBoxLayout(right)
-        right_layout.setContentsMargins(25, 25, 25, 25)
-        right_layout.setSpacing(15)
+        right_layout.setContentsMargins(24, 22, 22, 18)
+        right_layout.setSpacing(18)
 
         topbar = QtWidgets.QFrame()
-        topbar.setStyleSheet("background: white; border: 1px solid #e5e7eb; border-radius: 12px;")
+        topbar.setStyleSheet("background: transparent; border: none;")
         topbar_layout = QtWidgets.QHBoxLayout(topbar)
-        topbar_layout.setContentsMargins(20, 12, 20, 12)
-        topbar_layout.setSpacing(10)
+        topbar_layout.setContentsMargins(4, 0, 4, 0)
+        topbar_layout.setSpacing(14)
 
-        welcome = QtWidgets.QLabel("Bảng điều khiển Nhân viên")
-        welcome.setStyleSheet("font-size: 18px; font-weight: 800; color: #0f172a;")
-        user_lbl = QtWidgets.QLabel(f"Nhân viên: {self.username}")
-        user_lbl.setStyleSheet("font-size: 13px; color: #64748b; font-weight: 600;")
+        title_col = QtWidgets.QVBoxLayout()
+        title_col.setSpacing(4)
+        welcome = QtWidgets.QLabel(f"Xin chào, {self.username}!")
+        welcome.setStyleSheet("font-size: 19px; font-weight: 900; color: #0f172a;")
+        role_lbl = QtWidgets.QLabel("Nhân viên lễ tân")
+        role_lbl.setStyleSheet("font-size: 13px; color: #64748b; font-weight: 700;")
+        title_col.addWidget(welcome)
+        title_col.addWidget(role_lbl)
 
-        topbar_layout.addWidget(welcome)
+        bell = QtWidgets.QLabel("🔔")
+        bell.setFixedSize(34, 34)
+        bell.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell.setStyleSheet("font-size: 20px; color: #64748b;")
+        avatar = QtWidgets.QLabel("👤")
+        avatar.setFixedSize(38, 38)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet("background: #eaf2ff; border-radius: 19px; font-size: 20px;")
+        user_lbl = QtWidgets.QLabel(f"{self.username}  ▾")
+        user_lbl.setStyleSheet("font-size: 13px; color: #0f172a; font-weight: 900;")
+
+        topbar_layout.addLayout(title_col)
         topbar_layout.addStretch()
+        topbar_layout.addWidget(bell)
+        topbar_layout.addWidget(avatar)
         topbar_layout.addWidget(user_lbl)
 
         self.content_stack = QtWidgets.QStackedWidget()
@@ -127,148 +175,150 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_dashboard_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: white; border: 1px solid #e5e7eb; border-radius: 16px;")
+        page.setStyleSheet("background: #f8fbff; border: none;")
         page_layout = QtWidgets.QVBoxLayout(page)
-        page_layout.setContentsMargins(24, 24, 24, 24)
-        page_layout.setSpacing(16)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(14)
 
-        # KPI cards
         kpi_row = QtWidgets.QHBoxLayout()
-        kpi_row.setSpacing(12)
-        kpi_row.addWidget(self._build_kpi_card("Bệnh nhân hôm nay", "26", "+4 so với hôm qua", "#0ea5e9"))
-        kpi_row.addWidget(self._build_kpi_card("Lịch hẹn hôm nay", "18", "5 lịch hẹn mới", "#3b82f6"))
-        kpi_row.addWidget(self._build_kpi_card("Hóa đơn chờ thanh toán", "09", "Cần theo dõi tại quầy", "#f59e0b"))
-        kpi_row.addWidget(self._build_kpi_card("Đã thanh toán hôm nay", "14", "Tổng tạm tính 21.4 triệu", "#10b981"))
+        kpi_row.setSpacing(20)
+        kpi_row.addWidget(self._build_kpi_card("Bệnh nhân hôm nay", "24", "↑ 12% so với hôm qua", "#1fb873", "#e7f8ef", "👥"))
+        kpi_row.addWidget(self._build_kpi_card("Lịch hẹn hôm nay", "15", "↑ 8% so với hôm qua", "#2563eb", "#eaf2ff", "📅"))
+        kpi_row.addWidget(self._build_kpi_card("Hóa đơn chờ thanh toán", "6", "Tổng tiền: 12.450.000 đ", "#f97316", "#fff3e4", "🧾"))
+        kpi_row.addWidget(self._build_kpi_card("Đã thanh toán hôm nay", "9", "Tổng tiền: 18.750.000 đ", "#6d48d8", "#f0eaff", "✓"))
         page_layout.addLayout(kpi_row)
 
-        content_grid = QtWidgets.QGridLayout()
-        content_grid.setHorizontalSpacing(14)
-        content_grid.setVerticalSpacing(14)
-        content_grid.setColumnStretch(0, 3)
-        content_grid.setColumnStretch(1, 2)
-
-        # Lịch hẹn hôm nay
+        first_row = QtWidgets.QHBoxLayout()
+        first_row.setSpacing(18)
         appointments_card = self._build_section_card("Lịch hẹn hôm nay")
         appointments_layout = appointments_card.layout()
 
-        table = QtWidgets.QTableWidget(3, 6)
-        table.setHorizontalHeaderLabels(["giờ hẹn", "bệnh nhân", "dịch vụ", "bác sĩ", "trạng thái", "thao tác"])
+        table = QtWidgets.QTableWidget(5, 6)
+        table.setHorizontalHeaderLabels(["Giờ hẹn", "Bệnh nhân", "Dịch vụ", "Bác sĩ", "Trạng thái", "Thao tác"])
         table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         table.verticalHeader().setVisible(False)
         table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
         table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
-        table.setAlternatingRowColors(True)
+        table.setShowGrid(False)
+        table.setMinimumHeight(300)
         table.setStyleSheet(
-            "QTableWidget { border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; gridline-color: #f1f5f9; }"
-            "QHeaderView::section { background: #f8fafc; color: #334155; font-size: 12px; font-weight: 700; border: none; padding: 8px; }"
-            "QTableWidget::item { padding: 8px; color: #0f172a; }"
-            "QTableWidget::item:alternate { background: #f8fafc; }"
+            "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 800; border: none; padding: 10px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; color: #0f172a; font-weight: 600; }"
         )
 
         sample_rows = [
-            ("08:30", "Nguyễn Minh T.", "Khám tổng quát", "BS. Thanh", "Chờ tiếp nhận", "Tiếp nhận"),
-            ("09:10", "Lê Hoài A.", "Xét nghiệm máu", "BS. Huy", "Đang chờ", "Mở hồ sơ"),
-            ("10:00", "", "", "", "", ""),
+            ("08:00", "Trần Văn Nam\nNam - 35 tuổi", "Khám tổng quát", "BS. Minh", "Đã xác nhận"),
+            ("09:00", "Lê Thị Hoa\nNữ - 29 tuổi", "Tư vấn sức khỏe", "BS. Minh", "Đang chờ"),
+            ("10:00", "Nguyễn Hoàng Anh\nNam - 42 tuổi", "Khám tim mạch", "BS. Hường", "Đã xác nhận"),
+            ("10:30", "Phạm Minh Đức\nNam - 31 tuổi", "Khám nhi", "BS. Hường", "Đang khám"),
+            ("11:00", "Vũ Thị Mai\nNữ - 28 tuổi", "Khám tổng quát", "BS. Minh", "Đã hoàn tất"),
         ]
         for r, row in enumerate(sample_rows):
+            table.setRowHeight(r, 54)
             for c, value in enumerate(row):
                 table.setItem(r, c, QtWidgets.QTableWidgetItem(value))
-
-        if not any(all(v.strip() for v in row) for row in sample_rows):
-            empty_notice = QtWidgets.QLabel("Chưa có lịch hẹn cho hôm nay.")
-            empty_notice.setStyleSheet("color: #64748b; font-size: 13px;")
-            appointments_layout.addWidget(empty_notice)
+            status_lbl = self._build_status_badge(row[4])
+            table.setCellWidget(r, 4, status_lbl)
+            table.setCellWidget(r, 5, self._build_table_actions())
         appointments_layout.addWidget(table)
 
-        # Thao tác nhanh
+        view_all_btn = QtWidgets.QPushButton("Xem tất cả lịch hẹn  ›")
+        view_all_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        view_all_btn.setStyleSheet(
+            "QPushButton { background: #ffffff; border: 1px solid #dbe6f3; border-radius: 8px; padding: 8px 24px; color: #2563eb; font-weight: 800; }"
+            "QPushButton:hover { background: #f5f9ff; }"
+        )
+        view_all_btn.clicked.connect(lambda checked: self.switch_page(2))
+        appointments_layout.addWidget(view_all_btn, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+
         quick_actions = self._build_section_card("Thao tác nhanh")
         quick_layout = quick_actions.layout()
-        quick_layout.addWidget(self._build_quick_action_button("Tiếp nhận bệnh nhân mới", "Mở trang tiếp nhận", 1, "#0ea5e9"))
-        quick_layout.addWidget(self._build_quick_action_button("Quản lý lịch hẹn", "Đi tới lịch hẹn hôm nay", 2, "#6366f1"))
-        quick_layout.addWidget(self._build_quick_action_button("Tra cứu danh sách bệnh nhân", "Mở hồ sơ bệnh nhân", 3, "#14b8a6"))
-        quick_layout.addWidget(self._build_quick_action_button("Xử lý thanh toán", "Đi tới thanh toán & hóa đơn", 4, "#f59e0b"))
+        quick_grid = QtWidgets.QGridLayout()
+        quick_grid.setHorizontalSpacing(14)
+        quick_grid.setVerticalSpacing(16)
+        quick_grid.addWidget(self._build_quick_action_button("Tiếp nhận\nbệnh nhân", "👥", 1, "#e8f8ef", "#14a768"), 0, 0)
+        quick_grid.addWidget(self._build_quick_action_button("Tạo lịch hẹn\nmới", "📅", 2, "#eaf2ff", "#2563eb"), 0, 1)
+        quick_grid.addWidget(self._build_quick_action_button("Tra cứu\nhồ sơ", "📁", 3, "#fff4df", "#f59e0b"), 0, 2)
+        quick_grid.addWidget(self._build_quick_action_button("Tạo hóa đơn\nthanh toán", "🧾", 4, "#f0eaff", "#6d48d8"), 1, 0)
+        quick_grid.addWidget(self._build_quick_action_button("In phiếu\nkhám", "🖨", 4, "#e9f8ff", "#2563eb"), 1, 1)
+        quick_grid.addWidget(self._build_quick_action_button("Gửi\nthông báo", "🔔", 6, "#fff1e7", "#f59e0b"), 1, 2)
+        quick_layout.addLayout(quick_grid)
         quick_layout.addStretch()
 
-        # Bệnh nhân chờ tiếp nhận
+        first_row.addWidget(appointments_card, 2)
+        first_row.addWidget(quick_actions, 1)
+        page_layout.addLayout(first_row)
+
+        second_row = QtWidgets.QHBoxLayout()
+        second_row.setSpacing(18)
+
         waiting_card = self._build_section_card("Bệnh nhân chờ tiếp nhận")
         waiting_layout = waiting_card.layout()
-        self.staff_dashboard_waiting_list = QtWidgets.QListWidget()
-        self.staff_dashboard_waiting_list.setStyleSheet("QListWidget { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px; }")
-        waiting_layout.addWidget(self.staff_dashboard_waiting_list)
-        waiting_empty = QtWidgets.QLabel("Khi không có bệnh nhân chờ, danh sách sẽ hiển thị trống.")
-        waiting_empty.setStyleSheet("color: #64748b; font-size: 12px;")
-        waiting_layout.addWidget(waiting_empty)
-        self._refresh_staff_waiting_list()
+        waiting_layout.addWidget(self._build_patient_waiting_row("Nguyễn Văn Hùng", "Nam - 35 tuổi", "07:45"))
+        waiting_layout.addWidget(self._build_patient_waiting_row("Đỗ Thị Phương", "Nữ - 28 tuổi", "07:50"))
+        waiting_layout.addWidget(self._build_patient_waiting_row("Lý Minh Tuấn", "Nam - 42 tuổi", "07:55"))
 
-        # Thông báo
         notices_card = self._build_section_card("Thông báo")
         notices_layout = notices_card.layout()
-        notices_list = QtWidgets.QListWidget()
-        notices_list.addItems([
-            "• 08:20 - Nhắc lịch: BN Lê Hoài A. đến sau 10 phút.",
-            "• 08:05 - Hệ thống: Cập nhật biểu phí xét nghiệm đã áp dụng.",
-        ])
-        notices_list.setStyleSheet("QListWidget { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px; }")
-        notices_layout.addWidget(notices_list)
-        notice_empty = QtWidgets.QLabel("Nếu chưa có thông báo mới, khu vực này hiển thị: 'Không có thông báo'.")
-        notice_empty.setStyleSheet("color: #64748b; font-size: 12px;")
-        notices_layout.addWidget(notice_empty)
+        notices_layout.addWidget(self._build_notice_row("🔔", "Có 3 lịch hẹn mới cần xác nhận", "5 phút trước", "#f59e0b"))
+        notices_layout.addWidget(self._build_notice_row("💵", "Hóa đơn #HD000125 chưa thanh toán", "20 phút trước", "#1fb873"))
+        notices_layout.addWidget(self._build_notice_row("📅", "Lịch khám 10:30 sắp bắt đầu", "25 phút trước", "#2563eb"))
+        notices_layout.addWidget(self._build_notice_row("👤", "Bệnh nhân Nguyễn Hoàng Anh đến sớm 10p", "40 phút trước", "#6d48d8"))
 
-        # Thống kê dịch vụ (lightweight)
         services_card = self._build_section_card("Thống kê dịch vụ")
         services_layout = services_card.layout()
         service_data = [
-            ("Khám tổng quát", 40),
-            ("Xét nghiệm máu", 25),
-            ("Siêu âm", 20),
-            ("Tiêm chủng", 15),
+            ("Khám tổng quát", 45, "#45c2a5"),
+            ("Tư vấn sức khỏe", 25, "#2563eb"),
+            ("Khám tim mạch", 15, "#f59e0b"),
+            ("Khám nhi", 10, "#8b5cf6"),
+            ("Khác", 5, "#94a3b8"),
         ]
-        for name, pct in service_data:
+        services_body = QtWidgets.QHBoxLayout()
+        services_body.setSpacing(10)
+        services_body.addWidget(StaffServiceDonutChart(service_data), 1)
+        legend = QtWidgets.QVBoxLayout()
+        legend.setSpacing(8)
+        for name, pct, color in service_data:
             row = QtWidgets.QWidget()
             row_layout = QtWidgets.QHBoxLayout(row)
             row_layout.setContentsMargins(0, 0, 0, 0)
-            row_layout.setSpacing(10)
+            row_layout.setSpacing(8)
+            dot = QtWidgets.QLabel()
+            dot.setFixedSize(10, 10)
+            dot.setStyleSheet(f"background: {color}; border-radius: 5px;")
             label = QtWidgets.QLabel(name)
-            label.setMinimumWidth(130)
-            bar = QtWidgets.QProgressBar()
-            bar.setRange(0, 100)
-            bar.setValue(pct)
-            bar.setTextVisible(True)
-            bar.setFormat(f"{pct}%")
-            bar.setStyleSheet(
-                "QProgressBar { border: 1px solid #dbeafe; border-radius: 6px; text-align: center; background: #eff6ff; }"
-                "QProgressBar::chunk { background-color: #60a5fa; border-radius: 5px; }"
-            )
-            row_layout.addWidget(label)
-            row_layout.addWidget(bar, 1)
-            services_layout.addWidget(row)
+            label.setStyleSheet("font-size: 12px; color: #0f172a; font-weight: 700;")
+            pct_lbl = QtWidgets.QLabel(f"{pct}%")
+            pct_lbl.setStyleSheet("font-size: 12px; color: #0f172a; font-weight: 900;")
+            row_layout.addWidget(dot)
+            row_layout.addWidget(label, 1)
+            row_layout.addWidget(pct_lbl)
+            legend.addWidget(row)
+        services_body.addLayout(legend, 1)
+        services_layout.addLayout(services_body)
 
-        # Công việc hôm nay
+        second_row.addWidget(waiting_card, 1)
+        second_row.addWidget(notices_card, 1)
+        second_row.addWidget(services_card, 1)
+        page_layout.addLayout(second_row)
+
         todo_card = self._build_section_card("Công việc hôm nay")
         todo_layout = todo_card.layout()
-        checklist = [
-            ("Đối soát lịch hẹn buổi sáng", True),
-            ("Gọi xác nhận 3 lịch hẹn chiều", False),
-            ("Kiểm tra hóa đơn chờ thanh toán", False),
-        ]
-        for text, checked in checklist:
+        checklist_grid = QtWidgets.QGridLayout()
+        checklist_grid.setHorizontalSpacing(80)
+        checklist_grid.setVerticalSpacing(8)
+        for index, text in enumerate(["Xác nhận lịch hẹn", "Tiếp nhận bệnh nhân", "Kiểm tra thanh toán", "In phiếu khám"]):
             cb = QtWidgets.QCheckBox(text)
-            cb.setChecked(checked)
-            cb.setStyleSheet("QCheckBox { color: #1e293b; font-size: 13px; }")
-            todo_layout.addWidget(cb)
-        todo_empty = QtWidgets.QLabel("Không có công việc mới sẽ hiển thị danh sách trống.")
-        todo_empty.setStyleSheet("color: #64748b; font-size: 12px;")
-        todo_layout.addWidget(todo_empty)
-
-        content_grid.addWidget(appointments_card, 0, 0)
-        content_grid.addWidget(quick_actions, 0, 1)
-        content_grid.addWidget(waiting_card, 1, 0)
-        content_grid.addWidget(notices_card, 1, 1)
-        content_grid.addWidget(services_card, 2, 0)
-        content_grid.addWidget(todo_card, 2, 1)
-
-        page_layout.addLayout(content_grid)
+            cb.setChecked(True)
+            cb.setStyleSheet("QCheckBox { color: #0f172a; font-size: 13px; font-weight: 700; spacing: 10px; }")
+            checklist_grid.addWidget(cb, index % 2, index // 2)
+        todo_layout.addLayout(checklist_grid)
+        page_layout.addWidget(todo_card)
         return page
 
     def _build_placeholder_page(self, title):
@@ -2491,60 +2541,155 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_section_card(self, title):
         card = QtWidgets.QFrame()
-        card.setStyleSheet("background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;")
+        card.setStyleSheet("background: #ffffff; border: 1px solid #e4ebf4; border-radius: 14px;")
         card_layout = QtWidgets.QVBoxLayout(card)
-        card_layout.setContentsMargins(14, 14, 14, 14)
+        card_layout.setContentsMargins(16, 16, 16, 16)
         card_layout.setSpacing(10)
 
         title_lbl = QtWidgets.QLabel(title)
-        title_lbl.setStyleSheet("font-size: 15px; font-weight: 800; color: #0f172a;")
+        title_lbl.setStyleSheet("font-size: 17px; font-weight: 900; color: #0f172a;")
         card_layout.addWidget(title_lbl)
         return card
 
-    def _build_kpi_card(self, title, value, note, accent):
+    def _build_kpi_card(self, title, value, note, accent, icon_bg="#f1f5f9", icon_text=""):
         card = QtWidgets.QFrame()
-        card.setMinimumHeight(100)
+        card.setMinimumHeight(118)
         card.setStyleSheet(
-            "QFrame { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }"
+            "QFrame { background: #ffffff; border: 1px solid #e4ebf4; border-radius: 14px; }"
         )
-        layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(4)
+        layout = QtWidgets.QHBoxLayout(card)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(14)
+
+        text_col = QtWidgets.QVBoxLayout()
+        text_col.setSpacing(3)
 
         title_lbl = QtWidgets.QLabel(title)
-        title_lbl.setStyleSheet("font-size: 12px; color: #475569; font-weight: 700;")
+        title_lbl.setWordWrap(True)
+        title_lbl.setStyleSheet("font-size: 12px; color: #0f172a; font-weight: 900;")
 
         value_lbl = QtWidgets.QLabel(value)
-        value_lbl.setStyleSheet(f"font-size: 28px; color: {accent}; font-weight: 900;")
+        value_lbl.setStyleSheet(f"font-size: 32px; color: {accent}; font-weight: 900;")
 
         note_lbl = QtWidgets.QLabel(note)
-        note_lbl.setStyleSheet("font-size: 11px; color: #64748b;")
+        note_lbl.setWordWrap(True)
+        note_lbl.setStyleSheet("font-size: 11px; color: #64748b; font-weight: 700;")
 
-        layout.addWidget(title_lbl)
-        layout.addWidget(value_lbl)
-        layout.addWidget(note_lbl)
+        text_col.addWidget(title_lbl)
+        text_col.addWidget(value_lbl)
+        text_col.addWidget(note_lbl)
+        if icon_text:
+            icon = QtWidgets.QLabel(icon_text)
+            icon.setFixedSize(64, 64)
+            icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            icon.setStyleSheet(f"background: {icon_bg}; color: {accent}; border-radius: 12px; font-size: 27px; font-weight: 900;")
+            layout.addWidget(icon)
+        layout.addLayout(text_col, 1)
         return card
 
-    def _build_quick_action_button(self, title, subtitle, target_index, accent):
-        btn = QtWidgets.QPushButton(f"{title}\n{subtitle}")
+    def _build_quick_action_button(self, title, icon, target_index, bg_color, accent):
+        btn = QtWidgets.QPushButton(f"{icon}\n{title}")
+        btn.setMinimumSize(96, 126)
         btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         btn.setStyleSheet(
             "QPushButton {"
-            f"background: #ffffff; border: 1px solid {accent}; border-radius: 10px;"
-            "text-align: left; padding: 10px 12px; color: #0f172a; font-size: 12px; font-weight: 700;"
+            f"background: {bg_color}; border: none; border-radius: 14px;"
+            f"color: #0f172a; font-size: 13px; font-weight: 900; padding: 12px;"
             "}"
-            "QPushButton:hover { background: #f8fafc; }"
+            f"QPushButton:hover {{ color: {accent}; }}"
         )
         btn.clicked.connect(lambda checked, idx=target_index: self.switch_page(idx))
         return btn
 
+    def _build_status_badge(self, status):
+        styles = {
+            "Đã xác nhận": ("#e3f7ec", "#13995f"),
+            "Đang chờ": ("#fff0df", "#f97316"),
+            "Đang khám": ("#e4f0ff", "#2563eb"),
+            "Đã hoàn tất": ("#eee9ff", "#6d48d8"),
+        }
+        bg, fg = styles.get(status, ("#eef2f7", "#334155"))
+        label = QtWidgets.QLabel(status)
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet(f"background: {bg}; color: {fg}; border-radius: 10px; padding: 4px 10px; font-size: 11px; font-weight: 900;")
+        return label
+
+    def _build_table_actions(self):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        for label, bg in [("👁", "#f0efff"), ("✎", "#eaf5ff")]:
+            btn = QtWidgets.QPushButton(label)
+            btn.setFixedSize(32, 28)
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(f"background: {bg}; color: #2563eb; border: none; border-radius: 8px; font-weight: 900;")
+            btn.clicked.connect(lambda checked: self.switch_page(2))
+            layout.addWidget(btn)
+        return wrapper
+
+    def _build_patient_waiting_row(self, name, detail, time_text):
+        row = QtWidgets.QFrame()
+        row.setStyleSheet("border-bottom: 1px solid #edf2f7;")
+        layout = QtWidgets.QHBoxLayout(row)
+        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setSpacing(10)
+
+        avatar = QtWidgets.QLabel("👤")
+        avatar.setFixedSize(34, 34)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet("background: #eaf2ff; border-radius: 17px; font-size: 17px;")
+
+        text_col = QtWidgets.QVBoxLayout()
+        text_col.setSpacing(2)
+        name_lbl = QtWidgets.QLabel(name)
+        name_lbl.setStyleSheet("font-size: 13px; color: #0f172a; font-weight: 900;")
+        detail_lbl = QtWidgets.QLabel(detail)
+        detail_lbl.setStyleSheet("font-size: 12px; color: #334155; font-weight: 700;")
+        text_col.addWidget(name_lbl)
+        text_col.addWidget(detail_lbl)
+
+        time_lbl = QtWidgets.QLabel(time_text)
+        time_lbl.setStyleSheet("font-size: 12px; color: #475569; font-weight: 800;")
+        arrow = QtWidgets.QLabel("›")
+        arrow.setStyleSheet("font-size: 22px; color: #64748b; font-weight: 900;")
+
+        layout.addWidget(avatar)
+        layout.addLayout(text_col, 1)
+        layout.addWidget(time_lbl)
+        layout.addWidget(arrow)
+        return row
+
+    def _build_notice_row(self, icon_text, content, when, color):
+        row = QtWidgets.QFrame()
+        row.setStyleSheet("border-bottom: 1px solid #edf2f7;")
+        layout = QtWidgets.QHBoxLayout(row)
+        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setSpacing(10)
+
+        icon = QtWidgets.QLabel(icon_text)
+        icon.setFixedSize(26, 26)
+        icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        icon.setStyleSheet(f"background: #f8fafc; color: {color}; border-radius: 7px; font-size: 14px;")
+
+        content_lbl = QtWidgets.QLabel(content)
+        content_lbl.setWordWrap(True)
+        content_lbl.setStyleSheet("font-size: 12px; color: #0f172a; font-weight: 700;")
+        when_lbl = QtWidgets.QLabel(when)
+        when_lbl.setStyleSheet("font-size: 11px; color: #64748b; font-weight: 700;")
+
+        layout.addWidget(icon)
+        layout.addWidget(content_lbl, 1)
+        layout.addWidget(when_lbl)
+        return row
+
     def _nav_button_style(self, is_active=False):
         base = (
-            "QPushButton { border: none; text-align: left; padding: 12px 15px; border-radius: 10px; "
-            "font-size: 14px; color: #1e293b; font-weight: 600; }"
+            "QPushButton { border: none; text-align: left; padding: 14px 20px; border-radius: 10px; "
+            "font-size: 15px; color: #111827; font-weight: 700; }"
         )
         if is_active:
-            return base + "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
+            return base + "QPushButton { background-color: #e3f5ef; color: #0f9f6e; font-weight: 900; }"
         return base + "QPushButton:hover { background-color: #f1f5f9; }"
 
     def switch_page(self, index):
