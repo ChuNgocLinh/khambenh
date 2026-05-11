@@ -1,4 +1,5 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
+from pathlib import Path
 from views.dashboard_view import DashboardView, AdminDashboardView 
 from views.staff_dashboard_view import StaffDashboardView
 from models.doctor_model import DoctorModel
@@ -145,7 +146,7 @@ class MainView(QtWidgets.QMainWindow):
         txt_layout.addStretch(); txt_layout.addWidget(title); txt_layout.addWidget(sub); txt_layout.addStretch()
         
         doc_img = QtWidgets.QLabel()
-        pix = QtGui.QPixmap("assets/bg.jpg")
+        pix = QtGui.QPixmap(str(Path(__file__).resolve().parents[1] / "assets" / "bg.jpg"))
         if not pix.isNull():
             doc_img.setPixmap(pix.scaled(400, 400, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
         else:
