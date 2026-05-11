@@ -254,10 +254,10 @@ class DashboardView(QtWidgets.QWidget):
         menu_items = [
             ("🏠", "Trang chủ"),
             ("📅", "Lịch khám"),
-            ("👥", "Bệnh nhân của tôi"),
-            ("📂", "Hồ sơ khám bệnh"),
-            ("💬", "Tư vấn & lịch sử chăm sóc"),
-            ("💊", "Đơn thuốc"),
+            ("👥", "Danh sách bệnh nhân"),
+            ("🩺", "Khám bệnh"),
+            ("📂", "Hồ sơ bệnh nhân"),
+            ("💊", "Đơn thuốc của tôi"),
             ("🔔", "Thông báo"),
             ("⚙️", "Cài đặt"),
         ]
@@ -356,7 +356,7 @@ class DashboardView(QtWidgets.QWidget):
         self.page_prescription.role = role
         
         self.content_stack.addWidget(self._build_schedule_page())   # 1: Lịch khám
-        self.content_stack.addWidget(self.page_patient_list)    # 2: Bệnh nhân của tôi
+        self.content_stack.addWidget(self.page_patient_list)    # 2: Danh sách bệnh nhân
         self.content_stack.addWidget(self.page_medical_record)  # 3: Hồ sơ khám bệnh
         self.content_stack.addWidget(self._build_consultation_page())  # 4: Tư vấn & lịch sử chăm sóc
         self.content_stack.addWidget(self.page_prescription)    # 5: Đơn thuốc
