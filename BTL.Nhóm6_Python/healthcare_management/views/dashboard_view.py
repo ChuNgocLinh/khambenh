@@ -598,32 +598,427 @@ class DashboardView(QtWidgets.QWidget):
             elif child_layout is not None:
                 self._clear_layout(child_layout)
 
-        self.dashboard_data = self._build_doctor_dashboard_data(self.user_data.get("doctor_id"))
+        # MAIN HORIZONTAL LAYOUT
+        main_h_layout = QtWidgets.QHBoxLayout()
+        main_h_layout.setSpacing(20)
 
-        self.lbl_page_title = QtWidgets.QLabel("Thống kê khám bệnh")
-        self.lbl_page_title.setStyleSheet("font-size: 30px; font-weight: 800; color: #2c3e50;")
-        self.page_dashboard_layout.addWidget(self.lbl_page_title)
+        # LEFT SIDE
+        left_v_layout = QtWidgets.QVBoxLayout()
+        left_v_layout.setSpacing(20)
 
-        description = QtWidgets.QLabel(
-            "Theo dõi toàn cảnh hiệu suất khám bệnh, xu hướng bệnh nhân và hoạt động kê đơn trong khoảng thời gian bạn chọn."
-        )
-        description.setWordWrap(True)
-        description.setStyleSheet("font-size: 14px; color: #64748b; margin-top: -6px;")
-        self.page_dashboard_layout.addWidget(description)
+        # Top 4 cards row
+        cards_layout = QtWidgets.QHBoxLayout()
+        cards_layout.setSpacing(15)
+        
+        cards = [
+            ("Lịch hẹn hôm nay", "12", "Ca khám", "📅", "#ecfdf5", "#10b981", "#10b981"),
+            ("Đang khám", "1", "Bệnh nhân", "🩺", "#eff6ff", "#3b82f6", "#3b82f6"),
+            ("Hoàn thành", "8", "Ca khám", "📋", "#fff7ed", "#f97316", "#f97316"),
+            ("Tổng bệnh nhân", "156", "Bệnh nhân", "👥", "#f5f3ff", "#8b5cf6", "#8b5cf6"),
+        ]
+        
+        for title, value, unit, icon, bg_color, icon_color, text_color in cards:
+            card = QtWidgets.QFrame()
+            card.setStyleSheet(f"background-color: white; border-radius: 16px; border: 1px solid #f1f5f9;")
+            card.setFixedHeight(110)
+            card_l = QtWidgets.QHBoxLayout(card)
+            card_l.setContentsMargins(20, 20, 20, 20)
+            
+            icon_lbl = QtWidgets.QLabel(icon)
+            icon_lbl.setFixedSize(50, 50)
+            icon_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            icon_lbl.setStyleSheet(f"background-color: {bg_color}; color: {icon_color}; font-size: 24px; border-radius: 12px;")
+            card_l.addWidget(icon_lbl)
+            
+            text_l = QtWidgets.QVBoxLayout()
+            text_l.setSpacing(2)
+            title_lbl = QtWidgets.QLabel(title)
+            title_lbl.setStyleSheet("font-size: 13px; color: #64748b; font-weight: bold; background: transparent; border: none;")
+            val_lbl = QtWidgets.QLabel(value)
+            val_lbl.setStyleSheet(f"font-size: 28px; color: {text_color}; font-weight: 800; background: transparent; border: none;")
+            unit_lbl = QtWidgets.QLabel(unit)
+            unit_lbl.setStyleSheet("font-size: 12px; color: #94a3b8; background: transparent; border: none;")
+            
+            text_l.addWidget(title_lbl)
+            
+            val_unit_l = QtWidgets.QHBoxLayout()
+            val_unit_l.addWidget(val_lbl)
+            val_unit_l.addWidget(unit_lbl)
+            val_unit_l.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignBottom)
+            text_l.addLayout(val_unit_l)
+            
+            card_l.addLayout(text_l)
+            card_l.addStretch()
+            cards_layout.addWidget(card)
 
-        self.page_dashboard_layout.addWidget(self._build_dashboard_filter_bar())
-        self.page_dashboard_layout.addLayout(self._build_dashboard_kpi_row())
-        self.page_dashboard_layout.addLayout(self._build_dashboard_analytics_row())
-        self.page_dashboard_layout.addLayout(self._build_dashboard_trend_row())
-        self.page_dashboard_layout.addLayout(self._build_dashboard_distribution_row())
-        self.page_dashboard_layout.addLayout(self._build_dashboard_summary_row())
+        left_v_layout.addLayout(cards_layout)
 
-        updated_label = QtWidgets.QLabel(
-            f"Dữ liệu được cập nhật lúc {self.dashboard_data.get('updated_at', '')} • Tổng hợp theo khoảng thời gian đang chọn."
-        )
-        updated_label.setStyleSheet("font-size: 12px; color: #64748b; font-style: italic;")
-        self.page_dashboard_layout.addWidget(updated_label)
-        self.page_dashboard_layout.addStretch()
+        # Table Section
+        table_card = QtWidgets.QFrame()
+        table_card.setStyleSheet("background-color: white; border-radius: 16px; border: 1px solid #f1f5f9;")
+        table_l = QtWidgets.QVBoxLayout(table_card)
+        table_l.setContentsMargins(20, 20, 20, 20)
+        table_l.setSpacing(15)
+        
+        table_title = QtWidgets.QLabel("Lịch khám hôm nay")
+        table_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background: transparent; border: none;")
+        table_l.addWidget(table_title)
+        
+        table = QtWidgets.QTableWidget(5, 5)
+        table.setHorizontalHeaderLabels(["Giờ hẹn", "Bệnh nhân", "Lý do khám", "Trạng thái", "Thao tác"])
+        table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setShowGrid(False)
+        table.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
+        table.setStyleSheet("""
+            QTableWidget { border: none; background: white; }
+            QHeaderView::section { background-color: white; color: #1e293b; font-weight: bold; font-size: 13px; border: none; border-bottom: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+            QTableWidget::item { border-bottom: 1px solid #f8fafc; padding: 5px; }
+        """)
+        
+        rows_data = [
+            ("08:00", "Trần Văn Nam", "Nam - 35 tuổi", "Khám tổng quát", "Đã khám", "#10b981", "#ecfdf5", "👁"),
+            ("09:00", "Lê Thị Hoa", "Nữ - 29 tuổi", "Tư vấn sức khỏe", "Đang khám", "#3b82f6", "#eff6ff", "🩺"),
+            ("10:00", "Nguyễn Hoàng Anh", "Nam - 42 tuổi", "Đau đầu, chóng mặt", "Đang chờ", "#f97316", "#fff7ed", "👁"),
+            ("10:30", "Phạm Minh Đức", "Nam - 31 tuổi", "Khám nhi", "Đang chờ", "#f97316", "#fff7ed", "👁"),
+            ("11:00", "Vũ Thị Mai", "Nữ - 28 tuổi", "Khám tổng quát", "Đã đặt lịch", "#64748b", "#f1f5f9", "👁"),
+        ]
+        
+        for r, (time_val, name_val, detail_val, reason, status, status_color, status_bg, action_icon) in enumerate(rows_data):
+            # Time
+            time_item = QtWidgets.QTableWidgetItem(time_val)
+            time_item.setFont(QtGui.QFont("Arial", 10, QtGui.QFont.Weight.Bold))
+            time_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            table.setItem(r, 0, time_item)
+            
+            # Patient Info
+            patient_w = QtWidgets.QWidget()
+            patient_l = QtWidgets.QHBoxLayout(patient_w)
+            patient_l.setContentsMargins(0, 0, 0, 0)
+            patient_l.setSpacing(10)
+            avt = QtWidgets.QLabel("👤")
+            avt.setFixedSize(32, 32)
+            avt.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            if "Nữ" in detail_val:
+                avt.setStyleSheet("background-color: #fce7f3; color: #db2777; border-radius: 16px;")
+            else:
+                avt.setStyleSheet("background-color: #e0f2fe; color: #0284c7; border-radius: 16px;")
+            
+            info_l = QtWidgets.QVBoxLayout()
+            info_l.setSpacing(0)
+            n_lbl = QtWidgets.QLabel(name_val)
+            n_lbl.setStyleSheet("color: #1e293b; font-weight: bold; font-size: 13px; background: transparent; border: none;")
+            d_lbl = QtWidgets.QLabel(detail_val)
+            d_lbl.setStyleSheet("color: #64748b; font-size: 11px; background: transparent; border: none;")
+            info_l.addWidget(n_lbl)
+            info_l.addWidget(d_lbl)
+            
+            patient_l.addWidget(avt)
+            patient_l.addLayout(info_l)
+            patient_l.addStretch()
+            table.setCellWidget(r, 1, patient_w)
+            
+            # Reason
+            reason_item = QtWidgets.QTableWidgetItem(reason)
+            reason_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            reason_item.setForeground(QtGui.QBrush(QtGui.QColor("#475569")))
+            table.setItem(r, 2, reason_item)
+            
+            # Status
+            status_w = QtWidgets.QWidget()
+            status_l = QtWidgets.QHBoxLayout(status_w)
+            status_l.setContentsMargins(0, 0, 0, 0)
+            status_l.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            status_lbl = QtWidgets.QLabel(status)
+            status_lbl.setStyleSheet(f"background-color: {status_bg}; color: {status_color}; font-weight: bold; font-size: 11px; padding: 4px 10px; border-radius: 10px;")
+            status_l.addWidget(status_lbl)
+            table.setCellWidget(r, 3, status_w)
+            
+            # Action
+            action_w = QtWidgets.QWidget()
+            action_l = QtWidgets.QHBoxLayout(action_w)
+            action_l.setContentsMargins(0, 0, 0, 0)
+            action_l.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            action_btn = QtWidgets.QPushButton(action_icon)
+            action_btn.setFixedSize(32, 32)
+            action_btn.setStyleSheet("background-color: #eff6ff; color: #3b82f6; border-radius: 16px; font-size: 14px; border: none;")
+            action_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            action_l.addWidget(action_btn)
+            table.setCellWidget(r, 4, action_w)
+            
+            table.setRowHeight(r, 60)
+            
+        table.setFixedHeight(350)
+        table_l.addWidget(table)
+        
+        btn_view_all_appts = QtWidgets.QPushButton("Xem tất cả lịch hẹn >")
+        btn_view_all_appts.setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;")
+        btn_view_all_appts.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        table_l.addWidget(btn_view_all_appts)
+        
+        left_v_layout.addWidget(table_card)
+
+        # Bottom row (Recent patients & To-do)
+        bottom_h_layout = QtWidgets.QHBoxLayout()
+        bottom_h_layout.setSpacing(20)
+
+        # Recent Patients
+        recent_card = QtWidgets.QFrame()
+        recent_card.setStyleSheet("background-color: white; border-radius: 16px; border: 1px solid #f1f5f9;")
+        recent_l = QtWidgets.QVBoxLayout(recent_card)
+        recent_l.setContentsMargins(20, 20, 20, 20)
+        recent_l.setSpacing(15)
+        
+        recent_header = QtWidgets.QHBoxLayout()
+        recent_title = QtWidgets.QLabel("Bệnh nhân gần đây")
+        recent_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background: transparent; border: none;")
+        recent_view_all = QtWidgets.QPushButton("Xem tất cả")
+        recent_view_all.setStyleSheet("color: #3b82f6; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        recent_view_all.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        recent_header.addWidget(recent_title)
+        recent_header.addStretch()
+        recent_header.addWidget(recent_view_all)
+        recent_l.addLayout(recent_header)
+        
+        recent_data = [
+            ("Nguyễn Thanh Tùng", "Nam - 28 tuổi", "07/05/2026", "Khám tổng quát", False),
+            ("Đỗ Thị Phương", "Nữ - 34 tuổi", "06/05/2026", "Tư vấn sức khỏe", True),
+            ("Lý Minh Tuấn", "Nam - 42 tuổi", "05/05/2026", "Đau lưng", False),
+            ("Hoàng Văn Dũng", "Nam - 50 tuổi", "04/05/2026", "Kiểm tra sức khỏe", False),
+        ]
+        
+        for name, detail, date_str, reason, is_female in recent_data:
+            item_w = QtWidgets.QWidget()
+            item_l = QtWidgets.QHBoxLayout(item_w)
+            item_l.setContentsMargins(0, 5, 0, 5)
+            
+            avt = QtWidgets.QLabel("👤")
+            avt.setFixedSize(36, 36)
+            avt.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            if is_female:
+                avt.setStyleSheet("background-color: #fce7f3; color: #db2777; border-radius: 18px;")
+            else:
+                avt.setStyleSheet("background-color: #e0f2fe; color: #0284c7; border-radius: 18px;")
+            item_l.addWidget(avt)
+            
+            info_l = QtWidgets.QVBoxLayout()
+            info_l.setSpacing(2)
+            n_lbl = QtWidgets.QLabel(name)
+            n_lbl.setStyleSheet("color: #1e293b; font-weight: bold; font-size: 13px; background: transparent; border: none;")
+            d_lbl = QtWidgets.QLabel(detail)
+            d_lbl.setStyleSheet("color: #64748b; font-size: 12px; background: transparent; border: none;")
+            info_l.addWidget(n_lbl)
+            info_l.addWidget(d_lbl)
+            item_l.addLayout(info_l)
+            
+            item_l.addStretch()
+            
+            date_l = QtWidgets.QVBoxLayout()
+            date_l.setSpacing(2)
+            dt_lbl = QtWidgets.QLabel(date_str)
+            dt_lbl.setStyleSheet("color: #64748b; font-size: 12px; background: transparent; border: none;")
+            dt_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+            r_lbl = QtWidgets.QLabel(reason)
+            r_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent; border: none;")
+            r_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+            date_l.addWidget(dt_lbl)
+            date_l.addWidget(r_lbl)
+            item_l.addLayout(date_l)
+            
+            recent_l.addWidget(item_w)
+        
+        recent_l.addStretch()
+        bottom_h_layout.addWidget(recent_card)
+
+        # To-Do List
+        todo_card = QtWidgets.QFrame()
+        todo_card.setStyleSheet("background-color: white; border-radius: 16px; border: 1px solid #f1f5f9;")
+        todo_l = QtWidgets.QVBoxLayout(todo_card)
+        todo_l.setContentsMargins(20, 20, 20, 20)
+        todo_l.setSpacing(15)
+        
+        todo_title = QtWidgets.QLabel("Công việc cần làm")
+        todo_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background: transparent; border: none;")
+        todo_l.addWidget(todo_title)
+        
+        todo_data = [
+            ("Xem kết quả xét nghiệm", "3", "#fef2f2", "#ef4444"),
+            ("Ký đơn thuốc", "2", "#fff7ed", "#f97316"),
+            ("Hoàn thiện hồ sơ bệnh án", "4", "#fef2f2", "#ef4444"),
+            ("Nhắc lịch tái khám", "1", "#fdf2f8", "#ec4899"),
+        ]
+        
+        for text, badge, badge_bg, badge_color in todo_data:
+            item_w = QtWidgets.QWidget()
+            item_l = QtWidgets.QHBoxLayout(item_w)
+            item_l.setContentsMargins(0, 10, 0, 10)
+            
+            icon = QtWidgets.QLabel("📋")
+            icon.setStyleSheet("color: #3b82f6; font-size: 18px; background: transparent; border: none;")
+            item_l.addWidget(icon)
+            
+            t_lbl = QtWidgets.QLabel(text)
+            t_lbl.setStyleSheet("color: #334155; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+            item_l.addWidget(t_lbl)
+            
+            item_l.addStretch()
+            
+            b_lbl = QtWidgets.QLabel(badge)
+            b_lbl.setFixedSize(24, 24)
+            b_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            b_lbl.setStyleSheet(f"background-color: {badge_bg}; color: {badge_color}; border-radius: 12px; font-weight: bold; font-size: 12px;")
+            item_l.addWidget(b_lbl)
+            
+            todo_l.addWidget(item_w)
+            
+            line = QtWidgets.QFrame()
+            line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+            line.setStyleSheet("color: #f1f5f9; background-color: #f1f5f9;")
+            todo_l.addWidget(line)
+        
+        todo_l.addStretch()
+        
+        btn_view_all_todo = QtWidgets.QPushButton("Xem tất cả công việc >")
+        btn_view_all_todo.setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px; border: none; background: transparent;")
+        btn_view_all_todo.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        todo_l.addWidget(btn_view_all_todo)
+        
+        bottom_h_layout.addWidget(todo_card)
+
+        left_v_layout.addLayout(bottom_h_layout)
+        
+        main_h_layout.addLayout(left_v_layout, 7)
+
+        # RIGHT SIDE
+        right_v_layout = QtWidgets.QVBoxLayout()
+        right_v_layout.setSpacing(20)
+
+        # Calendar placeholder
+        cal_card = QtWidgets.QFrame()
+        cal_card.setStyleSheet("background-color: white; border-radius: 16px; border: 1px solid #f1f5f9;")
+        cal_l = QtWidgets.QVBoxLayout(cal_card)
+        cal_l.setContentsMargins(20, 20, 20, 20)
+        cal_title = QtWidgets.QLabel("Lịch làm việc")
+        cal_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background: transparent; border: none;")
+        cal_l.addWidget(cal_title)
+        
+        # Fake calendar header
+        cal_header = QtWidgets.QHBoxLayout()
+        cal_prev = QtWidgets.QLabel("<")
+        cal_prev.setStyleSheet("color: #64748b; font-weight: bold; background: transparent; border: none;")
+        cal_month = QtWidgets.QLabel("Tháng 5, 2026")
+        cal_month.setStyleSheet("font-weight: bold; color: #1e293b; background: transparent; border: none;")
+        cal_month.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        cal_next = QtWidgets.QLabel(">")
+        cal_next.setStyleSheet("color: #64748b; font-weight: bold; background: transparent; border: none;")
+        cal_header.addWidget(cal_prev)
+        cal_header.addWidget(cal_month)
+        cal_header.addWidget(cal_next)
+        cal_l.addLayout(cal_header)
+        cal_l.addSpacing(10)
+        
+        # Fake calendar grid
+        cal_grid = QtWidgets.QGridLayout()
+        days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        for i, d in enumerate(days):
+            l = QtWidgets.QLabel(d)
+            l.setStyleSheet("font-weight: bold; color: #1e293b; font-size: 12px; background: transparent; border: none;")
+            l.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            cal_grid.addWidget(l, 0, i)
+        
+        dates = [
+            [28, 29, 30, 1, 2, 3, 4],
+            [5, 6, 7, 8, 9, 10, 11],
+            [12, 13, 14, 15, 16, 17, 18],
+            [19, 20, 21, 22, 23, 24, 25],
+            [26, 27, 28, 29, 30, 31, 1]
+        ]
+        
+        for r_idx, row_dates in enumerate(dates):
+            for c_idx, d in enumerate(row_dates):
+                l = QtWidgets.QLabel(str(d))
+                l.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                if d == 8 and r_idx == 1:
+                    l.setStyleSheet("background-color: #10b981; color: white; border-radius: 12px; font-weight: bold;")
+                    l.setFixedSize(24, 24)
+                elif (r_idx == 0 and d > 20) or (r_idx == 4 and d < 10):
+                    l.setStyleSheet("color: #cbd5e1; font-size: 13px; background: transparent; border: none;")
+                else:
+                    l.setStyleSheet("color: #334155; font-size: 13px; background: transparent; border: none;")
+                
+                cell_w = QtWidgets.QWidget()
+                cell_l = QtWidgets.QVBoxLayout(cell_w)
+                cell_l.setContentsMargins(0,0,0,0)
+                cell_l.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                cell_l.addWidget(l)
+                
+                if d in [8, 5, 15, 22] and not (r_idx == 0 and d > 20) and not (r_idx == 4 and d < 10):
+                    dot = QtWidgets.QLabel("•")
+                    dot.setStyleSheet("color: #10b981; font-size: 16px; margin-top: -10px; background: transparent; border: none;")
+                    dot.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                    cell_l.addWidget(dot)
+                    
+                cal_grid.addWidget(cell_w, r_idx+1, c_idx)
+                
+        cal_l.addLayout(cal_grid)
+        right_v_layout.addWidget(cal_card)
+
+        # Timeline
+        timeline_card = QtWidgets.QFrame()
+        timeline_card.setStyleSheet("background-color: white; border-radius: 16px; border: 1px solid #f1f5f9;")
+        timeline_l = QtWidgets.QVBoxLayout(timeline_card)
+        timeline_l.setContentsMargins(20, 20, 20, 20)
+        timeline_l.setSpacing(15)
+        timeline_title = QtWidgets.QLabel("Lịch làm việc hôm nay")
+        timeline_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background: transparent; border: none;")
+        timeline_l.addWidget(timeline_title)
+        
+        timeline_data = [
+            ("08:00", "Trần Văn Nam", "✔ Đã khám", "#10b981"),
+            ("09:00", "Lê Thị Hoa", "• Đang khám", "#3b82f6"),
+            ("10:00", "Nguyễn Hoàng Anh", "• Đang chờ", "#f97316"),
+            ("10:30", "Phạm Minh Đức", "• Đang chờ", "#f97316"),
+            ("11:00", "Vũ Thị Mai", "• Đã đặt lịch", "#64748b"),
+        ]
+        
+        for time_str, name, status, color in timeline_data:
+            t_w = QtWidgets.QWidget()
+            t_l = QtWidgets.QHBoxLayout(t_w)
+            t_l.setContentsMargins(0, 5, 0, 5)
+            
+            time_lbl = QtWidgets.QLabel(time_str)
+            time_lbl.setStyleSheet("color: #1e293b; font-weight: bold; font-size: 13px; min-width: 40px; background: transparent; border: none;")
+            t_l.addWidget(time_lbl)
+            
+            name_lbl = QtWidgets.QLabel(name)
+            name_lbl.setStyleSheet("color: #475569; font-size: 13px; background: transparent; border: none;")
+            t_l.addWidget(name_lbl)
+            
+            t_l.addStretch()
+            
+            status_lbl = QtWidgets.QLabel(status)
+            status_lbl.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: bold; background: transparent; border: none;")
+            t_l.addWidget(status_lbl)
+            
+            timeline_l.addWidget(t_w)
+            
+            line = QtWidgets.QFrame()
+            line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+            line.setStyleSheet("color: #f8fafc; background-color: #f8fafc;")
+            timeline_l.addWidget(line)
+            
+        btn_view_full = QtWidgets.QPushButton("📅 Xem lịch đầy đủ")
+        btn_view_full.setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;")
+        btn_view_full.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        timeline_l.addWidget(btn_view_full)
+        
+        right_v_layout.addWidget(timeline_card)
+        right_v_layout.addStretch()
+
+        main_h_layout.addLayout(right_v_layout, 3)
+
+        self.page_dashboard_layout.addLayout(main_h_layout)
 
     def _build_dashboard_filter_bar(self):
         wrapper = QtWidgets.QFrame()
