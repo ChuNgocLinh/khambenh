@@ -1,0 +1,6 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_dashboard_routing.py -q
+Result: 2 passed
+
+Validated:
+- MainView routes role=doctor to DashboardView.
+- Unsupported role does not mount DashboardView.

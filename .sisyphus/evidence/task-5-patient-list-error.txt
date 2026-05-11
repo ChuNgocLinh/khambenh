@@ -1,0 +1,5 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_patient_list.py -q
+Result: 2 passed
+
+Validated:
+- Empty search result shows a clear empty-state message.

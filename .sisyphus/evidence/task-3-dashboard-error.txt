@@ -1,0 +1,5 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_dashboard_data.py -q
+Result: 2 passed
+
+Validated:
+- Empty appointment and record data returns empty-state friendly dashboard payload.

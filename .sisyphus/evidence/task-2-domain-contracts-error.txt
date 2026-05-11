@@ -1,0 +1,7 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_domain_contracts.py -q
+Result: 4 passed
+
+Validated:
+- Finalize exam without diagnosis is rejected.
+- Dispensed prescriptions cannot be cancelled/edited.
+- Unknown notification target falls back to dashboard.

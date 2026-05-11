@@ -1,0 +1,8 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_domain_contracts.py -q
+Result: 4 passed
+
+Validated:
+- Exam draft save/finalize contract.
+- Appointment completion on finalized exam.
+- Prescription lifecycle edit guard.
+- Notification unread and target mapping contract.

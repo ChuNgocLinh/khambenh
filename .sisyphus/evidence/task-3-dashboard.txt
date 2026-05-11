@@ -1,0 +1,7 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_dashboard_data.py -q
+Result: 2 passed
+
+Validated:
+- Dashboard data builder reads AppointmentController and record/prescription query rows.
+- KPIs and status counts are derived from controller data.
+- Upcoming appointments are derived from real appointment rows.

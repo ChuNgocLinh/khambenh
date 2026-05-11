@@ -1,0 +1,7 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_prescription_workflow.py -q
+Result: 2 passed
+
+Validated:
+- Prescription list loads PrescriptionController.get_by_doctor rows.
+- Search filters by medicine/patient/diagnosis.
+- Cancel flow delegates to PrescriptionController.cancel.

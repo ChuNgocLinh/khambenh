@@ -321,18 +321,19 @@ class DashboardView(QtWidgets.QWidget):
             alignment=QtCore.Qt.AlignmentFlag.AlignCenter,
         )
 
-        bell_badge = QtWidgets.QLabel("2")
-        bell_badge.setFixedSize(18, 18)
-        bell_badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        bell_badge.setStyleSheet(
+        self.bell_badge = QtWidgets.QLabel("0")
+        self.bell_badge.setFixedSize(18, 18)
+        self.bell_badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.bell_badge.setStyleSheet(
             "background: #ff2d20; color: white; border-radius: 9px; font-size: 10px; font-weight: 800;"
         )
         bell_grid.addWidget(
-            bell_badge,
+            self.bell_badge,
             0,
             0,
             alignment=QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignRight,
         )
+        self.header_notification_button.clicked.connect(lambda: self.switch_page(6))
 
         self.user_info_layout = QtWidgets.QHBoxLayout()
         self.user_info_layout.setContentsMargins(0, 0, 0, 0)
@@ -395,12 +396,13 @@ class DashboardView(QtWidgets.QWidget):
 
         # Các trang placeholder khác
         from views.doctor_management_views import PrescriptionView, DoctorPatientListView
+        from views.doctor_examination_view import DoctorExaminationView
         from views.doctor_patient_record_view import DoctorPatientRecordView
         from views.doctor_schedule_view import DoctorScheduleView
         
         self.page_patient_list = DoctorPatientListView(self.user_data.get("doctor_id"))
         self.page_doctor_appts = DoctorScheduleView(self.user_data.get("doctor_id"))
-        self.page_medical_record = DoctorPatientRecordView(self.user_data.get("doctor_id"))
+        self.page_medical_record = DoctorExaminationView(self.user_data.get("doctor_id"))
         self.page_patient_record = DoctorPatientRecordView(self.user_data.get("doctor_id"))
         self.page_prescription = PrescriptionView(self.user_data.get("doctor_id"))
 
@@ -411,13 +413,14 @@ class DashboardView(QtWidgets.QWidget):
         self.page_patient_record.role = role
         self.page_prescription.role = role
         
-        self.content_stack.addWidget(self._build_schedule_page())   # 1: Lịch khám
+        self.content_stack.addWidget(self.page_doctor_appts)   # 1: Lịch khám
         self.content_stack.addWidget(self.page_patient_list)    # 2: Danh sách bệnh nhân
         self.content_stack.addWidget(self.page_medical_record)  # 3: Hồ sơ khám bệnh
         self.content_stack.addWidget(self.page_patient_record)  # 4: Hồ sơ bệnh nhân
         self.content_stack.addWidget(self.page_prescription)    # 5: Đơn thuốc
-        self.content_stack.addWidget(self._build_notification_center_page(self.dashboard_data.get("notifications", [])))  # 6: Thông báo
+        self.content_stack.addWidget(self._build_persisted_notification_center_page())  # 6: Thông báo
         self.content_stack.addWidget(self._build_settings_page())  # 7: Cài đặt
+        self.refresh_notification_badge()
 
     def _build_doctor_dashboard_data(self, doctor_id):
         from controllers.appointment_controller import AppointmentController
@@ -3338,6 +3341,71 @@ class DashboardView(QtWidgets.QWidget):
             return "Chưa cập nhật"
         return text
             
+    def _build_persisted_notification_center_page(self):
+        page = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        title = QtWidgets.QLabel("Thông báo")
+        title.setStyleSheet("font-size: 24px; font-weight: 800; color: #0f172a;")
+        layout.addWidget(title)
+
+        mark_all_btn = QtWidgets.QPushButton("Đánh dấu tất cả đã đọc")
+        mark_all_btn.clicked.connect(self.mark_all_notifications_read)
+        layout.addWidget(mark_all_btn)
+
+        self.notification_list = QtWidgets.QListWidget()
+        self.notification_list.itemClicked.connect(self._open_notification_item)
+        layout.addWidget(self.notification_list, 1)
+        self.load_notifications()
+        return page
+
+    def load_notifications(self):
+        from controllers.notification_controller import NotificationController
+
+        if not hasattr(self, "notification_list"):
+            return
+        self.notification_list.clear()
+        user_id = self.user_data.get("user_id")
+        self.notifications = NotificationController.list_for_user(user_id)
+        if not self.notifications:
+            self.notification_list.addItem("Không có thông báo.")
+            self.refresh_notification_badge()
+            return
+
+        for row in self.notifications:
+            status = "●" if not row.get("is_read") else "○"
+            item = QtWidgets.QListWidgetItem(f"{status} {row.get('title', '')} - {row.get('content', '')}")
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, row)
+            self.notification_list.addItem(item)
+        self.refresh_notification_badge()
+
+    def refresh_notification_badge(self):
+        from controllers.notification_controller import NotificationController
+
+        count = NotificationController.unread_count(self.user_data.get("user_id"))
+        if hasattr(self, "bell_badge"):
+            self.bell_badge.setText(str(count))
+            self.bell_badge.setVisible(count > 0)
+        return count
+
+    def mark_all_notifications_read(self):
+        from controllers.notification_controller import NotificationController
+
+        NotificationController.mark_all_read(self.user_data.get("user_id"))
+        self.load_notifications()
+
+    def _open_notification_item(self, item):
+        from controllers.notification_controller import NotificationController
+
+        row = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if not isinstance(row, dict):
+            return
+        NotificationController.mark_read(row.get("notification_id"), self.user_data.get("user_id"))
+        self.switch_page(NotificationController.target_index(row.get("target_page")))
+        self.refresh_notification_badge()
+
     def switch_page(self, index):
         self.content_stack.setCurrentIndex(index)
         for i, btn in enumerate(self.nav_buttons):

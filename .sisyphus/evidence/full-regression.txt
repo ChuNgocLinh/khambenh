@@ -1,0 +1,6 @@
+Command: python -m pytest -q
+Result: 30 passed, 7 warnings
+
+Notes:
+- PyQt emits sipPyTypeDict deprecation warnings during widget tests.
+- Duplicate legacy test discovery was resolved by keeping BTL.Nhóm6_Python/tests as the canonical test root.

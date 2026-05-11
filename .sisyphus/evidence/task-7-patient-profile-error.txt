@@ -1,0 +1,5 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_patient_profile.py -q
+Result: 2 passed
+
+Validated:
+- Missing patient renders a clear empty/error state and empty tables.

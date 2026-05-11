@@ -9,6 +9,10 @@ class PatientController:
         return PatientModel.get_all()
 
     @staticmethod
+    def get_by_id(patient_id):
+        return PatientModel.get_by_id(patient_id)
+
+    @staticmethod
     def _normalize_form(form):
         data = form or {}
         intake_notes = data.get("intake_notes")

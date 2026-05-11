@@ -1,0 +1,8 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_settings_integration.py -q
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_journey_smoke.py -q
+Result: 2 passed; 1 passed
+
+Validated:
+- Doctor personal settings validation and notification preference update.
+- Password change validation.
+- Doctor router journey can switch dashboard -> schedule -> patients -> exam -> profile -> prescriptions -> notifications -> settings.

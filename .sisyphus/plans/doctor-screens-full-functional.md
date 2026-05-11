@@ -148,7 +148,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Chuẩn hóa router Doctor và harness kiểm thử
+- [x] 1. Chuẩn hóa router Doctor và harness kiểm thử
 
   **What to do**: Chuẩn hóa `DashboardView` làm router Doctor duy nhất, xác nhận mapping 8 page index là nguồn sự thật runtime, loại bỏ nhầm lẫn giữa mounted widget và dead-path widget trong plan triển khai. Chuẩn hóa điểm chạy test về `BTL.Nhóm6_Python/tests/`, thêm fixture/test route cho login→doctor→dashboard và page switching.
   **Must NOT do**: Không đổi UI layout/sidebar. Không refactor role router ngoài phạm vi Doctor. Không sửa business logic domain ở task này.
@@ -168,9 +168,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - Test config: `BTL.Nhóm6_Python/pytest.ini` - cấu hình pytest chuẩn cần giữ làm canonical path.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_dashboard_routing.py -q` pass và xác nhận page index 0-7 mount đúng widget runtime.
-  - [ ] `python -m pytest -q` không bị duplicate discovery gây fail do test config mới.
-  - [ ] Login doctor mở đúng `DashboardView`, không mount sai màn legacy/web.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_dashboard_routing.py -q` pass và xác nhận page index 0-7 mount đúng widget runtime.
+  - [x] `python -m pytest -q` không bị duplicate discovery gây fail do test config mới.
+  - [x] Login doctor mở đúng `DashboardView`, không mount sai màn legacy/web.
 
   **QA Scenarios** (MANDATORY - task incomplete without these):
   ```
@@ -189,7 +189,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `test(doctor): lock runtime routing and doctor dashboard harness` | Files: [`BTL.Nhóm6_Python/tests/test_doctor_dashboard_routing.py`, `BTL.Nhóm6_Python/pytest.ini`, any minimal fixture helpers]
 
-- [ ] 2. Mở rộng schema và domain tối thiểu cho exam draft, prescription lifecycle, notifications
+- [x] 2. Mở rộng schema và domain tối thiểu cho exam draft, prescription lifecycle, notifications
 
   **What to do**: Thiết kế và áp dụng thay đổi schema tối thiểu để hỗ trợ (1) medical record draft/finalized, (2) prescription status `draft/issued/dispensed/cancelled`, (3) notification persisted feed có read/unread + target navigation. Cập nhật model/controller tương ứng và seed/test data tối thiểu.
   **Must NOT do**: Không normalize lại toàn DB. Không thêm event bus tổng quát. Không thay đổi schema ngoài đúng 3 nhu cầu đã khóa.
@@ -210,9 +210,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - DB seed: `BTL.Nhóm6_Python/healthcare_management/database/init_db.sql` - nơi cập nhật schema/seed chuẩn.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_domain_contracts.py -q` pass.
-  - [ ] Schema mới khởi tạo thành công bằng seed hiện có, không làm hỏng login/app startup.
-  - [ ] Controller/model mới trả về contract ổn định cho exam draft/finalize, prescription status, notification feed.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_domain_contracts.py -q` pass.
+  - [x] Schema mới khởi tạo thành công bằng seed hiện có, không làm hỏng login/app startup.
+  - [x] Controller/model mới trả về contract ổn định cho exam draft/finalize, prescription status, notification feed.
 
   **QA Scenarios**:
   ```
@@ -231,7 +231,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `feat(doctor): add minimal domain persistence for exam prescription notifications` | Files: [`database/init_db.sql`, relevant models/controllers/tests]
 
-- [ ] 3. Hoàn thiện Dashboard bác sĩ bằng dữ liệu thật
+- [x] 3. Hoàn thiện Dashboard bác sĩ bằng dữ liệu thật
 
   **What to do**: Thay mọi KPI/card/list/timeline/notification badge trên dashboard bằng dữ liệu thật từ appointments, patients, prescriptions, notifications. Gắn đầy đủ action click: card thống kê, lịch hẹn hôm nay, upcoming appointments, notification entry, CTA “xem tất cả”. Bổ sung loading/empty/error state theo pattern hiện có.
   **Must NOT do**: Không đổi bố cục card/chart. Không thêm chỉ số ngoài yêu cầu issue #24. Không giữ mock appointment rows trên mounted dashboard.
@@ -250,9 +250,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - API/Type: appointment/patient/prescription counts từ controllers/models hiện có.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_dashboard_data.py -q` pass.
-  - [ ] Dashboard hiển thị tổng số bệnh nhân, lịch hôm nay, số đơn thuốc, thông báo mới, lịch sắp tới từ dữ liệu thật.
-  - [ ] Click vào card/lịch/notification điều hướng đúng page index tương ứng trong router Doctor.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_dashboard_data.py -q` pass.
+  - [x] Dashboard hiển thị tổng số bệnh nhân, lịch hôm nay, số đơn thuốc, thông báo mới, lịch sắp tới từ dữ liệu thật.
+  - [x] Click vào card/lịch/notification điều hướng đúng page index tương ứng trong router Doctor.
 
   **QA Scenarios**:
   ```
@@ -271,7 +271,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `feat(doctor): wire dashboard to real doctor data` | Files: [`views/dashboard_view.py`, relevant controllers/tests]
 
-- [ ] 4. Thay màn Lịch khám bằng implementation data-backed duy nhất
+- [x] 4. Thay màn Lịch khám bằng implementation data-backed duy nhất
 
   **What to do**: Đưa `DoctorScheduleView` hoặc implementation tương đương data-backed lên mounted router page 1, hợp nhất filter ngày/trạng thái/dịch vụ/phòng, panel chi tiết appointment, start exam, view patient profile, edit/cancel/confirm. Loại bỏ dependence vào `_build_schedule_page()` tĩnh trên mounted path.
   **Must NOT do**: Không duy trì cả static schedule page và real schedule page cùng là runtime option. Không kéo thêm drag-drop/resync calendar ngoài scope issue.
@@ -290,9 +290,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - Pattern: `BTL.Nhóm6_Python/healthcare_management/views/dashboard_view.py` - router page 1 currently static.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_schedule_flow.py -q` pass.
-  - [ ] Doctor chỉ thấy appointment thuộc mình theo đúng RBAC và date/filter applied.
-  - [ ] Start exam từ schedule chuyển đúng sang màn khám bệnh với appointment/patient context.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_schedule_flow.py -q` pass.
+  - [x] Doctor chỉ thấy appointment thuộc mình theo đúng RBAC và date/filter applied.
+  - [x] Start exam từ schedule chuyển đúng sang màn khám bệnh với appointment/patient context.
 
   **QA Scenarios**:
   ```
@@ -311,7 +311,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `feat(doctor): mount real appointment schedule flow` | Files: [`views/dashboard_view.py`, `views/doctor_schedule_view.py`, appointment controllers/tests]
 
-- [ ] 5. Hoàn thiện Danh sách bệnh nhân bằng dữ liệu thật và điều hướng hồ sơ
+- [x] 5. Hoàn thiện Danh sách bệnh nhân bằng dữ liệu thật và điều hướng hồ sơ
 
   **What to do**: Nối `DoctorPatientListView` với dữ liệu thật bệnh nhân, search theo tên/SĐT/mã BN, filter tab/status, pagination, panel chi tiết bên phải, action xem chi tiết và điều hướng sang hồ sơ bệnh nhân. Nếu có sort/filter UI sẵn thì cắm logic tương ứng.
   **Must NOT do**: Không mở rộng sang admin CRUD bệnh nhân ngoài phạm vi doctor-facing flow. Không thêm export/report mới nếu UI mounted path chưa có.
@@ -329,9 +329,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - Pattern: `BTL.Nhóm6_Python/healthcare_management/views/doctor_management_views.py:153-180, 287-304` - form validation style.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_patient_list.py -q` pass.
-  - [ ] Search/filter/pagination hoạt động trên dữ liệu thật.
-  - [ ] Click row hoặc action view mở hồ sơ bệnh nhân đúng context.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_patient_list.py -q` pass.
+  - [x] Search/filter/pagination hoạt động trên dữ liệu thật.
+  - [x] Click row hoặc action view mở hồ sơ bệnh nhân đúng context.
 
   **QA Scenarios**:
   ```
@@ -350,7 +350,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `feat(doctor): complete real patient list flow` | Files: [`views/doctor_management_views.py`, patient controllers/tests]
 
-- [ ] 6. Tạo workspace Khám bệnh thật với lưu tạm và hoàn tất
+- [x] 6. Tạo workspace Khám bệnh thật với lưu tạm và hoàn tất
 
   **What to do**: Tạo hoặc mount màn khám bệnh riêng cho page 3, load context từ appointment/patient, nhập lý do khám/triệu chứng/chẩn đoán/kết luận/hướng điều trị/ghi chú, validate trước lưu, hỗ trợ lưu tạm draft và finalize, thông báo kết quả, cập nhật appointment status và mở luồng tạo đơn thuốc khi phù hợp.
   **Must NOT do**: Không dùng `DoctorPatientRecordView` tĩnh làm màn khám bệnh chính. Không cho finalize nếu thiếu trường bắt buộc. Không ghi DB trực tiếp trong view nếu đã có controller/model phù hợp.
@@ -369,9 +369,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - Pattern: `BTL.Nhóm6_Python/healthcare_management/views/doctor_management_views.py:406-420, 481-502` - validation patterns.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_examination_workflow.py -q` pass.
-  - [ ] Có thể mở ca khám từ appointment context, lưu tạm, mở lại, hoàn tất và cập nhật status hợp lệ.
-  - [ ] Finalize fail nếu thiếu dữ liệu bắt buộc; success thì phát notification/refresh data liên quan.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_examination_workflow.py -q` pass.
+  - [x] Có thể mở ca khám từ appointment context, lưu tạm, mở lại, hoàn tất và cập nhật status hợp lệ.
+  - [x] Finalize fail nếu thiếu dữ liệu bắt buộc; success thì phát notification/refresh data liên quan.
 
   **QA Scenarios**:
   ```
@@ -390,7 +390,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `feat(doctor): implement examination draft and finalize workflow` | Files: [`BTL.Nhóm6_Python/healthcare_management/views/doctor_examination_view.py`, `BTL.Nhóm6_Python/healthcare_management/controllers/medical_record_controller.py`, `BTL.Nhóm6_Python/healthcare_management/models/medical_record_model.py`, tests]
 
-- [ ] 7. Hoàn thiện Hồ sơ bệnh nhân thành màn đọc dữ liệu thật và action điều hướng
+- [x] 7. Hoàn thiện Hồ sơ bệnh nhân thành màn đọc dữ liệu thật và action điều hướng
 
   **What to do**: Tách page 4 thành màn hồ sơ bệnh nhân đúng nghĩa: demographics, bệnh sử, lịch sử khám, kết quả liên quan, đơn thuốc cũ, lịch hẹn. Cắm các tab/button/link, mở chi tiết lần khám, điều hướng sang khám bệnh hoặc tạo đơn thuốc khi phù hợp nhưng không nhập trực tiếp logic khám tại đây.
   **Must NOT do**: Không để page 4 tiếp tục trùng trách nhiệm với page 3. Không biến hồ sơ bệnh nhân thành chỗ edit khám chính.
@@ -409,9 +409,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - Pattern: `BTL.Nhóm6_Python/healthcare_management/models/appointment_model.py` - lịch hẹn liên quan.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_patient_profile.py -q` pass.
-  - [ ] Hồ sơ hiển thị dữ liệu thật cho patient, empty state đúng khi chưa có lịch sử.
-  - [ ] Các tab/action mở đúng dữ liệu chi tiết hoặc điều hướng đúng page workflow.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_patient_profile.py -q` pass.
+  - [x] Hồ sơ hiển thị dữ liệu thật cho patient, empty state đúng khi chưa có lịch sử.
+  - [x] Các tab/action mở đúng dữ liệu chi tiết hoặc điều hướng đúng page workflow.
 
   **QA Scenarios**:
   ```
@@ -430,7 +430,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `feat(doctor): complete patient profile read model` | Files: [`views/doctor_patient_record_view.py`, related controllers/models/tests]
 
-- [ ] 8. Hoàn thiện Đơn thuốc của tôi bằng dữ liệu thật và lifecycle trước phát thuốc
+- [x] 8. Hoàn thiện Đơn thuốc của tôi bằng dữ liệu thật và lifecycle trước phát thuốc
 
   **What to do**: Thay `PrescriptionView` hardcoded rows bằng dữ liệu thật từ prescription domain, hỗ trợ danh sách, xem chi tiết, tạo đơn mới từ context khám bệnh nếu UI có, sửa/hủy trước khi phát thuốc, filter/search theo bệnh nhân/ngày/trạng thái, và block edit/cancel sau `dispensed`.
   **Must NOT do**: Không suy diễn status từ appointment nếu đã có prescription status riêng. Không cho sửa/hủy sau phát thuốc. Không giữ bảng mock rows trên mounted path.
@@ -449,9 +449,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - Pattern: `BTL.Nhóm6_Python/healthcare_management/views/doctor_management_views.py` action detail/print hooks.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_prescription_workflow.py -q` pass.
-  - [ ] Danh sách đơn thuốc lấy từ DB thật, filter/search chạy được.
-  - [ ] Edit/cancel chỉ được trước `dispensed`; sau đó phải bị chặn với message rõ ràng.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_prescription_workflow.py -q` pass.
+  - [x] Danh sách đơn thuốc lấy từ DB thật, filter/search chạy được.
+  - [x] Edit/cancel chỉ được trước `dispensed`; sau đó phải bị chặn với message rõ ràng.
 
   **QA Scenarios**:
   ```
@@ -470,7 +470,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `feat(doctor): replace mock prescription list with real lifecycle` | Files: [`views/doctor_management_views.py`, prescription models/controllers/tests]
 
-- [ ] 9. Xây notification feed persisted cho Doctor và nối dashboard badge
+- [x] 9. Xây notification feed persisted cho Doctor và nối dashboard badge
 
   **What to do**: Tạo `NotificationModel/Controller` tối thiểu hoặc lớp tương đương, persist thông báo với read/unread, mark-as-read, mark-all-read, delete nếu UI mounted path có, và target navigation sang lịch khám/hồ sơ bệnh nhân/đơn thuốc. Cắm unread badge vào dashboard/header.
   **Must NOT do**: Không để `_build_doctor_notification_mock_data()` tồn tại trên mounted path. Không xây realtime/WebSocket nếu không bắt buộc cho issue scope.
@@ -489,9 +489,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - Contract target: page navigation indices trong `DashboardView`.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_notifications.py -q` pass.
-  - [ ] Feed không còn dùng mock data trên mounted path.
-  - [ ] Mark read/mark all read cập nhật persisted state và badge unread đúng.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_notifications.py -q` pass.
+  - [x] Feed không còn dùng mock data trên mounted path.
+  - [x] Mark read/mark all read cập nhật persisted state và badge unread đúng.
 
   **QA Scenarios**:
   ```
@@ -510,7 +510,7 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 
   **Commit**: YES | Message: `feat(doctor): add persisted notification feed and badge` | Files: [`BTL.Nhóm6_Python/healthcare_management/views/dashboard_view.py`, `BTL.Nhóm6_Python/healthcare_management/controllers/notification_controller.py`, `BTL.Nhóm6_Python/healthcare_management/models/notification_model.py`, tests]
 
-- [ ] 10. Hoàn thiện Cài đặt và smoke toàn bộ Doctor journey
+- [x] 10. Hoàn thiện Cài đặt và smoke toàn bộ Doctor journey
 
   **What to do**: Rà và hoàn thiện toàn bộ mounted settings sections đang có UI: profile update, change password, notification preferences, account/account-related settings, logout flow, avatar/update messaging, save failure retention. Sau đó thêm smoke test cho full Doctor journey từ login qua 7 chặng chính, đảm bảo không còn hard-coded data trên mounted path.
   **Must NOT do**: Không thêm cài đặt mới ngoài UI hiện có. Không mở rộng logout thành auth subsystem lớn. Không để save lỗi làm mất dữ liệu form chưa lưu.
@@ -529,9 +529,9 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
   - Router path: `views/main_view.py`, `views/dashboard_view.py`.
 
   **Acceptance Criteria**:
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_settings_integration.py -q` pass.
-  - [ ] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_journey_smoke.py -q` pass.
-  - [ ] `python -m pytest -q` pass toàn repo sau khi hoàn thiện 8 issue.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_settings_integration.py -q` pass.
+  - [x] `python -m pytest BTL.Nhóm6_Python/tests/test_doctor_journey_smoke.py -q` pass.
+  - [x] `python -m pytest -q` pass toàn repo sau khi hoàn thiện 8 issue.
 
   **QA Scenarios**:
   ```
@@ -554,10 +554,10 @@ Wave 3: T8 Prescriptions, T9 Notifications, T10 Settings + Journey Smoke
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+- [x] F4. Scope Fidelity Check — deep
 
 ## Commit Strategy
 - Một commit dọc cho mỗi task T1-T10; tuyệt đối để app runnable sau từng commit.

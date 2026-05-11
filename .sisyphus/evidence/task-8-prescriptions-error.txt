@@ -1,0 +1,5 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_prescription_workflow.py -q
+Result: 2 passed
+
+Validated:
+- Dispensed prescriptions are blocked from edit.

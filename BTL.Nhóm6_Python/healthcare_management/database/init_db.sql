@@ -129,10 +129,14 @@ CREATE TABLE IF NOT EXISTS MedicalRecords (
     appointment_id INT,
     diagnosis VARCHAR(255),
     treatment VARCHAR(255),
+    record_status VARCHAR(20) DEFAULT 'draft',
+    finalized_at DATETIME NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patient_id) REFERENCES Patients(patient_id),
     FOREIGN KEY (doctor_id) REFERENCES Doctors(doctor_id),
-    FOREIGN KEY (appointment_id) REFERENCES Appointments(appointment_id)
+    FOREIGN KEY (appointment_id) REFERENCES Appointments(appointment_id),
+    CHECK (record_status IN ('draft','finalized'))
 );
 
 -- ========================================
@@ -155,8 +159,27 @@ CREATE TABLE IF NOT EXISTS Prescriptions (
     record_id INT,
     medicine_id INT,
     quantity INT,
+    status VARCHAR(20) DEFAULT 'draft',
+    dispensed_at DATETIME NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (record_id) REFERENCES MedicalRecords(record_id),
-    FOREIGN KEY (medicine_id) REFERENCES Medicines(medicine_id)
+    FOREIGN KEY (medicine_id) REFERENCES Medicines(medicine_id),
+    CHECK (status IN ('draft','issued','dispensed','cancelled'))
+);
+
+CREATE TABLE IF NOT EXISTS Notifications (
+    notification_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    content VARCHAR(500),
+    type VARCHAR(50) DEFAULT 'system',
+    target_page VARCHAR(50) DEFAULT 'dashboard',
+    target_id INT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    read_at DATETIME NULL,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id),
+    CHECK (target_page IN ('schedule','patient_profile','prescriptions','dashboard','settings'))
 );
 
 -- ========================================
@@ -197,6 +220,7 @@ CREATE INDEX idx_appt_patient_id ON Appointments(patient_id);
 CREATE INDEX idx_appt_doctor_id ON Appointments(doctor_id);
 CREATE INDEX idx_record_appointment_id ON MedicalRecords(appointment_id);
 CREATE INDEX idx_prescription_record_id ON Prescriptions(record_id);
+CREATE INDEX idx_notifications_user_read ON Notifications(user_id, is_read);
 CREATE INDEX idx_payment_patient_id ON Payments(patient_id);
 CREATE INDEX idx_payment_appointment_id ON Payments(appointment_id);
 CREATE INDEX idx_invoice_payment_id ON Invoices(payment_id);

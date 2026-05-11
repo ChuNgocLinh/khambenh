@@ -1,0 +1,7 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_schedule_flow.py -q
+Result: 3 passed
+
+Validated:
+- Schedule page renders only AppointmentController rows.
+- No synthetic appointment_id 100x fallback remains in runtime rows.
+- Status updates for start exam and cancel are called with the selected appointment.

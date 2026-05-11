@@ -1,4 +1,4 @@
-from datetime import date, datetime
+﻿from datetime import date, datetime
 from PyQt6 import QtWidgets, QtCore, QtGui, QtPrintSupport
 from controllers.medical_record_controller import MedicalRecordController
 from controllers.prescription_controller import PrescriptionController
@@ -2420,3 +2420,262 @@ class DoctorAppointmentView(BaseDoctorView):
             f"🩺 Đã sẵn sàng khám ngay cho bệnh nhân {row.get('patient_name', '')}.",
         )
         self.load_data()
+
+
+class DoctorPatientListView(QtWidgets.QWidget):
+    def __init__(self, doctor_id, parent=None):
+        super().__init__(parent)
+        self.doctor_id = doctor_id
+        self.role = "doctor"
+        self.page_size = 10
+        self.current_page = 1
+        self.all_rows = []
+        self.filtered_rows = []
+        self.selected_patient_id = None
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        title = QtWidgets.QLabel("Danh sách bệnh nhân")
+        title.setStyleSheet("font-size: 24px; font-weight: 800; color: #1e293b;")
+        layout.addWidget(title)
+
+        filters = QtWidgets.QHBoxLayout()
+        self.search_input = QtWidgets.QLineEdit()
+        self.search_input.setPlaceholderText("Tìm theo tên, SĐT, mã BN...")
+        self.gender_filter = QtWidgets.QComboBox()
+        self.gender_filter.addItems(["Tất cả giới tính", "Nam", "Nữ"])
+        self.status_label = QtWidgets.QLabel("")
+        for widget in [self.search_input, self.gender_filter]:
+            widget.setMinimumHeight(38)
+            widget.setStyleSheet("background: white; color: #1f2937; border: 1px solid #dbe4ee; border-radius: 8px; padding: 6px;")
+            filters.addWidget(widget)
+        filters.addWidget(self.status_label)
+        layout.addLayout(filters)
+
+        self.table = QtWidgets.QTableWidget()
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["Mã BN", "Họ tên", "Giới tính", "Ngày sinh", "SĐT", "Thao tác"])
+        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.cellDoubleClicked.connect(lambda row, _col: self.open_patient_profile(row))
+        layout.addWidget(self.table, 1)
+
+        pagination = QtWidgets.QHBoxLayout()
+        self.prev_btn = QtWidgets.QPushButton("<")
+        self.next_btn = QtWidgets.QPushButton(">")
+        self.page_label = QtWidgets.QLabel("1/1")
+        self.prev_btn.clicked.connect(lambda: self._go_page(self.current_page - 1))
+        self.next_btn.clicked.connect(lambda: self._go_page(self.current_page + 1))
+        pagination.addStretch()
+        pagination.addWidget(self.prev_btn)
+        pagination.addWidget(self.page_label)
+        pagination.addWidget(self.next_btn)
+        pagination.addStretch()
+        layout.addLayout(pagination)
+
+        self.search_input.textChanged.connect(self._apply_filters)
+        self.gender_filter.currentIndexChanged.connect(self._apply_filters)
+        self.load_data()
+
+    def load_data(self):
+        try:
+            rows = PatientController.get_all() or []
+        except Exception as exc:
+            self.all_rows = []
+            self.status_label.setText(f"Lỗi tải dữ liệu: {exc}")
+            self._apply_filters()
+            return
+        self.all_rows = [dict(row) for row in rows]
+        self.status_label.setText("")
+        self._apply_filters()
+
+    def _matches(self, row):
+        keyword = self.search_input.text().strip().lower()
+        if keyword:
+            haystack = f"BN{int(row.get('patient_id') or 0):06d} {row.get('name', '')} {row.get('phone', '')}".lower()
+            if keyword not in haystack:
+                return False
+
+        gender = self.gender_filter.currentText()
+        if gender != "Tất cả giới tính" and str(row.get("gender") or "") != gender:
+            return False
+        return True
+
+    def _apply_filters(self):
+        self.filtered_rows = [row for row in self.all_rows if self._matches(row)]
+        self.current_page = 1
+        self._render_page()
+
+    def _render_page(self):
+        total_pages = max(1, (len(self.filtered_rows) + self.page_size - 1) // self.page_size)
+        self.current_page = max(1, min(self.current_page, total_pages))
+        start = (self.current_page - 1) * self.page_size
+        page_rows = self.filtered_rows[start : start + self.page_size]
+        self.table.setRowCount(len(page_rows))
+
+        for row_index, row in enumerate(page_rows):
+            patient_id = row.get("patient_id")
+            values = [
+                f"BN{int(patient_id or 0):06d}",
+                row.get("name", ""),
+                row.get("gender", ""),
+                row.get("dob", ""),
+                row.get("phone", ""),
+            ]
+            for col, value in enumerate(values):
+                item = QtWidgets.QTableWidgetItem(str(value))
+                item.setData(QtCore.Qt.ItemDataRole.UserRole, patient_id)
+                self.table.setItem(row_index, col, item)
+
+            button = QtWidgets.QPushButton("Xem hồ sơ")
+            button.clicked.connect(lambda checked=False, r=row_index: self.open_patient_profile(r))
+            self.table.setCellWidget(row_index, 5, button)
+
+        self.page_label.setText(f"{self.current_page}/{total_pages}")
+        self.prev_btn.setEnabled(self.current_page > 1)
+        self.next_btn.setEnabled(self.current_page < total_pages)
+        if not page_rows:
+            self.status_label.setText("Không có bệnh nhân phù hợp.")
+
+    def _go_page(self, page):
+        self.current_page = page
+        self._render_page()
+
+    def open_patient_profile(self, row_index):
+        item = self.table.item(row_index, 0)
+        if not item:
+            return
+        self.selected_patient_id = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        dashboard = self._find_dashboard()
+        if dashboard:
+            profile = getattr(dashboard, "page_patient_record", None)
+            if hasattr(profile, "set_patient"):
+                profile.set_patient(self.selected_patient_id)
+            dashboard.switch_page(4)
+
+    def _find_dashboard(self):
+        parent = self.parent()
+        while parent and not hasattr(parent, "content_stack"):
+            parent = parent.parent()
+        return parent
+
+
+class PrescriptionView(QtWidgets.QWidget):
+    def __init__(self, doctor_id, parent=None):
+        super().__init__(parent)
+        self.doctor_id = doctor_id
+        self.role = "doctor"
+        self.all_rows = []
+        self.filtered_rows = []
+        self.last_message = ""
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        title = QtWidgets.QLabel("Đơn thuốc của tôi")
+        title.setStyleSheet("font-size: 24px; font-weight: 800; color: #0f172a;")
+        layout.addWidget(title)
+
+        filters = QtWidgets.QHBoxLayout()
+        self.search_input = QtWidgets.QLineEdit()
+        self.search_input.setPlaceholderText("Tìm theo bệnh nhân, thuốc, chẩn đoán...")
+        self.status_filter = QtWidgets.QComboBox()
+        self.status_filter.addItems(["Tất cả trạng thái", "draft", "issued", "dispensed", "cancelled"])
+        self.message_label = QtWidgets.QLabel("")
+        for widget in [self.search_input, self.status_filter]:
+            widget.setMinimumHeight(38)
+            filters.addWidget(widget)
+        filters.addWidget(self.message_label)
+        layout.addLayout(filters)
+
+        self.table = QtWidgets.QTableWidget()
+        self.table.setColumnCount(8)
+        self.table.setHorizontalHeaderLabels(["Mã đơn", "Bệnh nhân", "Ngày kê", "Chẩn đoán", "Thuốc", "SL", "Trạng thái", "Thao tác"])
+        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table, 1)
+
+        self.search_input.textChanged.connect(self._apply_filters)
+        self.status_filter.currentIndexChanged.connect(self._apply_filters)
+        self.load_data()
+
+    def load_data(self):
+        try:
+            self.all_rows = [dict(row) for row in (PrescriptionController.get_by_doctor(self.doctor_id) or [])]
+            self.message_label.setText("")
+        except Exception as exc:
+            self.all_rows = []
+            self.message_label.setText(f"Lỗi tải đơn thuốc: {exc}")
+        self._apply_filters()
+
+    def _matches(self, row):
+        keyword = self.search_input.text().strip().lower()
+        if keyword:
+            haystack = (
+                f"{row.get('patient_name', '')} {row.get('medicine_name', '')} "
+                f"{row.get('name', '')} {row.get('diagnosis', '')}"
+            ).lower()
+            if keyword not in haystack:
+                return False
+        selected_status = self.status_filter.currentText()
+        if selected_status != "Tất cả trạng thái" and str(row.get("status") or "draft") != selected_status:
+            return False
+        return True
+
+    def _apply_filters(self):
+        self.filtered_rows = [row for row in self.all_rows if self._matches(row)]
+        self._render_table()
+
+    def _render_table(self):
+        self.table.setRowCount(len(self.filtered_rows))
+        for index, row in enumerate(self.filtered_rows):
+            values = [
+                row.get("prescription_id", ""),
+                row.get("patient_name", ""),
+                row.get("prescribed_at", ""),
+                row.get("diagnosis", ""),
+                row.get("medicine_name") or row.get("name", ""),
+                row.get("quantity", ""),
+                row.get("status", "draft"),
+            ]
+            for col, value in enumerate(values):
+                self.table.setItem(index, col, QtWidgets.QTableWidgetItem(str(value)))
+
+            actions = QtWidgets.QWidget()
+            action_layout = QtWidgets.QHBoxLayout(actions)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            edit_btn = QtWidgets.QPushButton("Sửa")
+            cancel_btn = QtWidgets.QPushButton("Hủy")
+            edit_btn.clicked.connect(lambda checked=False, r=row: self.edit_prescription(r))
+            cancel_btn.clicked.connect(lambda checked=False, r=row: self.cancel_prescription(r))
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(cancel_btn)
+            self.table.setCellWidget(index, 7, actions)
+
+        if not self.filtered_rows:
+            self.message_label.setText("Không có đơn thuốc phù hợp.")
+
+    def edit_prescription(self, row):
+        if not PrescriptionController.can_edit(row.get("status")):
+            self._set_message("Không thể sửa đơn thuốc đã phát.")
+            return {"status": False, "message": self.last_message}
+        self._set_message("Đơn thuốc có thể chỉnh sửa.")
+        return {"status": True, "message": self.last_message}
+
+    def cancel_prescription(self, row):
+        result = PrescriptionController.cancel(row.get("prescription_id"))
+        self._set_message(result.get("message", ""))
+        if result.get("status"):
+            row["status"] = "cancelled"
+            self._apply_filters()
+        return result
+
+    def _set_message(self, message):
+        self.last_message = message
+        self.message_label.setText(message)

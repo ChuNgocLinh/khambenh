@@ -1,0 +1,6 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_schedule_flow.py -q
+Result: 3 passed
+
+Validated:
+- Empty schedule data shows an empty-state message.
+- No mock rows are shown when the controller returns no rows.

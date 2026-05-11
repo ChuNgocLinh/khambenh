@@ -1,0 +1,7 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_examination_workflow.py -q
+Result: 2 passed
+
+Validated:
+- Examination workspace loads appointment context.
+- Draft save returns persisted record context.
+- Finalize updates record state through the controller contract.

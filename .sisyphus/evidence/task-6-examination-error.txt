@@ -1,0 +1,5 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_examination_workflow.py -q
+Result: 2 passed
+
+Validated:
+- Finalize without an appointment/record returns a clear error.

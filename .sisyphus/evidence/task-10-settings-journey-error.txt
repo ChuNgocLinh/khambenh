@@ -1,0 +1,7 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_settings_integration.py -q
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_journey_smoke.py -q
+Result: 2 passed; 1 passed
+
+Validated:
+- Settings rejects missing name and mismatched password.
+- Smoke journey handles empty domain data without crashing.

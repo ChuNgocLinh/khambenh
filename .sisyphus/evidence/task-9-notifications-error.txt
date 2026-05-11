@@ -1,0 +1,6 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_notifications.py -q
+Result: 2 passed
+
+Validated:
+- Empty feed renders a clear empty state.
+- Mark-all-read is idempotent through controller call.

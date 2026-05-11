@@ -1,0 +1,7 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_notifications.py -q
+Result: 2 passed
+
+Validated:
+- Dashboard notification page uses NotificationController persisted feed.
+- Header unread badge reflects unread_count.
+- Clicking notification marks it read and navigates to target page.

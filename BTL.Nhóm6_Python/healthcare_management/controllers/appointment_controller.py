@@ -6,6 +6,7 @@ from datetime import datetime
 
 class AppointmentController:
     VALID_STATUSES = {"pending", "confirmed", "in_progress", "done", "cancelled"}
+    START_EXAM_STATUSES = {"pending", "confirmed", "in_progress"}
     ROLES = {"admin", "staff", "doctor", "patient"}
     APPOINTMENT_ACTIONS = [
         "list_all",
@@ -169,6 +170,10 @@ class AppointmentController:
             return False
 
         return True
+
+    @staticmethod
+    def can_start_exam(current_status):
+        return str(current_status or "") in AppointmentController.START_EXAM_STATUSES
 
     @staticmethod
     def _resolve_checkin_status(current_status):
@@ -506,6 +511,45 @@ class AppointmentController:
             return {"status": False, "message": "Không thể hủy lịch hẹn."}
 
         return {"status": True, "message": "Hủy lịch hẹn thành công."}
+
+    @staticmethod
+    def update_appointment(appointment_id, date, time, doctor_id, status, role=None, user_context=None):
+        existing = AppointmentModel.get_by_id(appointment_id)
+        if not existing:
+            return {"status": False, "message": "Khong tim thay lich hen."}
+
+        if role is not None:
+            action = "cancel" if status == "cancelled" else "update_time"
+            allowed, message = AppointmentController.authorize(
+                role,
+                action,
+                user_context=user_context,
+                appointment=existing,
+            )
+            if not allowed:
+                return AppointmentController._deny(message)
+
+        try:
+            appointment_datetime = datetime.combine(
+                datetime.strptime(date, "%Y-%m-%d").date(),
+                datetime.strptime(time, "%H:%M").time(),
+            )
+        except ValueError:
+            return {"status": False, "message": "Ngay hoac gio khong hop le."}
+
+        if status not in AppointmentController.VALID_STATUSES:
+            return {"status": False, "message": "Trang thai lich hen khong hop le."}
+
+        if not AppointmentController._can_transition(existing.get("status"), status):
+            return {"status": False, "message": "Khong the chuyen trang thai lich hen."}
+
+        updated = AppointmentModel.update_appointment(
+            appointment_id,
+            appointment_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+            doctor_id,
+            status,
+        )
+        return {"status": bool(updated), "message": "Cap nhat lich hen thanh cong."}
 
     @staticmethod
     def create_with_details(patient_id, doctor_id, date_str, time_str, status, service_name, note):

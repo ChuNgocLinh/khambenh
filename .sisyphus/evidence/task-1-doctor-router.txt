@@ -1,0 +1,8 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_dashboard_routing.py -q
+Result: 2 passed
+
+Validated:
+- DashboardView content_stack has 8 mounted Doctor pages.
+- Page 1 mounts DoctorScheduleView.
+- Page 3 mounts DoctorExaminationView.
+- Page switching works for indices 0-7.

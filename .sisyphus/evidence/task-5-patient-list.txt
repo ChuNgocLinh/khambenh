@@ -1,0 +1,8 @@
+Command: python -m pytest BTL.Nhóm6_Python\tests\test_doctor_patient_list.py -q
+Result: 2 passed
+
+Validated:
+- Patient list loads PatientController rows.
+- Search by phone/code/name filters real rows.
+- Gender filter and pagination work.
+- Profile action stores selected patient context.
