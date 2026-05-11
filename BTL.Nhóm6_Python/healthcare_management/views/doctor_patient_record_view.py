@@ -1,37 +1,94 @@
-from PyQt6 import QtWidgets, QtCore
+from PyQt6 import QtWidgets, QtCore, QtGui
 
 
 class DoctorPatientRecordView(QtWidgets.QWidget):
     def __init__(self, doctor_id):
         super().__init__()
         self.doctor_id = doctor_id
-        self.setStyleSheet("background: #f5f8fc; border: none;")
+        self.setStyleSheet("background: #f8fbff; border: none;")
 
         self.patient = {
             "name": "Nguyễn Văn Nam",
             "gender": "Nam",
-            "age": "35 tuổi (15/02/1990)",
-            "code": "Mã BN: BN000123",
+            "meta": "35 tuổi (15/02/1990)  -  Mã BN: BN000123",
             "phone": "0987 654 321",
+            "email": "nam.nguyen@gmail.com",
             "address": "123 Đường Lê Lợi, P.1, Q.1, TP.HCM",
-            "date": "23/05/2026 09:00",
-            "reason": "Khám tổng quát",
+            "blood_type": "O+",
+            "job": "Nhân viên văn phòng",
+            "insurance": "Có (BHYT)",
+            "contact_name": "Nguyễn Thị Lan (Vợ)",
+            "contact_phone": "0988 111 222",
+            "note": (
+                "Bệnh nhân có tiền sử đau dạ dày.\n"
+                "Cần nhắc nhở kiêng đồ cay nóng."
+            ),
         }
-        self.quick_info = [
-            ("Nhóm máu:", "O+"),
-            ("Nghề nghiệp:", "Nhân viên văn phòng"),
-            ("Bảo hiểm:", "Có (BHYT)"),
-            ("Ngày khám gần nhất:", "18/05/2026"),
-            ("Bác sĩ khám gần nhất:", "Bác sĩ Minh"),
+        self.tabs = [
+            "Lịch sử khám",
+            "Thông tin cá nhân",
+            "Bệnh sử",
+            "Kết quả xét nghiệm",
+            "Đơn thuốc",
+            "Chỉ định",
+            "Tài liệu đính kèm",
         ]
         self.history_items = [
-            ("18/05/2026", "Khám tổng quát", "Đau mỏi vai gáy", "Bác sĩ Minh"),
-            ("10/04/2026", "Khám tai mũi họng", "Viêm họng cấp", "Bác sĩ Minh"),
-            ("15/02/2026", "Khám tổng quát", "Mệt mỏi, khó ngủ", "Bác sĩ Minh"),
+            {
+                "datetime": "23/05/2026 - 09:00",
+                "doctor": "Phòng khám 1 - Bác sĩ Minh",
+                "reason": "Khám tổng quát",
+                "status": "Đã hoàn tất",
+                "selected": True,
+                "cancelled": False,
+            },
+            {
+                "datetime": "18/05/2026 - 10:30",
+                "doctor": "Phòng khám 1 - Bác sĩ Minh",
+                "reason": "Đau mỏi vai gáy",
+                "status": "Đã hoàn tất",
+                "selected": False,
+                "cancelled": False,
+            },
+            {
+                "datetime": "10/04/2026 - 14:00",
+                "doctor": "Phòng khám 1 - Bác sĩ Minh",
+                "reason": "Khám tai mũi họng",
+                "status": "Đã hoàn tất",
+                "selected": False,
+                "cancelled": False,
+            },
+            {
+                "datetime": "15/02/2026 - 11:15",
+                "doctor": "Phòng khám 1 - Bác sĩ Minh",
+                "reason": "Mệt mỏi, khó ngủ",
+                "status": "Đã hoàn tất",
+                "selected": False,
+                "cancelled": False,
+            },
+            {
+                "datetime": "20/12/2025 - 08:30",
+                "doctor": "Phòng khám 1 - Bác sĩ Minh",
+                "reason": "Khám tổng quát",
+                "status": "Đã hủy",
+                "selected": False,
+                "cancelled": True,
+            },
         ]
-        self.test_results = [
-            ("Xét nghiệm máu", "18/05/2026", "Bình thường", "#eafaf1", "#21b36a"),
-            ("X-quang ngực", "18/05/2026", "Chưa có kết quả", "#fff4e8", "#f59e0b"),
+        self.summary_rows = [
+            ("Tổng số lần khám", "12"),
+            ("Tổng đơn thuốc", "9"),
+            ("Tổng xét nghiệm", "5"),
+            ("Tổng chỉ định", "4"),
+            ("Tài liệu đính kèm", "3"),
+        ]
+        self.vital_rows = [
+            ("Mạch", "78 lần/phút"),
+            ("Huyết áp", "120/80 mmHg"),
+            ("Nhiệt độ", "36.7 °C"),
+            ("Nhịp thở", "18 lần/phút"),
+            ("Cân nặng", "65 kg"),
+            ("Chiều cao", "170 cm"),
         ]
 
         root = QtWidgets.QVBoxLayout(self)
@@ -47,16 +104,18 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
         page = QtWidgets.QWidget()
         page.setStyleSheet("background: transparent;")
         page_layout = QtWidgets.QVBoxLayout(page)
-        page_layout.setContentsMargins(0, 0, 0, 18)
-        page_layout.setSpacing(16)
+        page_layout.setContentsMargins(0, 0, 0, 16)
+        page_layout.setSpacing(18)
         page_layout.addLayout(self._build_header())
-        page_layout.addWidget(self._build_stepper_card())
+        page_layout.addWidget(self._build_profile_card())
+        page_layout.addWidget(self._build_tabs_card())
 
-        content = QtWidgets.QHBoxLayout()
-        content.setSpacing(16)
-        content.addLayout(self._build_main_column(), 7)
-        content.addWidget(self._build_sidebar(), 3)
-        page_layout.addLayout(content)
+        content_row = QtWidgets.QHBoxLayout()
+        content_row.setSpacing(18)
+        content_row.addWidget(self._build_history_panel(), 31)
+        content_row.addWidget(self._build_detail_panel(), 43)
+        content_row.addWidget(self._build_sidebar_panel(), 26)
+        page_layout.addLayout(content_row)
 
         scroll.setWidget(page)
         root.addWidget(scroll)
@@ -66,15 +125,16 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
         row.setSpacing(14)
 
         title_col = QtWidgets.QVBoxLayout()
-        title_col.setSpacing(4)
-        title = QtWidgets.QLabel("Khám bệnh")
+        title_col.setSpacing(5)
+
+        title = QtWidgets.QLabel("Hồ sơ bệnh nhân")
         title.setStyleSheet(
             "color: #0f172a; font-size: 25px; font-weight: 900; "
             "background: transparent; border: none;"
         )
-        crumb = QtWidgets.QLabel("Trang chủ  ›  Khám bệnh  ›  Thông tin khám")
+        crumb = QtWidgets.QLabel("Trang chủ  ›  Hồ sơ bệnh nhân  ›  Chi tiết hồ sơ")
         crumb.setStyleSheet(
-            "color: #7c8aa0; font-size: 14px; font-weight: 700; "
+            "color: #7d8ca2; font-size: 14px; font-weight: 700; "
             "background: transparent; border: none;"
         )
         title_col.addWidget(title)
@@ -83,20 +143,21 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
 
         row.addWidget(self._build_notification_widget())
 
-        avatar = QtWidgets.QLabel("👨‍⚕️")
-        avatar.setFixedSize(42, 42)
+        avatar = QtWidgets.QLabel("👨")
+        avatar.setFixedSize(44, 44)
         avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         avatar.setStyleSheet(
-            "background: #eef3fb; border-radius: 21px; border: none; font-size: 20px;"
+            "background: #eef3fb; border-radius: 22px; color: #1d4ed8; "
+            "font-size: 22px; border: none;"
         )
         row.addWidget(avatar)
 
-        user_name = QtWidgets.QLabel("Bác sĩ Minh")
-        user_name.setStyleSheet(
+        name = QtWidgets.QLabel("Bác sĩ Minh")
+        name.setStyleSheet(
             "color: #0f172a; font-size: 14px; font-weight: 900; "
             "background: transparent; border: none;"
         )
-        row.addWidget(user_name)
+        row.addWidget(name)
 
         caret = QtWidgets.QLabel("▾")
         caret.setStyleSheet(
@@ -108,11 +169,11 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
 
     def _build_notification_widget(self):
         wrapper = QtWidgets.QFrame()
-        wrapper.setFixedSize(38, 38)
+        wrapper.setFixedSize(40, 40)
         wrapper.setStyleSheet("background: transparent; border: none;")
 
         icon = QtWidgets.QLabel("🔔", wrapper)
-        icon.setGeometry(6, 6, 26, 26)
+        icon.setGeometry(6, 7, 26, 26)
         icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         icon.setStyleSheet(
             "background: transparent; border: none; color: #64748b; font-size: 18px;"
@@ -123,568 +184,553 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
         badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         badge.setStyleSheet(
             "background: #ff3b30; color: white; border-radius: 9px; "
-            "font-size: 10px; font-weight: 900;"
+            "font-size: 10px; font-weight: 900; border: none;"
         )
         return wrapper
 
-    def _build_stepper_card(self):
+    def _build_profile_card(self):
         card = self._card()
-        layout = QtWidgets.QHBoxLayout(card)
-        layout.setContentsMargins(28, 20, 28, 20)
-        layout.setSpacing(10)
+        card_layout = QtWidgets.QHBoxLayout(card)
+        card_layout.setContentsMargins(20, 18, 20, 18)
+        card_layout.setSpacing(0)
 
-        steps = [
-            ("1", "Thông tin khám", True),
-            ("2", "Chẩn đoán - Kết luận", False),
-            ("3", "Chỉ định - Kê đơn", False),
-            ("4", "Hoàn tất", False),
-        ]
-
-        for index, (number, text, active) in enumerate(steps):
-            if index:
-                line = QtWidgets.QFrame()
-                line.setFixedHeight(2)
-                line.setStyleSheet(
-                    "background: #d6e7db; border: none;" if index == 1
-                    else "background: #e7edf5; border: none;"
-                )
-                layout.addWidget(line, 1)
-            layout.addWidget(self._build_step(number, text, active))
-
+        card_layout.addWidget(self._build_profile_main(), 39)
+        card_layout.addWidget(self._build_vertical_separator())
+        card_layout.addWidget(self._build_profile_details(), 25)
+        card_layout.addWidget(self._build_vertical_separator())
+        card_layout.addWidget(self._build_profile_note(), 24)
         return card
 
-    def _build_step(self, number, text, active):
+    def _build_profile_main(self):
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-
-        circle = QtWidgets.QLabel(number)
-        circle.setFixedSize(34, 34)
-        circle.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        circle.setStyleSheet(
-            "background: #18b86d; color: white; border-radius: 17px; "
-            "font-size: 14px; font-weight: 900;"
-            if active else
-            "background: white; color: #6b7a90; border: 1px solid #d9e3ef; "
-            "border-radius: 17px; font-size: 14px; font-weight: 900;"
-        )
-        text_label = QtWidgets.QLabel(text)
-        text_label.setStyleSheet(
-            "color: #1b8f5c; font-size: 14px; font-weight: 900; "
-            "background: transparent; border: none;"
-            if active else
-            "color: #66758d; font-size: 14px; font-weight: 900; "
-            "background: transparent; border: none;"
-        )
-        layout.addWidget(circle)
-        layout.addWidget(text_label)
-        return widget
-
-    def _build_main_column(self):
-        layout = QtWidgets.QVBoxLayout()
-        layout.setSpacing(16)
-        layout.addWidget(self._build_patient_card())
-
-        form_row = QtWidgets.QHBoxLayout()
-        form_row.setSpacing(16)
-        form_row.addWidget(self._build_symptom_card(), 1)
-        form_row.addWidget(self._build_exam_card(), 1)
-        layout.addLayout(form_row)
-
-        layout.addWidget(self._build_diagnosis_card())
-        layout.addLayout(self._build_footer_actions())
-        return layout
-
-    def _build_sidebar(self):
-        widget = QtWidgets.QWidget()
-        widget.setStyleSheet("background: transparent;")
-        widget.setMinimumWidth(330)
-
-        layout = QtWidgets.QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
-        layout.addWidget(self._build_quick_info_card())
-        layout.addWidget(self._build_history_card())
-        layout.addWidget(self._build_result_card())
-        layout.addStretch()
-        return widget
-
-    def _build_patient_card(self):
-        card = self._card()
-        layout = QtWidgets.QHBoxLayout(card)
-        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setContentsMargins(0, 0, 18, 0)
         layout.setSpacing(16)
 
         avatar = QtWidgets.QLabel("👨")
-        avatar.setFixedSize(78, 78)
+        avatar.setFixedSize(86, 86)
         avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         avatar.setStyleSheet(
-            "background: #eef4fb; border-radius: 39px; border: none; font-size: 38px;"
+            "background: #edf3fb; border-radius: 43px; color: #1d4ed8; "
+            "font-size: 42px; border: none;"
         )
         layout.addWidget(avatar, 0, QtCore.Qt.AlignmentFlag.AlignTop)
 
-        info_col = QtWidgets.QVBoxLayout()
-        info_col.setSpacing(6)
+        info = QtWidgets.QVBoxLayout()
+        info.setSpacing(10)
+
         name_row = QtWidgets.QHBoxLayout()
-        name_row.setSpacing(8)
+        name_row.setSpacing(10)
 
         name = QtWidgets.QLabel(self.patient["name"])
         name.setStyleSheet(
-            "color: #0f172a; font-size: 18px; font-weight: 900; "
+            "color: #0f172a; font-size: 20px; font-weight: 900; "
             "background: transparent; border: none;"
         )
         gender = QtWidgets.QLabel(self.patient["gender"])
         gender.setStyleSheet(
-            "background: #eaf2ff; color: #3d7ef3; border-radius: 12px; "
-            "padding: 4px 10px; font-size: 12px; font-weight: 900;"
+            "background: #eef4ff; color: #4c88ff; border-radius: 12px; "
+            "padding: 5px 12px; font-size: 12px; font-weight: 900; border: none;"
         )
         name_row.addWidget(name)
-        name_row.addWidget(gender)
+        name_row.addWidget(gender, 0, QtCore.Qt.AlignmentFlag.AlignVCenter)
         name_row.addStretch()
 
-        meta = QtWidgets.QLabel(f"{self.patient['age']} - {self.patient['code']}")
+        meta = QtWidgets.QLabel(self.patient["meta"])
         meta.setStyleSheet(
-            "color: #74839a; font-size: 13px; font-weight: 700; "
+            "color: #6b7a90; font-size: 13px; font-weight: 700; "
             "background: transparent; border: none;"
         )
-        contact = QtWidgets.QLabel(
-            f"SĐT: {self.patient['phone']} - Địa chỉ: {self.patient['address']}"
-        )
-        contact.setWordWrap(True)
-        contact.setStyleSheet(
-            "color: #637289; font-size: 13px; font-weight: 700; "
-            "background: transparent; border: none;"
-        )
-        info_col.addLayout(name_row)
-        info_col.addWidget(meta)
-        info_col.addWidget(contact)
-        layout.addLayout(info_col, 1)
 
-        summary_col = QtWidgets.QVBoxLayout()
-        summary_col.setSpacing(8)
-        date = QtWidgets.QLabel(f"Ngày khám: {self.patient['date']}")
-        date.setStyleSheet(
-            "color: #526176; font-size: 13px; font-weight: 900; "
-            "background: transparent; border: none;"
-        )
-        reason = QtWidgets.QLabel(f"Lý do khám: {self.patient['reason']}")
-        reason.setStyleSheet(
-            "color: #526176; font-size: 13px; font-weight: 900; "
-            "background: transparent; border: none;"
-        )
-        button = QtWidgets.QPushButton("👁  Xem hồ sơ bệnh nhân   ▾")
-        button.setMinimumHeight(42)
-        button.setStyleSheet(self._ghost_button_style())
-        summary_col.addStretch()
-        summary_col.addWidget(date, 0, QtCore.Qt.AlignmentFlag.AlignRight)
-        summary_col.addWidget(reason, 0, QtCore.Qt.AlignmentFlag.AlignRight)
-        summary_col.addWidget(button, 0, QtCore.Qt.AlignmentFlag.AlignRight)
-        layout.addLayout(summary_col)
-        return card
+        contact_row = QtWidgets.QHBoxLayout()
+        contact_row.setSpacing(22)
+        contact_row.addWidget(self._icon_text("☎", self.patient["phone"]))
+        contact_row.addWidget(self._icon_text("✉", self.patient["email"]))
+        contact_row.addStretch()
 
-    def _build_quick_info_card(self):
-        card = self._card()
-        layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(20, 18, 20, 18)
-        layout.setSpacing(14)
+        address = self._icon_text("⌖", self.patient["address"])
+        address.setWordWrap(True)
 
-        title = QtWidgets.QLabel("Thông tin nhanh")
-        title.setStyleSheet(self._section_title_style())
-        layout.addWidget(title)
+        info.addLayout(name_row)
+        info.addWidget(meta)
+        info.addLayout(contact_row)
+        info.addWidget(address)
 
-        for label_text, value_text in self.quick_info:
-            row = QtWidgets.QHBoxLayout()
-            row.setSpacing(10)
+        layout.addLayout(info, 1)
+        return widget
+
+    def _build_profile_details(self):
+        widget = QtWidgets.QWidget()
+        layout = QtWidgets.QGridLayout(widget)
+        layout.setContentsMargins(22, 8, 22, 8)
+        layout.setHorizontalSpacing(18)
+        layout.setVerticalSpacing(14)
+
+        rows = [
+            ("Nhóm máu:", self.patient["blood_type"]),
+            ("Nghề nghiệp:", self.patient["job"]),
+            ("Bảo hiểm:", self.patient["insurance"]),
+            ("Người liên hệ:", f"{self.patient['contact_name']}\n{self.patient['contact_phone']}"),
+        ]
+        for row_index, (label_text, value_text) in enumerate(rows):
             label = QtWidgets.QLabel(label_text)
             label.setStyleSheet(
-                "color: #64748b; font-size: 13px; font-weight: 800; "
+                "color: #6b7a90; font-size: 13px; font-weight: 800; "
                 "background: transparent; border: none;"
             )
             value = QtWidgets.QLabel(value_text)
             value.setWordWrap(True)
-            value.setAlignment(
-                QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter
-            )
             value.setStyleSheet(
-                "color: #3f4f65; font-size: 13px; font-weight: 900; "
+                "color: #334155; font-size: 13px; font-weight: 900; "
                 "background: transparent; border: none;"
             )
-            row.addWidget(label, 1)
-            row.addWidget(value, 1)
-            layout.addLayout(row)
+            layout.addWidget(label, row_index, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+            layout.addWidget(value, row_index, 1)
+        layout.setColumnStretch(1, 1)
+        return widget
 
-        return card
-
-    def _build_symptom_card(self):
-        card = self._card()
-        layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
-
-        title = QtWidgets.QLabel("1. Triệu chứng - Hỏi bệnh")
-        title.setStyleSheet(self._section_title_style())
-        layout.addWidget(title)
-        layout.addWidget(self._field_block("Triệu chứng chính", self._text_input("Đau đầu, chóng mặt, mệt mỏi")))
-        layout.addWidget(
-            self._field_block(
-                "Triệu chứng kèm theo",
-                self._chip_input(["Nhức đầu", "Buồn nôn", "Mất ngủ"]),
-            )
-        )
-        layout.addWidget(self._field_block("Tiền sử bệnh", self._text_area("Không có bệnh lý nền.")))
-        layout.addWidget(self._field_block("Tiền sử dị ứng", self._text_area("Không dị ứng thuốc, thực phẩm.")))
-        layout.addWidget(
-            self._field_block(
-                "Ghi chú",
-                self._text_area("Ghi chú thêm (nếu có)...", muted=True),
-            )
-        )
-        return card
-
-    def _build_exam_card(self):
-        card = self._card()
-        layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
-
-        title = QtWidgets.QLabel("2. Khám lâm sàng")
-        title.setStyleSheet(self._section_title_style())
-        layout.addWidget(title)
-
-        grid = QtWidgets.QGridLayout()
-        grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(12)
-        metrics = [
-            ("Mạch", "78", "lần/phút"),
-            ("Huyết áp", "120/80", "mmHg"),
-            ("Nhiệt độ", "36.7", "°C"),
-            ("Nhịp thở", "18", "lần/phút"),
-            ("Cân nặng", "65", "kg"),
-            ("Chiều cao", "170", "cm"),
-        ]
-
-        for index, (label_text, value_text, unit_text) in enumerate(metrics):
-            field = self._field_block(label_text, self._metric_input(value_text, unit_text))
-            grid.addWidget(field, index // 2, index % 2)
-
-        layout.addLayout(grid)
-        layout.addWidget(
-            self._field_block(
-                "Khám tổng quát",
-                self._text_area("Bệnh nhân tỉnh táo, tiếp xúc tốt, không sốt."),
-            )
-        )
-        layout.addWidget(
-            self._field_block(
-                "Kết quả khám",
-                self._text_area("Không phát hiện bất thường."),
-            )
-        )
-        return card
-
-    def _build_diagnosis_card(self):
-        card = self._card()
-        layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
-
-        title = QtWidgets.QLabel("3. Chẩn đoán sơ bộ")
-        title.setStyleSheet(self._section_title_style())
-        layout.addWidget(title)
-
-        top_row = QtWidgets.QHBoxLayout()
-        top_row.setSpacing(14)
-        top_row.addWidget(
-            self._field_block("Chẩn đoán sơ bộ", self._text_input("R51 - Đau đầu")),
-            3,
-        )
-        top_row.addWidget(
-            self._field_block("Mức độ", self._combo_input(["Nhẹ", "Trung bình", "Nặng"], 0)),
-            1,
-        )
-        layout.addLayout(top_row)
-        layout.addWidget(
-            self._field_block(
-                "Ghi chú chẩn đoán",
-                self._text_area("Theo dõi thêm, hẹn tái khám nếu triệu chứng không cải thiện."),
-            )
-        )
-        return card
-
-    def _build_history_card(self):
-        card = self._card()
-        layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(18, 18, 18, 18)
+    def _build_profile_note(self):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(wrapper)
+        layout.setContentsMargins(22, 8, 0, 0)
         layout.setSpacing(12)
 
-        title = QtWidgets.QLabel("Lịch sử khám")
-        title.setStyleSheet(self._section_title_style())
-        layout.addWidget(title)
+        header = QtWidgets.QHBoxLayout()
 
-        for item in self.history_items:
-            layout.addWidget(self._history_item(*item))
-
-        view_all = QtWidgets.QPushButton("Xem tất cả lịch sử  ➜")
-        view_all.setStyleSheet(
-            "QPushButton { background: transparent; color: #2678ff; border: none; "
-            "font-size: 13px; font-weight: 900; text-align: right; padding: 8px 0 0 0; }"
+        title = QtWidgets.QLabel("Ghi chú")
+        title.setStyleSheet(
+            "color: #1e293b; font-size: 15px; font-weight: 900; "
+            "background: transparent; border: none;"
         )
-        layout.addWidget(view_all, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+        edit_btn = QtWidgets.QPushButton("✎")
+        edit_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        edit_btn.setStyleSheet(
+            "QPushButton { background: transparent; color: #2f80ff; border: none; "
+            "font-size: 18px; font-weight: 900; }"
+        )
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(edit_btn)
+
+        note_box = QtWidgets.QFrame()
+        note_box.setStyleSheet(
+            "background: white; border: 1px solid #e6edf6; border-radius: 14px;"
+        )
+        note_layout = QtWidgets.QVBoxLayout(note_box)
+        note_layout.setContentsMargins(18, 16, 18, 16)
+        note = QtWidgets.QLabel(self.patient["note"])
+        note.setWordWrap(True)
+        note.setStyleSheet(
+            "color: #526176; font-size: 13px; font-weight: 700; "
+            "background: transparent; border: none; line-height: 1.5;"
+        )
+        note_layout.addWidget(note)
+        layout.addLayout(header)
+        layout.addWidget(note_box)
+        return wrapper
+
+    def _build_tabs_card(self):
+        card = self._card()
+        layout = QtWidgets.QHBoxLayout(card)
+        layout.setContentsMargins(20, 0, 20, 0)
+        layout.setSpacing(26)
+
+        for index, tab_text in enumerate(self.tabs):
+            button = QtWidgets.QPushButton(tab_text)
+            button.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            button.setFlat(True)
+            button.setMinimumHeight(64)
+            button.setStyleSheet(
+                "QPushButton { background: transparent; color: #10b981; border: none; "
+                "border-bottom: 3px solid #10b981; font-size: 14px; font-weight: 900; "
+                "padding: 0 4px; text-align: center; }"
+                if index == 0 else
+                "QPushButton { background: transparent; color: #64748b; border: none; "
+                "font-size: 14px; font-weight: 800; padding: 0 4px; text-align: center; }"
+            )
+            layout.addWidget(button, 0, QtCore.Qt.AlignmentFlag.AlignBottom)
+        layout.addStretch()
         return card
 
-    def _history_item(self, date_text, title_text, desc_text, doctor_text):
-        item = QtWidgets.QFrame()
-        item.setStyleSheet(
-            "background: #fbfcfe; border: 1px solid #f0f4f9; border-radius: 14px;"
-        )
-        layout = QtWidgets.QVBoxLayout(item)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(6)
+    def _build_history_panel(self):
+        card = self._card()
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
 
-        top_row = QtWidgets.QHBoxLayout()
-        date = QtWidgets.QLabel(date_text)
+        tools = QtWidgets.QHBoxLayout()
+        tools.setSpacing(10)
+
+        search = QtWidgets.QLineEdit()
+        search.setPlaceholderText("Tìm kiếm lịch sử khám...")
+        search.setReadOnly(True)
+        search.setMinimumHeight(44)
+        search.setStyleSheet(
+            "QLineEdit { background: white; color: #94a3b8; border: 1px solid #e4ebf5; "
+            "border-radius: 12px; padding: 0 16px; font-size: 14px; font-weight: 700; }"
+        )
+        tools.addWidget(search, 1)
+
+        filter_btn = self._icon_square_button("⚗", 44)
+        tools.addWidget(filter_btn)
+        layout.addLayout(tools)
+
+        for item in self.history_items:
+            layout.addWidget(self._build_history_item(item))
+
+        view_all = QtWidgets.QPushButton("⌄  Xem tất cả lịch sử   ›")
+        view_all.setMinimumHeight(52)
+        view_all.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        view_all.setStyleSheet(
+            "QPushButton { background: white; color: #2f80ff; border: 1px solid #e4ebf5; "
+            "border-radius: 12px; font-size: 14px; font-weight: 900; }"
+        )
+        layout.addSpacing(2)
+        layout.addWidget(view_all)
+        return card
+
+    def _build_history_item(self, item):
+        frame = QtWidgets.QFrame()
+        border_color = "#7ee7b2" if item["selected"] else "#edf2f7"
+        background = "#f4fff8" if item["selected"] else "#ffffff"
+        frame.setStyleSheet(
+            f"background: {background}; border: 1px solid {border_color}; border-radius: 14px;"
+        )
+
+        layout = QtWidgets.QVBoxLayout(frame)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
+
+        top = QtWidgets.QHBoxLayout()
+        top.setSpacing(10)
+
+        date = QtWidgets.QLabel(item["datetime"])
         date.setStyleSheet(
-            "color: #9aa8ba; font-size: 12px; font-weight: 800; "
+            "color: #1e3a5f; font-size: 14px; font-weight: 900; "
+            "background: transparent; border: none;"
+        )
+        badge = QtWidgets.QLabel(item["status"])
+        badge_bg = "#eafbf1" if not item["cancelled"] else "#e8f1ff"
+        badge_fg = "#25b468" if not item["cancelled"] else "#5b92ff"
+        badge.setStyleSheet(
+            f"background: {badge_bg}; color: {badge_fg}; border-radius: 11px; "
+            "padding: 4px 10px; font-size: 11px; font-weight: 900; border: none;"
+        )
+        top.addWidget(date)
+        top.addStretch()
+        top.addWidget(badge)
+
+        doctor = QtWidgets.QLabel(item["doctor"])
+        doctor.setStyleSheet(
+            "color: #637289; font-size: 13px; font-weight: 700; "
+            "background: transparent; border: none;"
+        )
+        reason = QtWidgets.QLabel(item["reason"])
+        reason.setStyleSheet(
+            "color: #334155; font-size: 13px; font-weight: 700; "
+            "background: transparent; border: none;"
+        )
+
+        layout.addLayout(top)
+        layout.addWidget(doctor)
+        layout.addWidget(reason)
+        return frame
+
+    def _build_detail_panel(self):
+        card = self._card()
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(16)
+
+        header = QtWidgets.QHBoxLayout()
+        header.setSpacing(10)
+
+        title = QtWidgets.QLabel("Chi tiết lần khám - 23/05/2026 09:00")
+        title.setStyleSheet(
+            "color: #0f172a; font-size: 17px; font-weight: 900; "
             "background: transparent; border: none;"
         )
         badge = QtWidgets.QLabel("Đã hoàn tất")
         badge.setStyleSheet(
-            "background: #ebfbf1; color: #19a861; border-radius: 11px; "
-            "padding: 4px 10px; font-size: 11px; font-weight: 900;"
+            "background: #eafbf1; color: #23b067; border-radius: 11px; "
+            "padding: 4px 10px; font-size: 11px; font-weight: 900; border: none;"
         )
-        top_row.addWidget(date)
-        top_row.addStretch()
-        top_row.addWidget(badge)
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(badge)
+        header.addWidget(self._icon_square_button("⎙", 34, "#ffffff", "#64748b", "#e6edf6"))
+        header.addWidget(self._icon_square_button("⋮", 34, "#ffffff", "#64748b", "#e6edf6"))
+        layout.addLayout(header)
 
+        layout.addWidget(self._text_section("Lý do khám", "Khám tổng quát"))
+        layout.addWidget(
+            self._text_section(
+                "Triệu chứng",
+                "Đau đầu nhẹ, mệt mỏi, ăn uống bình thường.",
+            )
+        )
+
+        clinical_title = QtWidgets.QLabel("Khám lâm sàng")
+        clinical_title.setStyleSheet(
+            "color: #0f172a; font-size: 15px; font-weight: 900; "
+            "background: transparent; border: none;"
+        )
+        layout.addWidget(clinical_title)
+        layout.addWidget(self._build_vitals_grid())
+
+        layout.addWidget(self._text_section("Chẩn đoán", "R51 - Đau đầu"))
+        layout.addWidget(
+            self._text_section(
+                "Kết luận",
+                "Bệnh nhân sức khỏe ổn định, không phát hiện bất thường.",
+            )
+        )
+        layout.addWidget(
+            self._text_section(
+                "Hướng dẫn",
+                "Nghỉ ngơi hợp lý, uống đủ nước, tái khám nếu triệu chứng kéo dài.",
+            )
+        )
+
+        doctor_title = QtWidgets.QLabel("Bác sĩ khám")
+        doctor_title.setStyleSheet(
+            "color: #0f172a; font-size: 15px; font-weight: 900; "
+            "background: transparent; border: none;"
+        )
+        layout.addWidget(doctor_title)
+        layout.addWidget(self._build_doctor_signature())
+        layout.addStretch()
+        return card
+
+    def _build_vitals_grid(self):
+        frame = QtWidgets.QFrame()
+        frame.setStyleSheet(
+            "background: white; border: 1px solid #e6edf6; border-radius: 12px;"
+        )
+        grid = QtWidgets.QGridLayout(frame)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(0)
+        grid.setVerticalSpacing(0)
+
+        for index, (label_text, value_text) in enumerate(self.vital_rows):
+            label = QtWidgets.QLabel(label_text)
+            value = QtWidgets.QLabel(value_text)
+            label.setMinimumHeight(46)
+            value.setMinimumHeight(46)
+            label.setStyleSheet(
+                "background: #ffffff; color: #56657a; font-size: 13px; font-weight: 800; "
+                "padding: 0 16px; border-right: 1px solid #e6edf6; border-bottom: 1px solid #e6edf6;"
+            )
+            value.setStyleSheet(
+                "background: #ffffff; color: #334155; font-size: 13px; font-weight: 900; "
+                "padding: 0 16px; border-bottom: 1px solid #e6edf6;"
+            )
+            if index % 2 == 1:
+                label.setStyleSheet(
+                    label.styleSheet().replace("border-right: 1px solid #e6edf6;", "")
+                )
+            if index >= 4:
+                label.setStyleSheet(
+                    label.styleSheet().replace("border-bottom: 1px solid #e6edf6;", "")
+                )
+                value.setStyleSheet(
+                    value.styleSheet().replace("border-bottom: 1px solid #e6edf6;", "")
+                )
+            row = index // 2
+            col = (index % 2) * 2
+            grid.addWidget(label, row, col)
+            grid.addWidget(value, row, col + 1)
+
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
+        return frame
+
+    def _build_doctor_signature(self):
+        frame = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+
+        avatar = QtWidgets.QLabel("👨")
+        avatar.setFixedSize(38, 38)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet(
+            "background: #eef3fb; border-radius: 19px; color: #1d4ed8; "
+            "font-size: 20px; border: none;"
+        )
+        name = QtWidgets.QLabel("Bác sĩ Minh")
+        name.setStyleSheet(
+            "color: #0f172a; font-size: 14px; font-weight: 900; "
+            "background: transparent; border: none;"
+        )
+        layout.addWidget(avatar)
+        layout.addWidget(name)
+        layout.addStretch()
+        return frame
+
+    def _build_sidebar_panel(self):
+        wrapper = QtWidgets.QWidget()
+        wrapper.setStyleSheet("background: transparent;")
+        wrapper.setMinimumWidth(292)
+
+        layout = QtWidgets.QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        layout.addWidget(self._build_summary_card())
+        layout.addWidget(self._build_info_box("Bệnh mãn tính", "Không có bệnh mãn tính."))
+        layout.addWidget(self._build_info_box("Dị ứng", "Không ghi nhận dị ứng."))
+        layout.addWidget(self._build_quick_actions_card())
+        layout.addStretch()
+        return wrapper
+
+    def _build_summary_card(self):
+        card = self._card()
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(16)
+
+        title = QtWidgets.QLabel("Tóm tắt hồ sơ")
+        title.setStyleSheet(
+            "color: #0f172a; font-size: 16px; font-weight: 900; "
+            "background: transparent; border: none;"
+        )
+        layout.addWidget(title)
+
+        for label_text, value_text in self.summary_rows:
+            row = QtWidgets.QHBoxLayout()
+            row.setSpacing(10)
+            icon = QtWidgets.QLabel("◧")
+            icon.setStyleSheet(
+                "color: #8aa0bb; font-size: 13px; background: transparent; border: none;"
+            )
+            label = QtWidgets.QLabel(label_text)
+            label.setStyleSheet(
+                "color: #6b7a90; font-size: 13px; font-weight: 700; "
+                "background: transparent; border: none;"
+            )
+            value = QtWidgets.QLabel(value_text)
+            value.setStyleSheet(
+                "color: #1e293b; font-size: 13px; font-weight: 900; "
+                "background: transparent; border: none;"
+            )
+            row.addWidget(icon)
+            row.addWidget(label)
+            row.addStretch()
+            row.addWidget(value)
+            layout.addLayout(row)
+        return card
+
+    def _build_info_box(self, title_text, body_text):
+        card = self._card()
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
+
+        header = QtWidgets.QHBoxLayout()
         title = QtWidgets.QLabel(title_text)
         title.setStyleSheet(
-            "color: #1e2c3d; font-size: 14px; font-weight: 900; "
+            "color: #0f172a; font-size: 15px; font-weight: 900; "
             "background: transparent; border: none;"
         )
-        desc = QtWidgets.QLabel(desc_text)
-        desc.setStyleSheet(
-            "color: #637289; font-size: 13px; font-weight: 700; "
-            "background: transparent; border: none;"
-        )
-        doctor = QtWidgets.QLabel(doctor_text)
-        doctor.setStyleSheet(
-            "color: #7b889d; font-size: 13px; font-weight: 800; "
+        add_btn = self._icon_square_button("+", 34, "#ffffff", "#8aa0bb", "#e6edf6")
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(add_btn)
+
+        body = QtWidgets.QLabel(body_text)
+        body.setWordWrap(True)
+        body.setStyleSheet(
+            "color: #64748b; font-size: 13px; font-weight: 700; "
             "background: transparent; border: none;"
         )
 
-        layout.addLayout(top_row)
-        layout.addWidget(title)
-        layout.addWidget(desc)
-        layout.addWidget(doctor)
-        return item
+        layout.addLayout(header)
+        layout.addWidget(body)
+        return card
 
-    def _build_result_card(self):
+    def _build_quick_actions_card(self):
         card = self._card()
         layout = QtWidgets.QVBoxLayout(card)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        title = QtWidgets.QLabel("Kết quả cận lâm sàng gần nhất")
-        title.setWordWrap(True)
-        title.setStyleSheet(self._section_title_style())
+        title = QtWidgets.QLabel("Thao tác nhanh")
+        title.setStyleSheet(
+            "color: #0f172a; font-size: 16px; font-weight: 900; "
+            "background: transparent; border: none;"
+        )
         layout.addWidget(title)
 
-        for name_text, date_text, badge_text, badge_bg, badge_fg in self.test_results:
-            row = QtWidgets.QHBoxLayout()
-            row.setSpacing(10)
+        grid = QtWidgets.QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(12)
+        actions = [
+            ("＋  Tạo lịch hẹn", "#2f80ff"),
+            ("⚕  Khám bệnh", "#23b067"),
+            ("℞  Kê đơn thuốc", "#4f6bff"),
+            ("⎙  In hồ sơ", "#23b067"),
+        ]
 
-            info = QtWidgets.QVBoxLayout()
-            info.setSpacing(4)
-            name = QtWidgets.QLabel(name_text)
-            name.setStyleSheet(
-                "color: #1e2c3d; font-size: 14px; font-weight: 900; "
-                "background: transparent; border: none;"
+        for index, (text, color) in enumerate(actions):
+            button = QtWidgets.QPushButton(text)
+            button.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            button.setMinimumHeight(52)
+            button.setStyleSheet(
+                f"QPushButton {{ background: white; color: {color}; border: 1px solid #e6edf6; "
+                "border-radius: 12px; font-size: 14px; font-weight: 900; text-align: left; padding: 0 18px; }}"
             )
-            date = QtWidgets.QLabel(date_text)
-            date.setStyleSheet(
-                "color: #7b889d; font-size: 12px; font-weight: 800; "
-                "background: transparent; border: none;"
-            )
-            info.addWidget(name)
-            info.addWidget(date)
-
-            badge = QtWidgets.QLabel(badge_text)
-            badge.setStyleSheet(
-                f"background: {badge_bg}; color: {badge_fg}; border-radius: 11px; "
-                "padding: 4px 10px; font-size: 11px; font-weight: 900;"
-            )
-
-            row.addLayout(info, 1)
-            row.addWidget(badge)
-            layout.addLayout(row)
-
-        view_all = QtWidgets.QPushButton("Xem tất cả kết quả  ➜")
-        view_all.setStyleSheet(
-            "QPushButton { background: transparent; color: #2678ff; border: none; "
-            "font-size: 13px; font-weight: 900; text-align: right; padding: 8px 0 0 0; }"
-        )
-        layout.addWidget(view_all, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(button, index // 2, index % 2)
+        layout.addLayout(grid)
         return card
 
-    def _build_footer_actions(self):
-        row = QtWidgets.QHBoxLayout()
-        row.setContentsMargins(0, 6, 0, 0)
-        row.setSpacing(14)
-
-        cancel = QtWidgets.QPushButton("✕  Hủy khám")
-        cancel.setMinimumHeight(46)
-        cancel.setMinimumWidth(170)
-        cancel.setStyleSheet(
-            "QPushButton { background: white; color: #ff5a5f; border: 1px solid #ffb7b9; "
-            "border-radius: 12px; padding: 10px 20px; font-size: 14px; font-weight: 900; }"
-        )
-
-        save = QtWidgets.QPushButton("💾  Lưu tạm")
-        save.setMinimumHeight(46)
-        save.setMinimumWidth(150)
-        save.setStyleSheet(
-            "QPushButton { background: white; color: #3b82f6; border: 1px solid #d9e8ff; "
-            "border-radius: 12px; padding: 10px 20px; font-size: 14px; font-weight: 900; }"
-        )
-
-        next_btn = QtWidgets.QPushButton("➜  Tiếp tục")
-        next_btn.setMinimumHeight(46)
-        next_btn.setMinimumWidth(175)
-        next_btn.setStyleSheet(
-            "QPushButton { background: #16b96e; color: white; border: none; "
-            "border-radius: 12px; padding: 10px 22px; font-size: 14px; font-weight: 900; }"
-        )
-
-        row.addWidget(cancel, 0, QtCore.Qt.AlignmentFlag.AlignLeft)
-        row.addStretch()
-        row.addWidget(save)
-        row.addWidget(next_btn)
-        return row
-
-    def _field_block(self, label_text, field_widget):
+    def _text_section(self, title_text, body_text):
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
-        label = QtWidgets.QLabel(label_text)
-        label.setStyleSheet(
-            "color: #4d5d73; font-size: 13px; font-weight: 900; "
+        title = QtWidgets.QLabel(title_text)
+        title.setStyleSheet(
+            "color: #0f172a; font-size: 15px; font-weight: 900; "
             "background: transparent; border: none;"
         )
-        layout.addWidget(label)
-        layout.addWidget(field_widget)
+        body = QtWidgets.QLabel(body_text)
+        body.setWordWrap(True)
+        body.setStyleSheet(
+            "color: #334155; font-size: 13px; font-weight: 700; "
+            "background: transparent; border: none; line-height: 1.5;"
+        )
+        layout.addWidget(title)
+        layout.addWidget(body)
         return widget
 
-    def _text_input(self, text):
-        input_box = QtWidgets.QLineEdit(text)
-        input_box.setReadOnly(True)
-        input_box.setMinimumHeight(42)
-        input_box.setStyleSheet(self._input_style())
-        return input_box
-
-    def _combo_input(self, items, selected_index):
-        combo = QtWidgets.QComboBox()
-        combo.addItems(items)
-        combo.setCurrentIndex(selected_index)
-        combo.setMinimumHeight(42)
-        combo.setStyleSheet(
-            "QComboBox { background: white; color: #1f2d3d; border: 1px solid #dfe6f0; "
-            "border-radius: 10px; padding: 0 14px; font-size: 13px; font-weight: 800; } "
-            "QComboBox::drop-down { border: none; width: 26px; } "
-            "QComboBox::down-arrow { image: none; }"
-        )
-        return combo
-
-    def _text_area(self, text, muted=False):
-        area = QtWidgets.QTextEdit()
-        area.setReadOnly(True)
-        area.setText(text)
-        area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        area.setMinimumHeight(66)
-        area.setStyleSheet(
-            "QTextEdit { background: white; color: #1f2d3d; border: 1px solid #dfe6f0; "
-            "border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 700; }"
-            if not muted else
-            "QTextEdit { background: white; color: #97a3b4; border: 1px solid #dfe6f0; "
-            "border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 700; }"
-        )
-        return area
-
-    def _chip_input(self, chips):
-        frame = QtWidgets.QFrame()
-        frame.setMinimumHeight(42)
-        frame.setStyleSheet(
-            "background: white; border: 1px solid #dfe6f0; border-radius: 10px;"
-        )
-        layout = QtWidgets.QHBoxLayout(frame)
-        layout.setContentsMargins(10, 6, 10, 6)
-        layout.setSpacing(8)
-
-        for chip_text in chips:
-            chip = QtWidgets.QLabel(f"{chip_text}  ✕")
-            chip.setStyleSheet(
-                "background: #f1f5f9; color: #46566b; border-radius: 10px; "
-                "padding: 6px 10px; font-size: 12px; font-weight: 800;"
-            )
-            layout.addWidget(chip)
-
-        layout.addStretch()
-        arrow = QtWidgets.QLabel("▾")
-        arrow.setStyleSheet(
-            "color: #728197; font-size: 14px; font-weight: 900; background: transparent; border: none;"
-        )
-        layout.addWidget(arrow)
-        return frame
-
-    def _metric_input(self, value_text, unit_text):
-        frame = QtWidgets.QFrame()
-        frame.setMinimumHeight(42)
-        frame.setStyleSheet(
-            "background: white; border: 1px solid #dfe6f0; border-radius: 10px;"
-        )
-        layout = QtWidgets.QHBoxLayout(frame)
-        layout.setContentsMargins(12, 0, 12, 0)
-        layout.setSpacing(8)
-
-        value = QtWidgets.QLabel(value_text)
-        value.setStyleSheet(
-            "color: #1f2d3d; font-size: 13px; font-weight: 800; "
+    def _icon_text(self, icon_text, body_text):
+        label = QtWidgets.QLabel(f"{icon_text}  {body_text}")
+        label.setStyleSheet(
+            "color: #5f6f85; font-size: 13px; font-weight: 700; "
             "background: transparent; border: none;"
         )
-        unit = QtWidgets.QLabel(unit_text)
-        unit.setStyleSheet(
-            "color: #6d7c91; font-size: 13px; font-weight: 800; "
-            "background: transparent; border: none;"
+        return label
+
+    def _icon_square_button(self, text, size, bg="#ffffff", fg="#64748b", border="#e6edf6"):
+        button = QtWidgets.QPushButton(text)
+        button.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        button.setFixedSize(size, size)
+        button.setStyleSheet(
+            f"QPushButton {{ background: {bg}; color: {fg}; border: 1px solid {border}; "
+            "border-radius: 11px; font-size: 15px; font-weight: 900; }}"
         )
-        layout.addWidget(value)
-        layout.addStretch()
-        layout.addWidget(unit)
-        return frame
+        return button
+
+    def _build_vertical_separator(self):
+        line = QtWidgets.QFrame()
+        line.setFixedWidth(1)
+        line.setStyleSheet("background: #edf2f7; border: none;")
+        return line
 
     def _card(self):
         card = QtWidgets.QFrame()
         card.setStyleSheet(
-            "background: white; border: 1px solid #e7edf5; border-radius: 16px;"
+            "background: white; border: 1px solid #e8eef6; border-radius: 18px;"
         )
         return card
-
-    def _input_style(self):
-        return (
-            "QLineEdit { background: white; color: #1f2d3d; border: 1px solid #dfe6f0; "
-            "border-radius: 10px; padding: 0 14px; font-size: 13px; font-weight: 800; }"
-        )
-
-    def _ghost_button_style(self):
-        return (
-            "QPushButton { background: white; color: #46566b; border: 1px solid #dfe6f0; "
-            "border-radius: 10px; padding: 0 16px; font-size: 13px; font-weight: 900; }"
-        )
-
-    def _section_title_style(self):
-        return (
-            "color: #102033; font-size: 16px; font-weight: 900; "
-            "background: transparent; border: none;"
-        )

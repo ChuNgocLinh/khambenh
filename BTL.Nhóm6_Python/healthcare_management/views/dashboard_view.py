@@ -241,14 +241,16 @@ class DashboardView(QtWidgets.QWidget):
 
         # SideBar Bác Sĩ
         self.sidebar = QtWidgets.QFrame()
-        self.sidebar.setFixedWidth(240)
-        self.sidebar.setStyleSheet("background-color: white; border-right: 1px solid #e0e0e0;")
+        self.sidebar.setFixedWidth(268)
+        self.sidebar.setStyleSheet("background-color: #ffffff; border-right: 1px solid #edf2f7;")
         self.sidebar_layout = QtWidgets.QVBoxLayout(self.sidebar)
-        self.sidebar_layout.setContentsMargins(15, 20, 15, 20)
-        self.sidebar_layout.setSpacing(8)
+        self.sidebar_layout.setContentsMargins(18, 28, 18, 26)
+        self.sidebar_layout.setSpacing(10)
 
         self.logo = QtWidgets.QLabel("⊕ CarePlus")
-        self.logo.setStyleSheet("color: #69c0a5; font-size: 24px; font-weight: 800; margin-bottom: 25px; margin-left: 10px;")
+        self.logo.setStyleSheet(
+            "color: #22c55e; font-size: 26px; font-weight: 900; margin-bottom: 28px; margin-left: 8px;"
+        )
         self.sidebar_layout.addWidget(self.logo)
 
         menu_items = [
@@ -265,41 +267,93 @@ class DashboardView(QtWidgets.QWidget):
         for i, (icon, text) in enumerate(menu_items):
             btn = QtWidgets.QPushButton(f"   {icon}     {text}")
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-            style = "QPushButton { border: none; text-align: left; padding: 13px 20px; border-radius: 12px; color: #333; font-size: 14px; font-weight: 600; }"
-            if text == "Dashboard": style += "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
-            else: style += "QPushButton:hover { background-color: #f8f9fa; }"
-            btn.setStyleSheet(style)
+            btn.setFixedHeight(58)
+            btn.setStyleSheet(self._doctor_sidebar_button_style(i == 0))
             btn.clicked.connect(lambda checked, idx=i: self.switch_page(idx))
             self.nav_buttons.append(btn)
             self.sidebar_layout.addWidget(btn)
 
         self.sidebar_layout.addStretch()
+
+        self.btn_logout = QtWidgets.QPushButton("   ⎋     Đăng xuất")
+        self.btn_logout.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        self.btn_logout.setFixedHeight(54)
+        self.btn_logout.setStyleSheet(
+            "QPushButton { border: none; text-align: left; padding: 14px; padding-left: 20px; padding-right: 20px; border-radius: 16px; "
+            "color: #ef4444; font-size: 14px; font-weight: 800; background: transparent; }"
+            "QPushButton:hover { background: #fef2f2; }"
+        )
+        self.sidebar_layout.addWidget(self.btn_logout)
         self.main_layout.addWidget(self.sidebar)
 
         # Content Bác Sĩ
         self.content_container = QtWidgets.QWidget()
-        self.content_container.setStyleSheet("background-color: #f0f7f9;")
+        self.content_container.setStyleSheet("background-color: #fbfdff;")
         self.content_layout = QtWidgets.QVBoxLayout(self.content_container)
-        self.content_layout.setContentsMargins(40, 25, 40, 25)
-        self.content_layout.setSpacing(25)
+        self.content_layout.setContentsMargins(28, 22, 28, 22)
+        self.content_layout.setSpacing(18)
         self.main_layout.addWidget(self.content_container)
 
         self.header_layout = QtWidgets.QHBoxLayout()
-        self.header_title = QtWidgets.QLabel("Hệ thống quản trị CarePlus")
-        self.header_title.setStyleSheet("font-size: 14px; color: #333; font-weight: bold;")
+        self.header_title = QtWidgets.QLabel("")
+        self.header_title.setStyleSheet("font-size: 1px; color: transparent;")
+        self.header_title.setFixedWidth(1)
         self.header_layout.addWidget(self.header_title)
         self.header_layout.addStretch()
 
+        bell_wrapper = QtWidgets.QWidget()
+        bell_grid = QtWidgets.QGridLayout(bell_wrapper)
+        bell_grid.setContentsMargins(0, 0, 0, 0)
+        bell_grid.setHorizontalSpacing(0)
+        bell_grid.setVerticalSpacing(0)
+
+        self.header_notification_button = QtWidgets.QPushButton("🔔")
+        self.header_notification_button.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        self.header_notification_button.setFixedSize(38, 38)
+        self.header_notification_button.setStyleSheet(
+            "QPushButton { background: transparent; border: none; font-size: 20px; color: #94a3b8; }"
+            "QPushButton:hover { background: #f8fafc; border-radius: 19px; }"
+        )
+        bell_grid.addWidget(
+            self.header_notification_button,
+            0,
+            0,
+            alignment=QtCore.Qt.AlignmentFlag.AlignCenter,
+        )
+
+        bell_badge = QtWidgets.QLabel("2")
+        bell_badge.setFixedSize(18, 18)
+        bell_badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell_badge.setStyleSheet(
+            "background: #ff2d20; color: white; border-radius: 9px; font-size: 10px; font-weight: 800;"
+        )
+        bell_grid.addWidget(
+            bell_badge,
+            0,
+            0,
+            alignment=QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignRight,
+        )
+
         self.user_info_layout = QtWidgets.QHBoxLayout()
-        self.user_avatar = QtWidgets.QLabel("👤")
-        self.user_avatar.setFixedSize(35, 35)
+        self.user_info_layout.setContentsMargins(0, 0, 0, 0)
+        self.user_info_layout.setSpacing(14)
+
+        profile_frame = QtWidgets.QFrame()
+        profile_frame.setStyleSheet("background: transparent; border: none;")
+        profile_layout = QtWidgets.QHBoxLayout(profile_frame)
+        profile_layout.setContentsMargins(0, 0, 0, 0)
+        profile_layout.setSpacing(10)
+
+        self.user_avatar = QtWidgets.QLabel("👨‍⚕️")
+        self.user_avatar.setFixedSize(42, 42)
         self.user_avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.user_avatar.setStyleSheet("background: #d1e9e7; border-radius: 17px; font-size: 16px;")
+        self.user_avatar.setStyleSheet("background: #eef2ff; border-radius: 21px; font-size: 20px;")
         self.user_name_lbl = QtWidgets.QLabel(f"Bác sĩ {self.user_data.get('name')} ▿")
-        self.user_name_lbl.setStyleSheet("font-weight: bold; color: #333; font-size: 14px;")
-        self.btn_logout = QtWidgets.QPushButton("Đăng xuất")
-        self.btn_logout.setStyleSheet("QPushButton { background: #ff7875; color: white; border-radius: 8px; padding: 7px 15px; font-weight: bold; border: none; } QPushButton:hover { background: #ff4d4f; }")
-        self.user_info_layout.addWidget(self.user_avatar); self.user_info_layout.addWidget(self.user_name_lbl); self.user_info_layout.addSpacing(10); self.user_info_layout.addWidget(self.btn_logout)
+        self.user_name_lbl.setStyleSheet("font-weight: 800; color: #0f172a; font-size: 14px;")
+        profile_layout.addWidget(self.user_avatar)
+        profile_layout.addWidget(self.user_name_lbl)
+        self.user_info_layout.addWidget(bell_wrapper)
+        self.user_info_layout.addWidget(profile_frame)
         self.header_layout.addLayout(self.user_info_layout)
         self.content_layout.addLayout(self.header_layout)
 
@@ -347,18 +401,20 @@ class DashboardView(QtWidgets.QWidget):
         self.page_patient_list = DoctorPatientListView(self.user_data.get("doctor_id"))
         self.page_doctor_appts = DoctorScheduleView(self.user_data.get("doctor_id"))
         self.page_medical_record = DoctorPatientRecordView(self.user_data.get("doctor_id"))
+        self.page_patient_record = DoctorPatientRecordView(self.user_data.get("doctor_id"))
         self.page_prescription = PrescriptionView(self.user_data.get("doctor_id"))
 
         role = str(self.user_data.get("role") or "doctor").lower().strip()
         self.page_patient_list.role = role
         self.page_doctor_appts.role = role
         self.page_medical_record.role = role
+        self.page_patient_record.role = role
         self.page_prescription.role = role
         
         self.content_stack.addWidget(self._build_schedule_page())   # 1: Lịch khám
         self.content_stack.addWidget(self.page_patient_list)    # 2: Danh sách bệnh nhân
         self.content_stack.addWidget(self.page_medical_record)  # 3: Hồ sơ khám bệnh
-        self.content_stack.addWidget(self._build_consultation_page())  # 4: Tư vấn & lịch sử chăm sóc
+        self.content_stack.addWidget(self.page_patient_record)  # 4: Hồ sơ bệnh nhân
         self.content_stack.addWidget(self.page_prescription)    # 5: Đơn thuốc
         self.content_stack.addWidget(self._build_notification_center_page(self.dashboard_data.get("notifications", [])))  # 6: Thông báo
         self.content_stack.addWidget(self._build_settings_page())  # 7: Cài đặt
@@ -1822,34 +1878,457 @@ class DashboardView(QtWidgets.QWidget):
         layout.addStretch()
         return page
 
-    def _build_notification_center_page(self, notifications):
-        page = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(page)
-        title = QtWidgets.QLabel("Trung tâm thông báo")
-        title.setStyleSheet("font-size: 24px; font-weight: 800; color: #1e293b;")
-        layout.addWidget(title)
+    def _build_doctor_notification_mock_data(self):
+        return [
+            {
+                "title": "Lịch hẹn mới",
+                "message": "Bạn có lịch hẹn khám mới với bệnh nhân Lê Văn Nam vào 24/05/2026 10:00.",
+                "time": "10:30",
+                "date": "23/05/2026 10:30",
+                "category": "Lịch hẹn",
+                "status": "Chưa đọc",
+                "icon": "📅",
+                "icon_bg": "#e8f8ee",
+                "icon_color": "#18b66d",
+                "highlight": True,
+                "details": [
+                    ("Bệnh nhân:", "Lê Văn Nam"),
+                    ("Ngày khám:", "24/05/2026"),
+                    ("Giờ khám:", "10:00"),
+                    ("Dịch vụ:", "Khám tổng quát"),
+                    ("Phòng khám:", "Phòng khám 1"),
+                    ("Ghi chú:", "Khám định kỳ"),
+                ],
+                "footer": "Vui lòng chuẩn bị để tiếp đón bệnh nhân.",
+            },
+            {
+                "title": "Kết quả xét nghiệm mới",
+                "message": "Kết quả xét nghiệm máu của bệnh nhân Trần Thị Mai đã có.",
+                "time": "09:15",
+                "date": "23/05/2026 09:15",
+                "category": "Kết quả",
+                "status": "Chưa đọc",
+                "icon": "🧪",
+                "icon_bg": "#edf4ff",
+                "icon_color": "#2f80ff",
+                "highlight": False,
+            },
+            {
+                "title": "Bệnh nhân đến khám",
+                "message": "Bệnh nhân Nguyễn Hoàng Anh (09:00) đã đến phòng khám.",
+                "time": "09:05",
+                "date": "23/05/2026 09:05",
+                "category": "Lịch hẹn",
+                "status": "Chưa đọc",
+                "icon": "📋",
+                "icon_bg": "#fff4e8",
+                "icon_color": "#ff9f1a",
+                "highlight": False,
+            },
+            {
+                "title": "Đơn thuốc chờ duyệt",
+                "message": "Bạn có 2 đơn thuốc mới cần duyệt.",
+                "time": "08:45",
+                "date": "23/05/2026 08:45",
+                "category": "Khác",
+                "status": "Chưa đọc",
+                "icon": "💊",
+                "icon_bg": "#f3ebff",
+                "icon_color": "#8b5cf6",
+                "highlight": False,
+            },
+            {
+                "title": "Cập nhật hệ thống",
+                "message": "Phiên bản CarePlus 1.2.1 đã được cập nhật. Vui lòng khởi động lại ứng dụng.",
+                "time": "Hôm qua",
+                "date": "22/05/2026 17:20",
+                "category": "Hệ thống",
+                "status": "Đã đọc",
+                "icon": "🔔",
+                "icon_bg": "#ebf8ef",
+                "icon_color": "#18b66d",
+                "highlight": False,
+            },
+            {
+                "title": "Nhắc lịch tái khám",
+                "message": "3 bệnh nhân có lịch tái khám trong ngày hôm nay.",
+                "time": "Hôm qua",
+                "date": "22/05/2026 11:40",
+                "category": "Lịch hẹn",
+                "status": "Đã đọc",
+                "icon": "⚠️",
+                "icon_bg": "#fff0f0",
+                "icon_color": "#ff4d4f",
+                "highlight": False,
+            },
+            {
+                "title": "Bệnh nhân mới",
+                "message": "Bệnh nhân Phạm Thị Lan vừa được đăng ký hồ sơ.",
+                "time": "21/05/2026",
+                "date": "21/05/2026 15:10",
+                "category": "Khác",
+                "status": "Đã đọc",
+                "icon": "👤",
+                "icon_bg": "#eef5ff",
+                "icon_color": "#2f80ff",
+                "highlight": False,
+            },
+            {
+                "title": "Hồ sơ bệnh nhân cập nhật",
+                "message": "Hồ sơ bệnh án của bệnh nhân Vũ Thị Hương đã được cập nhật.",
+                "time": "21/05/2026",
+                "date": "21/05/2026 10:05",
+                "category": "Kết quả",
+                "status": "Đã đọc",
+                "icon": "📄",
+                "icon_bg": "#fff4e8",
+                "icon_color": "#ff9f1a",
+                "highlight": False,
+            },
+            {
+                "title": "Sao lưu dữ liệu thành công",
+                "message": "Dữ liệu đã được sao lưu tự động lúc 02:00 AM.",
+                "time": "20/05/2026",
+                "date": "20/05/2026 02:00",
+                "category": "Hệ thống",
+                "status": "Đã đọc",
+                "icon": "🛡️",
+                "icon_bg": "#edf9f0",
+                "icon_color": "#18b66d",
+                "highlight": False,
+            },
+            {
+                "title": "Thông báo từ phòng khám",
+                "message": "Phòng khám sẽ nghỉ vào Chủ nhật ngày 25/05/2026.",
+                "time": "20/05/2026",
+                "date": "20/05/2026 08:30",
+                "category": "Khác",
+                "status": "Đã đọc",
+                "icon": "📣",
+                "icon_bg": "#f3ebff",
+                "icon_color": "#8b5cf6",
+                "highlight": False,
+            },
+        ]
 
-        table = QtWidgets.QTableWidget()
-        table.setColumnCount(2)
-        table.setHorizontalHeaderLabels(["Mức độ", "Nội dung thông báo"])
-        table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
-        table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
-        table.setStyleSheet(
-            "QTableWidget { color: #1f2937; background: white; }"
-            "QHeaderView::section { background-color: #f8f9fa; padding: 10px; border: none; font-weight: 700; }"
-            "QTableWidget::item { padding: 8px; border-bottom: 1px solid #f1f5f9; }"
+    def _build_doctor_notification_tab(self, text, is_active=False):
+        btn = QtWidgets.QPushButton(text)
+        btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn.setFixedHeight(42)
+        if is_active:
+            btn.setStyleSheet(
+                "QPushButton { background: #e8f8ee; color: #18b66d; border: 1px solid #d6f2e1; "
+                "border-radius: 12px; padding-left: 18px; padding-right: 18px; font-size: 13px; font-weight: 800; }"
+            )
+        else:
+            btn.setStyleSheet(
+                "QPushButton { background: white; color: #334155; border: 1px solid #e8edf3; "
+                "border-radius: 12px; padding-left: 18px; padding-right: 18px; font-size: 13px; font-weight: 700; }"
+            )
+        return btn
+
+    def _build_doctor_notification_action_button(self, text, icon_text, is_danger=False):
+        btn = QtWidgets.QPushButton(f"{icon_text}  {text}")
+        btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn.setMinimumHeight(44)
+        border = "#ffd4d4" if is_danger else "#e8edf3"
+        color = "#ff4d4f" if is_danger else "#475569"
+        btn.setStyleSheet(
+            f"QPushButton {{ background: white; color: {color}; border: 1px solid {border}; "
+            "border-radius: 12px; padding-left: 18px; padding-right: 18px; font-size: 13px; font-weight: 700; text-align: center; }}"
         )
+        return btn
 
-        table.setRowCount(len(notifications))
-        for row, message in enumerate(notifications):
-            severity = "Quan trọng" if "đang chờ" in message else "Thông tin"
-            table.setItem(row, 0, QtWidgets.QTableWidgetItem(severity))
-            table.setItem(row, 1, QtWidgets.QTableWidgetItem(message))
-            table.setRowHeight(row, 44)
+    def _build_doctor_notification_list_item(self, item):
+        card = QtWidgets.QFrame()
+        background = "#f1fbf4" if item.get("highlight") else "#ffffff"
+        card.setStyleSheet(
+            f"background: {background}; border: 1px solid #edf2f7; border-radius: 18px;"
+        )
+        card.setMinimumHeight(96)
+        layout = QtWidgets.QHBoxLayout(card)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(14)
 
-        layout.addWidget(table)
-        layout.addStretch()
+        icon_wrap = QtWidgets.QLabel(str(item.get("icon") or "🔔"))
+        icon_wrap.setFixedSize(52, 52)
+        icon_wrap.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        icon_wrap.setStyleSheet(
+            f"background: {item.get('icon_bg', '#eef2ff')}; color: {item.get('icon_color', '#334155')}; "
+            "border-radius: 26px; font-size: 22px; border: none;"
+        )
+        layout.addWidget(icon_wrap)
+
+        text_col = QtWidgets.QVBoxLayout()
+        text_col.setSpacing(6)
+        title = QtWidgets.QLabel(str(item.get("title") or "Thông báo"))
+        title.setStyleSheet("font-size: 16px; font-weight: 800; color: #0f172a; border: none;")
+        message = QtWidgets.QLabel(str(item.get("message") or ""))
+        message.setWordWrap(True)
+        message.setStyleSheet("font-size: 13px; color: #475569; border: none;")
+        text_col.addWidget(title)
+        text_col.addWidget(message)
+        layout.addLayout(text_col, 1)
+
+        right_col = QtWidgets.QVBoxLayout()
+        right_col.setSpacing(10)
+        right_col.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignRight)
+        time_label = QtWidgets.QLabel(str(item.get("time") or ""))
+        time_label.setStyleSheet("font-size: 15px; color: #475569; font-weight: 700; border: none;")
+        right_col.addWidget(time_label, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+        status_dot = QtWidgets.QLabel("●")
+        dot_color = "#2f80ff" if item.get("status") == "Chưa đọc" else "#94a3b8"
+        status_dot.setStyleSheet(f"font-size: 14px; color: {dot_color}; border: none;")
+        right_col.addWidget(status_dot, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+        layout.addLayout(right_col)
+        return card
+
+    def _build_notification_center_page(self, notifications):
+        items = self._build_doctor_notification_mock_data()
+        selected = items[0]
+        page = QtWidgets.QWidget()
+        page.setStyleSheet("background: transparent;")
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(14)
+
+        header = QtWidgets.QHBoxLayout()
+        header.setSpacing(16)
+        title_col = QtWidgets.QVBoxLayout()
+        title_col.setSpacing(6)
+        title = QtWidgets.QLabel("Thông báo")
+        title.setStyleSheet("font-size: 28px; font-weight: 900; color: #0f172a; border: none;")
+        breadcrumb = QtWidgets.QLabel("Trang chủ   ›   Thông báo")
+        breadcrumb.setStyleSheet("font-size: 14px; color: #64748b; font-weight: 700; border: none;")
+        title_col.addWidget(title)
+        title_col.addWidget(breadcrumb)
+        header.addLayout(title_col)
+        header.addStretch()
+
+        bell_wrap = QtWidgets.QFrame()
+        bell_wrap.setFixedSize(40, 40)
+        bell_wrap.setStyleSheet("background: transparent; border: none;")
+        bell_grid = QtWidgets.QGridLayout(bell_wrap)
+        bell_grid.setContentsMargins(0, 0, 0, 0)
+        bell_icon = QtWidgets.QLabel("🔔")
+        bell_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell_icon.setStyleSheet("font-size: 20px; color: #94a3b8; border: none;")
+        bell_grid.addWidget(bell_icon, 0, 0)
+        bell_badge = QtWidgets.QLabel("2")
+        bell_badge.setFixedSize(18, 18)
+        bell_badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell_badge.setStyleSheet(
+            "background: #ff2d2f; color: white; border-radius: 9px; font-size: 10px; font-weight: 800; border: none;"
+        )
+        bell_grid.addWidget(
+            bell_badge,
+            0,
+            0,
+            QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignRight,
+        )
+        header.addWidget(bell_wrap)
+
+        avatar = QtWidgets.QLabel("👨‍⚕️")
+        avatar.setFixedSize(44, 44)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet("background: #eef2f7; border-radius: 22px; font-size: 24px; border: none;")
+        header.addWidget(avatar)
+
+        doctor_name = str(self.user_data.get("name") or "Minh").strip() or "Minh"
+        profile_label = QtWidgets.QLabel(f"Bác sĩ {doctor_name}")
+        profile_label.setStyleSheet("font-size: 14px; color: #0f172a; font-weight: 800; border: none;")
+        header.addWidget(profile_label)
+
+        caret = QtWidgets.QLabel("⌄")
+        caret.setStyleSheet("font-size: 16px; color: #94a3b8; font-weight: 700; border: none;")
+        header.addWidget(caret)
+        layout.addLayout(header)
+
+        tabs = QtWidgets.QHBoxLayout()
+        tabs.setSpacing(12)
+        for index, text in enumerate(
+            ["Tất cả (24)", "Chưa đọc (2)", "Lịch hẹn (6)", "Kết quả (7)", "Hệ thống (5)", "Khác (4)"]
+        ):
+            tabs.addWidget(self._build_doctor_notification_tab(text, index == 0))
+        tabs.addStretch()
+        layout.addLayout(tabs)
+
+        content = QtWidgets.QHBoxLayout()
+        content.setSpacing(16)
+
+        left_card = QtWidgets.QFrame()
+        left_card.setStyleSheet("background: white; border: 1px solid #edf2f7; border-radius: 20px;")
+        left_layout = QtWidgets.QVBoxLayout(left_card)
+        left_layout.setContentsMargins(18, 18, 18, 18)
+        left_layout.setSpacing(16)
+
+        left_header = QtWidgets.QHBoxLayout()
+        left_header.setSpacing(12)
+        left_title = QtWidgets.QLabel("Danh sách thông báo")
+        left_title.setStyleSheet("font-size: 18px; font-weight: 900; color: #0f172a; border: none;")
+        left_header.addWidget(left_title)
+        left_header.addStretch()
+
+        search_box = QtWidgets.QFrame()
+        search_box.setFixedWidth(240)
+        search_box.setStyleSheet("background: white; border: 1px solid #e8edf3; border-radius: 12px;")
+        search_layout = QtWidgets.QHBoxLayout(search_box)
+        search_layout.setContentsMargins(14, 0, 14, 0)
+        search_layout.setSpacing(8)
+        search_icon = QtWidgets.QLabel("⌕")
+        search_icon.setStyleSheet("font-size: 18px; color: #94a3b8; border: none;")
+        search_text = QtWidgets.QLabel("Tìm kiếm thông báo...")
+        search_text.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
+        search_layout.addWidget(search_icon)
+        search_layout.addWidget(search_text)
+        left_header.addWidget(search_box)
+        left_header.addWidget(self._build_doctor_notification_action_button("Đánh dấu tất cả đã đọc", "✓"))
+        left_header.addWidget(self._build_doctor_notification_action_button("Cài đặt thông báo", "⚙"))
+        left_layout.addLayout(left_header)
+
+        for item in items:
+            left_layout.addWidget(self._build_doctor_notification_list_item(item))
+
+        pagination = QtWidgets.QHBoxLayout()
+        pagination.setSpacing(8)
+        display_label = QtWidgets.QLabel("Hiển thị")
+        display_label.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700; border: none;")
+        pagination.addWidget(display_label)
+
+        page_size = QtWidgets.QFrame()
+        page_size.setFixedSize(64, 38)
+        page_size.setStyleSheet("background: white; border: 1px solid #e8edf3; border-radius: 10px;")
+        page_size_layout = QtWidgets.QHBoxLayout(page_size)
+        page_size_layout.setContentsMargins(12, 0, 12, 0)
+        page_size_layout.setSpacing(6)
+        page_size_value = QtWidgets.QLabel("10")
+        page_size_value.setStyleSheet("font-size: 13px; color: #334155; font-weight: 700; border: none;")
+        page_size_layout.addWidget(page_size_value)
+        arrow_label = QtWidgets.QLabel("⌄")
+        arrow_label.setStyleSheet("font-size: 13px; color: #64748b; border: none;")
+        page_size_layout.addWidget(arrow_label)
+        pagination.addWidget(page_size)
+
+        records_label = QtWidgets.QLabel("bản ghi")
+        records_label.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700; border: none;")
+        pagination.addWidget(records_label)
+        pagination.addStretch()
+
+        for text, active in [("‹", False), ("1", True), ("2", False), ("3", False), ("›", False)]:
+            btn = QtWidgets.QPushButton(text)
+            btn.setFixedSize(38, 38)
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            if active:
+                btn.setStyleSheet(
+                    "QPushButton { background: #18b66d; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 800; }"
+                )
+            else:
+                btn.setStyleSheet(
+                    "QPushButton { background: white; color: #64748b; border: 1px solid #e8edf3; border-radius: 10px; font-size: 14px; font-weight: 700; }"
+                )
+            pagination.addWidget(btn)
+        left_layout.addLayout(pagination)
+
+        content.addWidget(left_card, 66)
+
+        right_card = QtWidgets.QFrame()
+        right_card.setStyleSheet("background: white; border: 1px solid #edf2f7; border-radius: 20px;")
+        right_layout = QtWidgets.QVBoxLayout(right_card)
+        right_layout.setContentsMargins(22, 18, 22, 18)
+        right_layout.setSpacing(16)
+
+        detail_title = QtWidgets.QLabel("Chi tiết thông báo")
+        detail_title.setStyleSheet("font-size: 18px; font-weight: 900; color: #0f172a; border: none;")
+        right_layout.addWidget(detail_title)
+
+        summary_row = QtWidgets.QHBoxLayout()
+        summary_row.setSpacing(14)
+        detail_icon = QtWidgets.QLabel(str(selected.get("icon") or "📅"))
+        detail_icon.setFixedSize(84, 84)
+        detail_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        detail_icon.setStyleSheet(
+            f"background: {selected.get('icon_bg', '#e8f8ee')}; color: {selected.get('icon_color', '#18b66d')}; "
+            "border-radius: 42px; font-size: 34px; border: none;"
+        )
+        summary_row.addWidget(detail_icon)
+
+        summary_text = QtWidgets.QVBoxLayout()
+        summary_text.setSpacing(8)
+        detail_name = QtWidgets.QLabel(str(selected.get("title") or "Thông báo"))
+        detail_name.setStyleSheet("font-size: 18px; font-weight: 900; color: #0f172a; border: none;")
+        category = QtWidgets.QLabel(str(selected.get("category") or "Khác"))
+        category.setStyleSheet(
+            "background: #e8f8ee; color: #18b66d; border-radius: 10px; font-size: 12px; font-weight: 800; padding: 4px 10px;"
+        )
+        summary_text.addWidget(detail_name)
+        summary_text.addWidget(category, 0, QtCore.Qt.AlignmentFlag.AlignLeft)
+        summary_row.addLayout(summary_text, 1)
+        right_layout.addLayout(summary_row)
+
+        meta_row = QtWidgets.QHBoxLayout()
+        meta_row.setSpacing(10)
+        meta_date = QtWidgets.QLabel(f"🕒  {selected.get('date')}")
+        meta_date.setStyleSheet("font-size: 13px; color: #64748b; font-weight: 700; border: none;")
+        meta_row.addWidget(meta_date)
+        meta_row.addStretch()
+        meta_dot = QtWidgets.QLabel("●")
+        meta_dot.setStyleSheet("font-size: 14px; color: #2f80ff; border: none;")
+        meta_status = QtWidgets.QLabel(str(selected.get("status") or "Chưa đọc"))
+        meta_status.setStyleSheet("font-size: 13px; color: #64748b; font-weight: 700; border: none;")
+        meta_row.addWidget(meta_dot)
+        meta_row.addWidget(meta_status)
+        right_layout.addLayout(meta_row)
+
+        detail_message = QtWidgets.QLabel("Bạn có lịch hẹn khám mới với thông tin chi tiết như sau:")
+        detail_message.setWordWrap(True)
+        detail_message.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700; border: none;")
+        right_layout.addWidget(detail_message)
+
+        detail_grid = QtWidgets.QGridLayout()
+        detail_grid.setHorizontalSpacing(12)
+        detail_grid.setVerticalSpacing(10)
+        for row, (label_text, value_text) in enumerate(selected.get("details", [])):
+            field_label = QtWidgets.QLabel(label_text)
+            field_label.setStyleSheet("font-size: 13px; color: #64748b; font-weight: 700; border: none;")
+            field_value = QtWidgets.QLabel(value_text)
+            field_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
+            field_value.setStyleSheet("font-size: 13px; color: #475569; font-weight: 800; border: none;")
+            detail_grid.addWidget(field_label, row, 0)
+            detail_grid.addWidget(field_value, row, 1)
+        right_layout.addLayout(detail_grid)
+
+        footer = QtWidgets.QLabel(str(selected.get("footer") or ""))
+        footer.setWordWrap(True)
+        footer.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700; border: none; padding-top: 10px;")
+        right_layout.addWidget(footer)
+        right_layout.addStretch()
+
+        primary_btn = QtWidgets.QPushButton("👜  Xem lịch hẹn")
+        primary_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        primary_btn.setMinimumHeight(46)
+        primary_btn.setStyleSheet(
+            "QPushButton { background: #18b66d; color: white; border: none; border-radius: 12px; font-size: 14px; font-weight: 800; }"
+        )
+        right_layout.addWidget(primary_btn)
+
+        secondary_btn = QtWidgets.QPushButton("📄  Xem hồ sơ bệnh nhân")
+        secondary_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        secondary_btn.setMinimumHeight(46)
+        secondary_btn.setStyleSheet(
+            "QPushButton { background: white; color: #475569; border: 1px solid #e8edf3; border-radius: 12px; font-size: 14px; font-weight: 800; }"
+        )
+        right_layout.addWidget(secondary_btn)
+
+        delete_btn = QtWidgets.QPushButton("🗑  Xóa thông báo")
+        delete_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        delete_btn.setMinimumHeight(46)
+        delete_btn.setStyleSheet(
+            "QPushButton { background: white; color: #ff4d4f; border: 1px solid #ffd4d4; border-radius: 12px; font-size: 14px; font-weight: 800; }"
+        )
+        right_layout.addWidget(delete_btn)
+
+        content.addWidget(right_card, 34)
+        layout.addLayout(content)
         return page
 
     def _build_settings_page(self):
@@ -1858,98 +2337,57 @@ class DashboardView(QtWidgets.QWidget):
         page_layout.setContentsMargins(0, 0, 0, 0)
         page_layout.setSpacing(0)
 
-        # --- HEADER ---
         header_widget = QtWidgets.QWidget()
         header_layout = QtWidgets.QVBoxLayout(header_widget)
-        header_layout.setContentsMargins(0, 0, 0, 15)
-        header_layout.setSpacing(4)
+        header_layout.setContentsMargins(0, 0, 0, 18)
+        header_layout.setSpacing(6)
 
         title = QtWidgets.QLabel("Cài đặt")
-        title.setStyleSheet("font-size: 28px; font-weight: 900; color: #1e293b;")
+        title.setStyleSheet("font-size: 26px; font-weight: 900; color: #0f172a; border: none;")
         header_layout.addWidget(title)
 
-        subtitle = QtWidgets.QLabel("Quản lý thông tin cá nhân và tùy chỉnh hệ thống")
-        subtitle.setStyleSheet("font-size: 14px; color: #64748b;")
-        header_layout.addWidget(subtitle)
+        breadcrumb = QtWidgets.QLabel("Trang chủ   ›   Cài đặt")
+        breadcrumb.setStyleSheet("font-size: 13px; color: #64748b; font-weight: 600; border: none;")
+        header_layout.addWidget(breadcrumb)
         page_layout.addWidget(header_widget)
 
-        # --- MAIN CONTENT AREA ---
         content_wrapper = QtWidgets.QHBoxLayout()
-        content_wrapper.setSpacing(0)
+        content_wrapper.setSpacing(18)
 
-        # ===== LEFT SUB-NAVIGATION SIDEBAR =====
         left_nav = QtWidgets.QFrame()
-        left_nav.setFixedWidth(220)
-        left_nav.setStyleSheet("background: white; border-radius: 16px 0 0 16px; border: 1px solid #e8ecf1;")
+        left_nav.setFixedWidth(288)
+        left_nav.setStyleSheet("background: white; border-radius: 18px; border: 1px solid #e8eef5;")
         left_nav_layout = QtWidgets.QVBoxLayout(left_nav)
-        left_nav_layout.setContentsMargins(12, 20, 12, 20)
-        left_nav_layout.setSpacing(4)
+        left_nav_layout.setContentsMargins(14, 16, 14, 16)
+        left_nav_layout.setSpacing(8)
 
         settings_menu_items = [
             ("profile", "👤", "Thông tin cá nhân", True),
-            ("password", "🔒", "Đổi mật khẩu", False),
+            ("security", "🛡️", "Tài khoản & bảo mật", False),
             ("notification", "🔔", "Thông báo", False),
-            ("display", "🖥️", "Tùy chọn hiển thị", False),
+            ("schedule", "🗓️", "Lịch làm việc", False),
+            ("prescription_templates", "℞", "Mẫu đơn thuốc", False),
+            ("conclusion_templates", "📄", "Mẫu kết luận", False),
+            ("signature", "✎", "Quản lý chữ ký", False),
+            ("backup_restore", "☁️", "Sao lưu & khôi phục", False),
             ("language", "🌐", "Ngôn ngữ", False),
-            ("backup_sync", "☁️", "Sao lưu & đồng bộ", False),
+            ("display", "🎨", "Giao diện", False),
+            ("intro", "ⓘ", "Giới thiệu", False),
         ]
 
         self._settings_nav_buttons = []
         for key, icon, text, is_active in settings_menu_items:
             btn = QtWidgets.QPushButton(f"  {icon}   {text}")
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-            btn.setFixedHeight(42)
-            if is_active:
-                btn.setStyleSheet(
-                    "QPushButton { border: none; text-align: left; padding: 10px 16px; border-radius: 10px; "
-                    "background: #69c0a5; color: white; font-size: 13px; font-weight: 700; }"
-                )
-            else:
-                btn.setStyleSheet(
-                    "QPushButton { border: none; text-align: left; padding: 10px 16px; border-radius: 10px; "
-                    "color: #475569; font-size: 13px; font-weight: 600; background: transparent; }"
-                    "QPushButton:hover { background: #f1f5f9; }"
-                )
+            btn.setFixedHeight(48)
+            btn.setStyleSheet(self._settings_nav_style(is_active))
             btn.clicked.connect(lambda _, selected_key=key: self._handle_settings_nav_action(selected_key))
             self._settings_nav_buttons.append((key, btn))
             left_nav_layout.addWidget(btn)
 
         left_nav_layout.addStretch()
-
-        # --- Support section at bottom ---
-        support_frame = QtWidgets.QFrame()
-        support_frame.setStyleSheet(
-            "background: #f0f7f9; border-radius: 12px; border: 1px solid #e0ecef;"
-        )
-        support_layout = QtWidgets.QVBoxLayout(support_frame)
-        support_layout.setContentsMargins(16, 14, 16, 14)
-        support_layout.setSpacing(4)
-        support_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-
-        support_icon = QtWidgets.QLabel("🎧")
-        support_icon.setStyleSheet("font-size: 28px; background: transparent;")
-        support_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        support_layout.addWidget(support_icon)
-
-        support_label = QtWidgets.QLabel("Hỗ trợ")
-        support_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 600; background: transparent;")
-        support_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        support_layout.addWidget(support_label)
-
-        support_phone = QtWidgets.QLabel("1900 1234")
-        support_phone.setStyleSheet("font-size: 20px; color: #69c0a5; font-weight: 900; background: transparent;")
-        support_phone.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        support_layout.addWidget(support_phone)
-
-        support_note = QtWidgets.QLabel("24/7 - Miễn phí cước")
-        support_note.setStyleSheet("font-size: 11px; color: #94a3b8; background: transparent;")
-        support_note.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        support_layout.addWidget(support_note)
-
-        left_nav_layout.addWidget(support_frame)
         content_wrapper.addWidget(left_nav)
 
-        # ===== RIGHT CONTENT AREA (scrollable) =====
         right_scroll = QtWidgets.QScrollArea()
         right_scroll.setWidgetResizable(True)
         right_scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
@@ -1959,133 +2397,136 @@ class DashboardView(QtWidgets.QWidget):
         right_content = QtWidgets.QWidget()
         right_content.setStyleSheet("background: transparent;")
         right_layout = QtWidgets.QVBoxLayout(right_content)
-        right_layout.setContentsMargins(30, 0, 10, 30)
-        right_layout.setSpacing(24)
+        right_layout.setContentsMargins(0, 0, 8, 20)
+        right_layout.setSpacing(18)
 
-        # ============================
-        # SECTION 1: THÔNG TIN CÁ NHÂN
-        # ============================
-        personal_card = QtWidgets.QFrame()
-        personal_card.setStyleSheet(
-            "QFrame { background: white; border-radius: 16px; border: 1px solid #e8ecf1; }"
+        card_style = "background: white; border-radius: 18px; border: 1px solid #e8eef5;"
+        section_title_style = "font-size: 16px; font-weight: 900; color: #0f172a; border: none;"
+        label_style = "font-size: 12px; color: #64748b; font-weight: 700; border: none;"
+        input_style = (
+            "QLineEdit, QComboBox, QDateEdit { background: white; border: 1px solid #dbe4ee; "
+            "border-radius: 10px; padding: 10px; padding-left: 14px; padding-right: 14px; min-height: 22px; font-size: 13px; color: #334155; }"
+            "QLineEdit:focus, QComboBox:focus, QDateEdit:focus { border-color: #10b981; }"
         )
+        small_input_style = (
+            "QComboBox { background: white; border: 1px solid #dbe4ee; border-radius: 8px; "
+            "padding: 8px; padding-left: 12px; padding-right: 12px; min-height: 20px; font-size: 13px; color: #334155; }"
+            "QComboBox:focus { border-color: #10b981; }"
+        )
+
+        def build_field(label_text, widget):
+            field_widget = QtWidgets.QWidget()
+            field_layout = QtWidgets.QVBoxLayout(field_widget)
+            field_layout.setContentsMargins(0, 0, 0, 0)
+            field_layout.setSpacing(6)
+            label = QtWidgets.QLabel(label_text)
+            label.setStyleSheet(label_style)
+            field_layout.addWidget(label)
+            field_layout.addWidget(widget)
+            return field_widget
+
+        personal_card = QtWidgets.QFrame()
+        personal_card.setStyleSheet(card_style)
         self._settings_section_frames["profile"] = personal_card
         personal_layout = QtWidgets.QVBoxLayout(personal_card)
-        personal_layout.setContentsMargins(28, 24, 28, 24)
+        personal_layout.setContentsMargins(24, 22, 24, 22)
         personal_layout.setSpacing(18)
 
+        top_bar = QtWidgets.QHBoxLayout()
         section_title_1 = QtWidgets.QLabel("Thông tin cá nhân")
-        section_title_1.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b; border: none;")
-        personal_layout.addWidget(section_title_1)
+        section_title_1.setStyleSheet(section_title_style)
+        top_bar.addWidget(section_title_1)
+        top_bar.addStretch()
+        btn_save = QtWidgets.QPushButton("🗂  Lưu thay đổi")
+        btn_save.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn_save.setFixedHeight(42)
+        btn_save.setStyleSheet(
+            "QPushButton { background: #16a34a; color: white; border-radius: 10px; padding-left: 18px; padding-right: 18px; "
+            "font-size: 13px; font-weight: 800; border: none; }"
+            "QPushButton:hover { background: #15803d; }"
+        )
+        btn_save.clicked.connect(self._save_settings_personal_info)
+        top_bar.addWidget(btn_save)
+        personal_layout.addLayout(top_bar)
 
-        # Avatar + form row
         avatar_form_layout = QtWidgets.QHBoxLayout()
-        avatar_form_layout.setSpacing(24)
+        avatar_form_layout.setSpacing(20)
 
-        # Avatar
-        avatar_container = QtWidgets.QVBoxLayout()
-        avatar_container.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        avatar_panel = QtWidgets.QWidget()
+        avatar_panel.setFixedWidth(136)
+        avatar_grid = QtWidgets.QGridLayout(avatar_panel)
+        avatar_grid.setContentsMargins(0, 8, 0, 0)
+        avatar_grid.setHorizontalSpacing(0)
+        avatar_grid.setVerticalSpacing(0)
 
         avatar_frame = QtWidgets.QFrame()
-        avatar_frame.setFixedSize(100, 100)
-        avatar_frame.setStyleSheet(
-            "background: #e2e8f0; border-radius: 50px; border: 3px solid #cbd5e1;"
-        )
+        avatar_frame.setFixedSize(108, 108)
+        avatar_frame.setStyleSheet("background: #f1f5f9; border-radius: 54px; border: 1px solid #e2e8f0;")
         avatar_inner_layout = QtWidgets.QVBoxLayout(avatar_frame)
+        avatar_inner_layout.setContentsMargins(0, 0, 0, 0)
         avatar_inner_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        avatar_icon = QtWidgets.QLabel("👤")
-        avatar_icon.setStyleSheet("font-size: 40px; background: transparent; border: none;")
+        avatar_icon = QtWidgets.QLabel("👨‍⚕️")
+        avatar_icon.setStyleSheet("font-size: 54px; background: transparent; border: none;")
         avatar_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         avatar_inner_layout.addWidget(avatar_icon)
         self._settings_avatar_icon = avatar_icon
+        avatar_grid.addWidget(avatar_frame, 0, 0, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
-        avatar_container.addWidget(avatar_frame, 0, QtCore.Qt.AlignmentFlag.AlignHCenter)
-
-        # Camera button overlay
         btn_camera = QtWidgets.QPushButton("📷")
         btn_camera.setFixedSize(30, 30)
         btn_camera.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         btn_camera.setStyleSheet(
-            "QPushButton { background: white; border: 2px solid #e2e8f0; border-radius: 15px; font-size: 14px; }"
+            "QPushButton { background: white; border: 1px solid #dbe4ee; border-radius: 15px; font-size: 13px; }"
             "QPushButton:hover { background: #f1f5f9; }"
         )
         btn_camera.clicked.connect(self._upload_settings_avatar)
-        avatar_container.addWidget(btn_camera, 0, QtCore.Qt.AlignmentFlag.AlignHCenter)
-
-        avatar_form_layout.addLayout(avatar_container)
-
-        # Form fields
-        form_grid = QtWidgets.QGridLayout()
-        form_grid.setHorizontalSpacing(16)
-        form_grid.setVerticalSpacing(14)
-
-        input_style = (
-            "QLineEdit, QComboBox, QDateEdit { "
-            "padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 10px; "
-            "font-size: 13px; color: #334155; background: white; }"
-            "QLineEdit:focus, QComboBox:focus, QDateEdit:focus { border-color: #69c0a5; }"
+        avatar_grid.addWidget(
+            btn_camera,
+            0,
+            0,
+            alignment=QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignBottom,
         )
-        label_style = "font-size: 12px; color: #64748b; font-weight: 600; border: none;"
+        avatar_form_layout.addWidget(avatar_panel, 0, QtCore.Qt.AlignmentFlag.AlignTop)
 
-        doctor_name = str(self.user_data.get("name", "Bác sĩ"))
-        doctor_phone = str(self.user_data.get("phone", "0901 234 567"))
+        doctor_name = str(self.user_data.get("name", "Bác sĩ Minh"))
+        doctor_phone = str(self.user_data.get("phone", "0988 111 222"))
         doctor_email = str(self.user_data.get("email", "bs.minh@careplus.vn"))
         doctor_specialty = str(self.user_data.get("specialty", "Nội tổng quát"))
         if doctor_name.lower().startswith("bác sĩ "):
             doctor_name = doctor_name[7:].strip()
 
-        # Row 0: Họ và tên + Giới tính
-        lbl_name = QtWidgets.QLabel("Họ và tên")
-        lbl_name.setStyleSheet(label_style)
-        form_grid.addWidget(lbl_name, 0, 0)
+        form_grid = QtWidgets.QGridLayout()
+        form_grid.setHorizontalSpacing(18)
+        form_grid.setVerticalSpacing(12)
+        form_grid.setColumnStretch(0, 3)
+        form_grid.setColumnStretch(1, 3)
+        form_grid.setColumnStretch(2, 3)
 
-        lbl_gender = QtWidgets.QLabel("Giới tính")
-        lbl_gender.setStyleSheet(label_style)
-        form_grid.addWidget(lbl_gender, 0, 1)
-
-        self._settings_name_input = QtWidgets.QLineEdit(f"Bác sĩ {doctor_name}" if doctor_name else "")
+        self._settings_name_input = QtWidgets.QLineEdit(f"Bác sĩ {doctor_name}" if doctor_name else "Bác sĩ Minh")
         self._settings_name_input.setStyleSheet(input_style)
-        form_grid.addWidget(self._settings_name_input, 1, 0)
+        form_grid.addWidget(build_field("Họ và tên", self._settings_name_input), 0, 0)
+
+        self._settings_email_input = QtWidgets.QLineEdit(doctor_email)
+        self._settings_email_input.setStyleSheet(input_style)
+        form_grid.addWidget(build_field("Email", self._settings_email_input), 0, 1)
 
         self._settings_gender_combo = QtWidgets.QComboBox()
         self._settings_gender_combo.addItems(["Nam", "Nữ"])
         self._settings_gender_combo.setStyleSheet(input_style)
-        form_grid.addWidget(self._settings_gender_combo, 1, 1)
-
-        # Row 2: Ngày sinh + Số điện thoại
-        lbl_dob = QtWidgets.QLabel("Ngày sinh")
-        lbl_dob.setStyleSheet(label_style)
-        form_grid.addWidget(lbl_dob, 2, 0)
-
-        lbl_phone = QtWidgets.QLabel("Số điện thoại")
-        lbl_phone.setStyleSheet(label_style)
-        form_grid.addWidget(lbl_phone, 2, 1)
+        form_grid.addWidget(build_field("Giới tính", self._settings_gender_combo), 0, 2)
 
         self._settings_dob_input = QtWidgets.QDateEdit()
         self._settings_dob_input.setCalendarPopup(True)
         self._settings_dob_input.setDisplayFormat("dd/MM/yyyy")
         self._settings_dob_input.setMinimumDate(QtCore.QDate(1900, 1, 1))
         self._settings_dob_input.setSpecialValueText("Chưa cập nhật")
-        self._settings_dob_input.setDate(self._settings_dob_input.minimumDate())
+        self._settings_dob_input.setDate(QtCore.QDate(1985, 4, 15))
         self._settings_dob_input.setStyleSheet(input_style)
-        form_grid.addWidget(self._settings_dob_input, 3, 0)
+        form_grid.addWidget(build_field("Ngày sinh", self._settings_dob_input), 1, 1)
 
         self._settings_phone_input = QtWidgets.QLineEdit(doctor_phone)
         self._settings_phone_input.setStyleSheet(input_style)
-        form_grid.addWidget(self._settings_phone_input, 3, 1)
-
-        # Row 4: Email + Chuyên khoa
-        lbl_email = QtWidgets.QLabel("Email")
-        lbl_email.setStyleSheet(label_style)
-        form_grid.addWidget(lbl_email, 4, 0)
-
-        lbl_specialty = QtWidgets.QLabel("Chuyên khoa")
-        lbl_specialty.setStyleSheet(label_style)
-        form_grid.addWidget(lbl_specialty, 4, 1)
-
-        self._settings_email_input = QtWidgets.QLineEdit(doctor_email)
-        self._settings_email_input.setStyleSheet(input_style)
-        form_grid.addWidget(self._settings_email_input, 5, 0)
+        form_grid.addWidget(build_field("Số điện thoại", self._settings_phone_input), 1, 0)
 
         self._settings_specialty_combo = QtWidgets.QComboBox()
         specialties = [
@@ -2097,166 +2538,307 @@ class DashboardView(QtWidgets.QWidget):
         if idx >= 0:
             self._settings_specialty_combo.setCurrentIndex(idx)
         self._settings_specialty_combo.setStyleSheet(input_style)
-        form_grid.addWidget(self._settings_specialty_combo, 5, 1)
+        form_grid.addWidget(build_field("Chuyên khoa", self._settings_specialty_combo), 2, 0)
 
-        # Row 6: Địa chỉ (full width)
-        lbl_address = QtWidgets.QLabel("Địa chỉ")
-        lbl_address.setStyleSheet(label_style)
-        form_grid.addWidget(lbl_address, 6, 0, 1, 2)
+        self._settings_license_input = QtWidgets.QLineEdit("001234/HCM-CCHN")
+        self._settings_license_input.setStyleSheet(input_style)
+        form_grid.addWidget(build_field("Số chứng chỉ hành nghề", self._settings_license_input), 2, 1)
 
-        self._settings_address_input = QtWidgets.QLineEdit("")
+        self._settings_address_input = QtWidgets.QLineEdit("123 Đường Lê Lợi, P.1, Q.1, TP.HCM")
         self._settings_address_input.setStyleSheet(input_style)
-        form_grid.addWidget(self._settings_address_input, 7, 0, 1, 2)
+        form_grid.addWidget(build_field("Địa chỉ phòng khám", self._settings_address_input), 2, 2)
 
         avatar_form_layout.addLayout(form_grid)
         personal_layout.addLayout(avatar_form_layout)
-
-        # Save button
-        save_btn_layout = QtWidgets.QHBoxLayout()
-        save_btn_layout.addStretch()
-        btn_save = QtWidgets.QPushButton("Lưu thay đổi")
-        btn_save.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-        btn_save.setFixedHeight(40)
-        btn_save.setStyleSheet(
-            "QPushButton { background: #69c0a5; color: white; border-radius: 10px; "
-            "padding: 10px 28px; font-size: 14px; font-weight: 700; border: none; }"
-            "QPushButton:hover { background: #5ab394; }"
-        )
-        btn_save.clicked.connect(self._save_settings_personal_info)
-        save_btn_layout.addWidget(btn_save)
-        personal_layout.addLayout(save_btn_layout)
-
         right_layout.addWidget(personal_card)
 
-        # ============================
-        # SECTION 2: THÔNG BÁO
-        # ============================
-        notification_card = QtWidgets.QFrame()
-        notification_card.setStyleSheet(
-            "QFrame { background: white; border-radius: 16px; border: 1px solid #e8ecf1; }"
+        middle_row = QtWidgets.QHBoxLayout()
+        middle_row.setSpacing(18)
+
+        security_card = QtWidgets.QFrame()
+        security_card.setStyleSheet(card_style)
+        self._settings_section_frames["security"] = security_card
+        security_layout = QtWidgets.QVBoxLayout(security_card)
+        security_layout.setContentsMargins(24, 22, 24, 22)
+        security_layout.setSpacing(16)
+
+        section_title_security = QtWidgets.QLabel("Tài khoản & bảo mật")
+        section_title_security.setStyleSheet(section_title_style)
+        security_layout.addWidget(section_title_security)
+
+        self._settings_username_input = QtWidgets.QLineEdit("bsminh")
+        self._settings_username_input.setStyleSheet(input_style)
+        security_layout.addWidget(build_field("Tên đăng nhập", self._settings_username_input))
+
+        password_row = QtWidgets.QHBoxLayout()
+        password_row.setSpacing(12)
+        self._settings_password_input = QtWidgets.QLineEdit("12345678")
+        self._settings_password_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+        self._settings_password_input.setStyleSheet(input_style)
+        password_row.addWidget(build_field("Mật khẩu", self._settings_password_input), 1)
+
+        password_btn_box = QtWidgets.QWidget()
+        password_btn_layout = QtWidgets.QVBoxLayout(password_btn_box)
+        password_btn_layout.setContentsMargins(0, 22, 0, 0)
+        password_btn_layout.setSpacing(0)
+        change_password_btn = QtWidgets.QPushButton("Đổi mật khẩu")
+        change_password_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        change_password_btn.setFixedHeight(40)
+        change_password_btn.setStyleSheet(
+            "QPushButton { background: white; border: 1px solid #dbe4ee; border-radius: 10px; "
+            "padding-left: 18px; padding-right: 18px; font-size: 13px; color: #334155; font-weight: 700; }"
+            "QPushButton:hover { background: #f8fafc; }"
         )
+        change_password_btn.clicked.connect(self._open_change_password_dialog)
+        password_btn_layout.addWidget(change_password_btn)
+        password_btn_layout.addStretch()
+        password_row.addWidget(password_btn_box)
+        security_layout.addLayout(password_row)
+
+        two_factor_row = QtWidgets.QHBoxLayout()
+        two_factor_row.setSpacing(12)
+        two_factor_text = QtWidgets.QVBoxLayout()
+        two_factor_text.setSpacing(2)
+        two_factor_title = QtWidgets.QLabel("Xác thực 2 lớp")
+        two_factor_title.setStyleSheet("font-size: 14px; font-weight: 800; color: #0f172a; border: none;")
+        two_factor_desc = QtWidgets.QLabel("Tăng cường bảo mật cho tài khoản của bạn")
+        two_factor_desc.setStyleSheet("font-size: 12px; color: #64748b; border: none;")
+        two_factor_text.addWidget(two_factor_title)
+        two_factor_text.addWidget(two_factor_desc)
+        two_factor_row.addLayout(two_factor_text)
+        two_factor_row.addStretch()
+        self._settings_two_factor_toggle = QtWidgets.QCheckBox()
+        self._settings_two_factor_toggle.setChecked(True)
+        self._settings_two_factor_toggle.setStyleSheet(self._doctor_settings_switch_style())
+        two_factor_row.addWidget(self._settings_two_factor_toggle)
+        security_layout.addLayout(two_factor_row)
+        middle_row.addWidget(security_card, 7)
+
+        notification_card = QtWidgets.QFrame()
+        notification_card.setStyleSheet(card_style)
         self._settings_section_frames["notification"] = notification_card
         notif_layout = QtWidgets.QVBoxLayout(notification_card)
-        notif_layout.setContentsMargins(28, 24, 28, 24)
-        notif_layout.setSpacing(12)
+        notif_layout.setContentsMargins(24, 22, 24, 22)
+        notif_layout.setSpacing(14)
 
         section_title_2 = QtWidgets.QLabel("Thông báo")
-        section_title_2.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b; border: none;")
+        section_title_2.setStyleSheet(section_title_style)
         notif_layout.addWidget(section_title_2)
 
-        notif_desc = QtWidgets.QLabel("Quản lý các thiết lập thông báo của bạn")
-        notif_desc.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
-        notif_layout.addWidget(notif_desc)
-
-        # Notification toggle rows
         notification_items = [
-            ("notify_new_appointment", "Thông báo lịch hẹn mới", "Nhận thông báo khi có lịch hẹn mới", True),
-            ("notify_reminder", "Thông báo nhắc lịch", "Nhận thông báo nhắc trước giờ hẹn", True),
-            ("notify_system", "Thông báo hệ thống", "Nhận thông báo về cập nhật hệ thống và tính năng mới", True),
+            ("notify_new_appointment", "📅", "#e9f8ef", "#16a34a", "Thông báo lịch hẹn mới", "Nhận thông báo khi có lịch hẹn mới", True, True),
+            ("notify_reminder", "🧪", "#eaf1ff", "#2563eb", "Thông báo kết quả xét nghiệm", "Nhận thông báo khi có kết quả xét nghiệm mới", True, True),
+            ("patient_arrival", "🧑", "#fff4df", "#f59e0b", "Thông báo bệnh nhân đến khám", "Nhận thông báo khi bệnh nhân đến phòng khám", True, False),
+            ("notify_system", "⚙️", "#f2ecff", "#8b5cf6", "Thông báo hệ thống", "Cập nhật tính năng, bảo trì hệ thống", False, True),
         ]
 
-        for notif_key, notif_title, notif_desc_text, is_checked in notification_items:
+        for notif_key, icon_text, icon_bg, icon_color, notif_title, notif_desc_text, is_checked, should_bind in notification_items:
             notif_row = QtWidgets.QFrame()
-            notif_row.setStyleSheet(
-                "QFrame { background: transparent; border: none; border-bottom: 1px solid #f1f5f9; "
-                "padding: 8px 0; }"
-            )
+            notif_row.setStyleSheet("background: transparent; border: none;")
             notif_row_layout = QtWidgets.QHBoxLayout(notif_row)
-            notif_row_layout.setContentsMargins(0, 8, 0, 8)
+            notif_row_layout.setContentsMargins(0, 0, 0, 0)
             notif_row_layout.setSpacing(12)
 
-            # Toggle checkbox (green)
-            toggle = QtWidgets.QCheckBox()
-            toggle.setChecked(is_checked)
-            toggle.setStyleSheet(
-                "QCheckBox { spacing: 0px; }"
-                "QCheckBox::indicator { width: 20px; height: 20px; border-radius: 4px; border: 2px solid #cbd5e1; }"
-                "QCheckBox::indicator:checked { background: #69c0a5; border-color: #69c0a5; }"
-                "QCheckBox::indicator:unchecked { background: white; }"
+            icon_box = QtWidgets.QLabel(icon_text)
+            icon_box.setFixedSize(38, 38)
+            icon_box.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            icon_box.setStyleSheet(
+                f"background: {icon_bg}; color: {icon_color}; border-radius: 10px; font-size: 18px; border: none;"
             )
-            toggle.toggled.connect(
-                lambda checked, selected_key=notif_key: self._update_notification_setting(selected_key, checked)
-            )
-            self._settings_notification_toggles[notif_key] = toggle
-            notif_row_layout.addWidget(toggle)
+            notif_row_layout.addWidget(icon_box)
 
-            # Title (bold)
-            notif_title_lbl = QtWidgets.QLabel(f"<b>{notif_title}</b>")
-            notif_title_lbl.setStyleSheet("font-size: 14px; color: #1e293b; border: none;")
-            notif_row_layout.addWidget(notif_title_lbl)
-
-            # Description
+            text_box = QtWidgets.QVBoxLayout()
+            text_box.setSpacing(2)
+            notif_title_lbl = QtWidgets.QLabel(notif_title)
+            notif_title_lbl.setStyleSheet("font-size: 14px; color: #0f172a; font-weight: 800; border: none;")
             notif_desc_lbl = QtWidgets.QLabel(notif_desc_text)
-            notif_desc_lbl.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
-            notif_row_layout.addWidget(notif_desc_lbl)
-
+            notif_desc_lbl.setStyleSheet("font-size: 12px; color: #64748b; border: none;")
+            text_box.addWidget(notif_title_lbl)
+            text_box.addWidget(notif_desc_lbl)
+            notif_row_layout.addLayout(text_box)
             notif_row_layout.addStretch()
 
-            # Arrow icon
-            arrow = QtWidgets.QLabel("›")
-            arrow.setStyleSheet("font-size: 18px; color: #94a3b8; border: none;")
-            notif_row_layout.addWidget(arrow)
-
+            toggle = QtWidgets.QCheckBox()
+            toggle.setChecked(is_checked)
+            toggle.setStyleSheet(self._doctor_settings_switch_style())
+            if should_bind:
+                toggle.toggled.connect(
+                    lambda checked, selected_key=notif_key: self._update_notification_setting(selected_key, checked)
+                )
+                self._settings_notification_toggles[notif_key] = toggle
+            notif_row_layout.addWidget(toggle)
             notif_layout.addWidget(notif_row)
+        middle_row.addWidget(notification_card, 6)
+        right_layout.addLayout(middle_row)
 
-        right_layout.addWidget(notification_card)
+        bottom_row = QtWidgets.QHBoxLayout()
+        bottom_row.setSpacing(18)
 
-        # ============================
-        # SECTION 3: TÙY CHỌN HIỂN THỊ
-        # ============================
-        display_card = QtWidgets.QFrame()
-        display_card.setStyleSheet(
-            "QFrame { background: white; border-radius: 16px; border: 1px solid #e8ecf1; }"
-        )
-        self._settings_section_frames["display"] = display_card
-        display_layout = QtWidgets.QVBoxLayout(display_card)
-        display_layout.setContentsMargins(28, 24, 28, 24)
-        display_layout.setSpacing(12)
+        schedule_card = QtWidgets.QFrame()
+        schedule_card.setStyleSheet(card_style)
+        self._settings_section_frames["schedule"] = schedule_card
+        schedule_layout = QtWidgets.QVBoxLayout(schedule_card)
+        schedule_layout.setContentsMargins(24, 22, 24, 22)
+        schedule_layout.setSpacing(14)
 
-        section_title_3 = QtWidgets.QLabel("Tùy chọn hiển thị")
-        section_title_3.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b; border: none;")
-        display_layout.addWidget(section_title_3)
+        schedule_title = QtWidgets.QLabel("Lịch làm việc")
+        schedule_title.setStyleSheet(section_title_style)
+        schedule_layout.addWidget(schedule_title)
 
-        display_desc = QtWidgets.QLabel("Tùy chỉnh giao diện và cách hiển thị thông tin")
-        display_desc.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
-        display_layout.addWidget(display_desc)
+        schedule_subtitle = QtWidgets.QLabel("Thiết lập lịch làm việc trong tuần")
+        schedule_subtitle.setStyleSheet("font-size: 12px; color: #64748b; border: none;")
+        schedule_layout.addWidget(schedule_subtitle)
 
-        display_options = [
-            ("theme_mode", "Chế độ giao diện", "Sáng"),
-            ("font_size", "Kích thước chữ", "Trung bình"),
-            ("display_density", "Mật độ hiển thị", "Thoải mái"),
+        schedule_grid = QtWidgets.QGridLayout()
+        schedule_grid.setHorizontalSpacing(10)
+        schedule_grid.setVerticalSpacing(10)
+        schedule_grid.setColumnStretch(0, 2)
+        schedule_grid.setColumnStretch(1, 2)
+        schedule_grid.setColumnStretch(2, 1)
+        schedule_grid.setColumnStretch(3, 2)
+
+        time_choices = ["-- : --", "07:00", "07:30", "08:00", "12:00", "17:00"]
+        schedule_rows = [
+            ("Thứ 2", "07:30", "17:00", True),
+            ("Thứ 3", "07:30", "17:00", True),
+            ("Thứ 4", "07:30", "17:00", True),
+            ("Thứ 5", "07:30", "17:00", True),
+            ("Thứ 6", "07:30", "17:00", True),
+            ("Thứ 7", "07:30", "12:00", True),
+            ("Chủ nhật", "-- : --", "-- : --", False),
         ]
 
-        for opt_key, opt_title, opt_value in display_options:
+        self._settings_schedule_start_inputs = []
+        self._settings_schedule_end_inputs = []
+        self._settings_schedule_checkboxes = []
+        for row_index, (day_label, start_value, end_value, working) in enumerate(schedule_rows):
+            day_lbl = QtWidgets.QLabel(day_label)
+            day_lbl.setStyleSheet("font-size: 13px; color: #334155; border: none;")
+            schedule_grid.addWidget(day_lbl, row_index, 0)
+
+            start_combo = QtWidgets.QComboBox()
+            start_combo.addItems(time_choices)
+            start_combo.setCurrentText(start_value)
+            start_combo.setEnabled(working)
+            start_combo.setStyleSheet(small_input_style)
+            schedule_grid.addWidget(start_combo, row_index, 1)
+            self._settings_schedule_start_inputs.append(start_combo)
+
+            dash_lbl = QtWidgets.QLabel("-")
+            dash_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            dash_lbl.setStyleSheet("font-size: 14px; color: #64748b; border: none;")
+            schedule_grid.addWidget(dash_lbl, row_index, 2)
+
+            end_combo = QtWidgets.QComboBox()
+            end_combo.addItems(time_choices)
+            end_combo.setCurrentText(end_value)
+            end_combo.setEnabled(working)
+            end_combo.setStyleSheet(small_input_style)
+            schedule_grid.addWidget(end_combo, row_index, 3)
+            self._settings_schedule_end_inputs.append(end_combo)
+
+            status_checkbox = QtWidgets.QCheckBox("Làm việc" if working else "Nghỉ")
+            status_checkbox.setChecked(working)
+            status_checkbox.setStyleSheet(self._doctor_settings_day_checkbox_style())
+            schedule_grid.addWidget(status_checkbox, row_index, 4)
+            self._settings_schedule_checkboxes.append(status_checkbox)
+
+        schedule_layout.addLayout(schedule_grid)
+
+        schedule_save_btn = QtWidgets.QPushButton("Lưu lịch làm việc")
+        schedule_save_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        schedule_save_btn.setFixedHeight(42)
+        schedule_save_btn.setStyleSheet(
+            "QPushButton { background: #16a34a; color: white; border-radius: 10px; padding-left: 18px; padding-right: 18px; "
+            "font-size: 13px; font-weight: 800; border: none; }"
+            "QPushButton:hover { background: #15803d; }"
+        )
+        schedule_layout.addWidget(schedule_save_btn, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+        bottom_row.addWidget(schedule_card, 7)
+
+        options_card = QtWidgets.QFrame()
+        options_card.setStyleSheet(card_style)
+        self._settings_section_frames["display"] = options_card
+        self._settings_section_frames["prescription_templates"] = options_card
+        self._settings_section_frames["conclusion_templates"] = options_card
+        self._settings_section_frames["signature"] = options_card
+        self._settings_section_frames["backup_restore"] = options_card
+        self._settings_section_frames["language"] = options_card
+        self._settings_section_frames["intro"] = options_card
+        options_layout = QtWidgets.QVBoxLayout(options_card)
+        options_layout.setContentsMargins(24, 22, 24, 22)
+        options_layout.setSpacing(14)
+
+        options_title = QtWidgets.QLabel("Tùy chọn khác")
+        options_title.setStyleSheet(section_title_style)
+        options_layout.addWidget(options_title)
+
+        display_options = [
+            ("theme_mode", "℞", "Mẫu đơn thuốc", "Quản lý các mẫu đơn thuốc thường dùng"),
+            ("font_size", "📄", "Mẫu kết luận", "Quản lý các mẫu kết luận khám bệnh"),
+            ("display_density", "✎", "Quản lý chữ ký", "Cập nhật chữ ký điện tử của bác sĩ"),
+            ("backup_option", "☁️", "Sao lưu & khôi phục", "Sao lưu và khôi phục dữ liệu cài đặt"),
+        ]
+
+        self._settings_display_value_labels = {}
+        for opt_key, icon_text, opt_title, opt_desc in display_options:
             opt_row = QtWidgets.QFrame()
-            opt_row.setStyleSheet(
-                "QFrame { background: transparent; border: none; border-bottom: 1px solid #f1f5f9; "
-                "padding: 6px 0; }"
-            )
+            opt_row.setStyleSheet("background: transparent; border: none;")
             opt_row_layout = QtWidgets.QHBoxLayout(opt_row)
-            opt_row_layout.setContentsMargins(0, 10, 0, 10)
+            opt_row_layout.setContentsMargins(0, 2, 0, 2)
+            opt_row_layout.setSpacing(12)
 
+            icon_label = QtWidgets.QLabel(icon_text)
+            icon_label.setFixedWidth(22)
+            icon_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            icon_label.setStyleSheet("font-size: 18px; color: #64748b; border: none;")
+            opt_row_layout.addWidget(icon_label)
+
+            opt_text_layout = QtWidgets.QVBoxLayout()
+            opt_text_layout.setSpacing(1)
             opt_title_lbl = QtWidgets.QLabel(opt_title)
-            opt_title_lbl.setStyleSheet("font-size: 14px; color: #334155; font-weight: 600; border: none;")
-            opt_row_layout.addWidget(opt_title_lbl)
-
+            opt_title_lbl.setStyleSheet("font-size: 14px; font-weight: 800; color: #0f172a; border: none;")
+            opt_desc_lbl = QtWidgets.QLabel(opt_desc)
+            opt_desc_lbl.setStyleSheet("font-size: 12px; color: #64748b; border: none;")
+            opt_text_layout.addWidget(opt_title_lbl)
+            opt_text_layout.addWidget(opt_desc_lbl)
+            opt_row_layout.addLayout(opt_text_layout)
             opt_row_layout.addStretch()
 
-            opt_value_lbl = QtWidgets.QLabel(opt_value)
-            opt_value_lbl.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
-            opt_row_layout.addWidget(opt_value_lbl)
-            self._settings_display_value_labels[opt_key] = opt_value_lbl
-
             arrow_display = QtWidgets.QLabel("›")
-            arrow_display.setStyleSheet("font-size: 18px; color: #94a3b8; border: none; margin-left: 6px;")
+            arrow_display.setStyleSheet("font-size: 18px; color: #94a3b8; border: none;")
             opt_row_layout.addWidget(arrow_display)
+            options_layout.addWidget(opt_row)
 
-            opt_row.mousePressEvent = lambda _, selected_key=opt_key: self._choose_display_option(selected_key)
+            value_label = QtWidgets.QLabel("")
+            value_label.hide()
+            self._settings_display_value_labels[opt_key] = value_label
 
-            display_layout.addWidget(opt_row)
+        options_layout.addStretch()
 
-        right_layout.addWidget(display_card)
-        right_layout.addStretch()
+        reset_btn = QtWidgets.QPushButton("⟲  Đặt lại cài đặt")
+        reset_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        reset_btn.setFixedHeight(44)
+        reset_btn.setStyleSheet(
+            "QPushButton { background: white; color: #ff4d4f; border-radius: 10px; border: 1px solid #fca5a5; "
+            "font-size: 13px; font-weight: 800; }"
+            "QPushButton:hover { background: #fff5f5; }"
+        )
+        options_layout.addWidget(reset_btn)
+        bottom_row.addWidget(options_card, 6)
+        right_layout.addLayout(bottom_row)
+
+        footer_row = QtWidgets.QHBoxLayout()
+        footer_row.setContentsMargins(0, 10, 0, 0)
+        footer_row.setSpacing(12)
+        footer_left = QtWidgets.QLabel("© 2026 CarePlus. Phiên bản 1.2.1")
+        footer_left.setStyleSheet("font-size: 12px; color: #94a3b8; font-weight: 600; border: none;")
+        footer_right = QtWidgets.QLabel("Chính sách bảo mật   •   Điều khoản sử dụng")
+        footer_right.setStyleSheet("font-size: 12px; color: #94a3b8; font-weight: 600; border: none;")
+        footer_row.addWidget(footer_left)
+        footer_row.addStretch()
+        footer_row.addWidget(footer_right)
+        right_layout.addLayout(footer_row)
 
         right_scroll.setWidget(right_content)
         content_wrapper.addWidget(right_scroll)
@@ -2311,17 +2893,51 @@ class DashboardView(QtWidgets.QWidget):
             )
 
     @staticmethod
-    def _settings_nav_style(is_active):
+    def _doctor_sidebar_button_style(is_active):
         if is_active:
             return (
-                "QPushButton { border: none; text-align: left; padding: 10px 16px; border-radius: 10px; "
-                "background: #69c0a5; color: white; font-size: 13px; font-weight: 700; }"
+                "QPushButton { background: #edf9f1; color: #16a34a; border: none; text-align: left; "
+                "padding: 16px; padding-left: 20px; padding-right: 20px; border-radius: 16px; font-size: 14px; font-weight: 800; }"
             )
 
         return (
-            "QPushButton { border: none; text-align: left; padding: 10px 16px; border-radius: 10px; "
-            "color: #475569; font-size: 13px; font-weight: 600; background: transparent; }"
-            "QPushButton:hover { background: #f1f5f9; }"
+            "QPushButton { background: transparent; color: #0f172a; border: none; text-align: left; "
+            "padding: 16px; padding-left: 20px; padding-right: 20px; border-radius: 16px; font-size: 14px; font-weight: 700; }"
+            "QPushButton:hover { background: #f8fafc; }"
+        )
+
+    @staticmethod
+    def _doctor_settings_switch_style():
+        return (
+            "QCheckBox { spacing: 0px; }"
+            "QCheckBox::indicator { width: 42px; height: 24px; border-radius: 12px; "
+            "border: 1px solid #cbd5e1; background: #cbd5e1; }"
+            "QCheckBox::indicator:checked { background: #16a34a; border-color: #16a34a; }"
+            "QCheckBox::indicator:unchecked { background: #cbd5e1; border-color: #cbd5e1; }"
+        )
+
+    @staticmethod
+    def _doctor_settings_day_checkbox_style():
+        return (
+            "QCheckBox { font-size: 13px; color: #334155; spacing: 8px; }"
+            "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 4px; "
+            "border: 1px solid #cbd5e1; background: white; }"
+            "QCheckBox::indicator:checked { background: #16a34a; border-color: #16a34a; }"
+            "QCheckBox::indicator:unchecked { background: white; }"
+        )
+
+    @staticmethod
+    def _settings_nav_style(is_active):
+        if is_active:
+            return (
+                "QPushButton { border: none; text-align: left; padding: 12px; padding-left: 16px; padding-right: 16px; border-radius: 12px; "
+                "background: #edf9f1; color: #16a34a; font-size: 13px; font-weight: 800; }"
+            )
+
+        return (
+            "QPushButton { border: none; text-align: left; padding: 12px; padding-left: 16px; padding-right: 16px; border-radius: 12px; "
+            "color: #64748b; font-size: 13px; font-weight: 700; background: transparent; }"
+            "QPushButton:hover { background: #f8fafc; }"
         )
 
     def _set_active_settings_nav(self, active_key):
@@ -2330,16 +2946,6 @@ class DashboardView(QtWidgets.QWidget):
 
     def _handle_settings_nav_action(self, key):
         self._set_active_settings_nav(key)
-        if key == "password":
-            self._open_change_password_dialog()
-            return
-        if key == "language":
-            self._open_language_dialog()
-            return
-        if key == "backup_sync":
-            self._open_backup_sync_dialog()
-            return
-
         self._scroll_to_settings_section(key)
 
     def _scroll_to_settings_section(self, key):
@@ -2734,15 +3340,8 @@ class DashboardView(QtWidgets.QWidget):
             
     def switch_page(self, index):
         self.content_stack.setCurrentIndex(index)
-        for widget in [self.header_title, self.user_avatar, self.user_name_lbl, self.btn_logout]:
-            widget.setVisible(index not in {1, 3})
         for i, btn in enumerate(self.nav_buttons):
-            style = "QPushButton { border: none; text-align: left; padding: 13px 20px; border-radius: 12px; color: #333; font-size: 14px; font-weight: 600; }"
-            if i == index:
-                style += "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
-            else:
-                style += "QPushButton:hover { background-color: #f8f9fa; }"
-            btn.setStyleSheet(style)
+            btn.setStyleSheet(self._doctor_sidebar_button_style(i == index))
 
     def create_stat_card(self, icon, title, value, bg_color, text_color):
         card = QtWidgets.QFrame(); card.setMinimumHeight(130); card.setStyleSheet(f"background-color: {bg_color}; border-radius: 20px; border: none;")
