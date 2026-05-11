@@ -98,6 +98,16 @@ class DoctorScheduleView(QtWidgets.QWidget):
         for widget in [prev_btn, self.date_input, next_btn, today_btn, self.status_filter, self.service_filter, self.room_filter]:
             layout.addWidget(widget)
         layout.addStretch()
+        add_btn = QtWidgets.QPushButton("+ Thêm lịch khám")
+        add_btn.setMinimumHeight(44)
+        add_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        add_btn.setStyleSheet(
+            "QPushButton { background: #16B364; color: white; border: none; border-radius: 10px; "
+            "padding: 0 18px; font-size: 14px; font-weight: 800; }"
+            "QPushButton:hover { background: #12A061; }"
+        )
+        add_btn.clicked.connect(self._add_appointment)
+        layout.addWidget(add_btn)
         return card
 
     def _build_timeline_card(self):
@@ -148,6 +158,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
         for text, style, callback in [
             ("Bắt đầu khám", self._primary_style(), self._start_selected_exam),
             ("Xem hồ sơ bệnh nhân", self._outline_style("#475569"), self._view_selected_patient),
+            ("Chỉnh sửa lịch", self._outline_style("#475569"), self._edit_selected_appointment),
             ("Hủy lịch khám", self._outline_style("#ef4444"), self._cancel_selected_appointment),
         ]:
             btn = QtWidgets.QPushButton(text)
@@ -161,6 +172,13 @@ class DoctorScheduleView(QtWidgets.QWidget):
     def _build_month_card(self):
         calendar = QtWidgets.QCalendarWidget()
         calendar.setMaximumHeight(330)
+        calendar.setStyleSheet(
+            "QCalendarWidget { background: white; border: 1px solid #EAECF0; border-radius: 14px; color: #344054; }"
+            "QCalendarWidget QWidget#qt_calendar_navigationbar { background: white; border: none; }"
+            "QCalendarWidget QToolButton { color: #101828; background: white; border: none; font-weight: 800; padding: 6px; }"
+            "QCalendarWidget QAbstractItemView { selection-background-color: #16B364; selection-color: white; "
+            "outline: none; border: none; font-size: 13px; }"
+        )
         calendar.selectionChanged.connect(lambda: self.date_input.setDate(calendar.selectedDate()))
         return calendar
 
@@ -335,7 +353,66 @@ class DoctorScheduleView(QtWidgets.QWidget):
             return
         dashboard = self._find_dashboard()
         if dashboard:
+            profile = getattr(dashboard, "page_patient_record", None)
+            if hasattr(profile, "set_patient"):
+                profile.set_patient(self.selected_schedule.get("patient_id"))
             dashboard.switch_page(4)
+
+    def _add_appointment(self):
+        try:
+            from views.doctor_management_views import AppointmentUpsertDialog
+
+            dialog = AppointmentUpsertDialog(self.doctor_id, parent=self)
+            if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+                return
+            payload = dialog.get_payload()
+            result = AppointmentController.create_with_details(
+                payload.get("patient_id"),
+                payload.get("doctor_id"),
+                payload.get("date"),
+                payload.get("time"),
+                payload.get("status"),
+                payload.get("service_name") or "Khám tổng quát",
+                payload.get("note"),
+            )
+            if not result.get("status"):
+                QtWidgets.QMessageBox.warning(self, "Không thể tạo lịch", result.get("message", "Lỗi không xác định"))
+                return
+            self.all_rows = self._build_schedule_rows()
+            self._apply_filters()
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Không thể tạo lịch", str(exc))
+
+    def _edit_selected_appointment(self):
+        if not self.selected_schedule:
+            return
+        try:
+            from views.doctor_management_views import AppointmentUpsertDialog
+
+            detail = AppointmentController.get_by_id(self.selected_schedule.get("appointment_id"))
+            if not detail:
+                return
+            dialog = AppointmentUpsertDialog(self.doctor_id, appointment=detail, parent=self)
+            if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+                return
+            payload = dialog.get_payload()
+            result = AppointmentController.update_full(
+                detail.get("appointment_id"),
+                payload.get("patient_id"),
+                payload.get("doctor_id"),
+                payload.get("date"),
+                payload.get("time"),
+                payload.get("status"),
+                payload.get("service_name"),
+                payload.get("note"),
+            )
+            if not result.get("status"):
+                QtWidgets.QMessageBox.warning(self, "Không thể cập nhật", result.get("message", "Lỗi không xác định"))
+                return
+            self.all_rows = self._build_schedule_rows()
+            self._apply_filters()
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Không thể chỉnh sửa", str(exc))
 
     def _cancel_selected_appointment(self):
         if not self.selected_schedule:

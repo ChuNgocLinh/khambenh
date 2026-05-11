@@ -3406,6 +3406,219 @@ class DashboardView(QtWidgets.QWidget):
         self.switch_page(NotificationController.target_index(row.get("target_page")))
         self.refresh_notification_badge()
 
+    def _build_persisted_notification_center_page(self):
+        page = QtWidgets.QWidget()
+        page.setStyleSheet("background: #f8fbff;")
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(14)
+
+        title = QtWidgets.QLabel("Thông báo")
+        title.setStyleSheet("font-size: 30px; font-weight: 900; color: #0f172a;")
+        breadcrumb = QtWidgets.QLabel("Trang chủ  >  Thông báo")
+        breadcrumb.setStyleSheet("font-size: 14px; color: #667085;")
+        layout.addWidget(title)
+        layout.addWidget(breadcrumb)
+
+        self.active_notification_tab = "all"
+        self.notification_tabs = QtWidgets.QHBoxLayout()
+        self.notification_tabs.setSpacing(8)
+        layout.addLayout(self.notification_tabs)
+
+        body = QtWidgets.QHBoxLayout()
+        body.setSpacing(16)
+        left_card = QtWidgets.QFrame()
+        left_card.setStyleSheet("background: white; border: 1px solid #EAECF0; border-radius: 16px;")
+        left_layout = QtWidgets.QVBoxLayout(left_card)
+        left_layout.setContentsMargins(16, 16, 16, 16)
+        left_layout.setSpacing(12)
+
+        top = QtWidgets.QHBoxLayout()
+        self.notification_search = QtWidgets.QLineEdit()
+        self.notification_search.setPlaceholderText("Tìm kiếm thông báo...")
+        self.notification_search.setMinimumHeight(42)
+        self.notification_search.setStyleSheet(
+            "background: white; color: #344054; border: 1px solid #D0D5DD; border-radius: 10px; padding: 8px 12px;"
+        )
+        self.notification_search.textChanged.connect(self.load_notifications)
+        mark_all_btn = QtWidgets.QPushButton("Đánh dấu tất cả đã đọc")
+        settings_btn = QtWidgets.QPushButton("Cài đặt thông báo")
+        for btn in [mark_all_btn, settings_btn]:
+            btn.setMinimumHeight(42)
+            btn.setStyleSheet("background: white; color: #344054; border: 1px solid #D0D5DD; border-radius: 10px; padding: 8px 12px; font-weight: 800;")
+        mark_all_btn.clicked.connect(self.mark_all_notifications_read)
+        settings_btn.clicked.connect(lambda: self.switch_page(7))
+        top.addWidget(self.notification_search, 1)
+        top.addWidget(mark_all_btn)
+        top.addWidget(settings_btn)
+        left_layout.addLayout(top)
+
+        self.notification_list = QtWidgets.QListWidget()
+        self.notification_list.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.notification_list.setSpacing(8)
+        self.notification_list.setStyleSheet(
+            "QListWidget { background: white; border: none; color: #344054; }"
+            "QListWidget::item { border: 1px solid #EAECF0; border-radius: 12px; padding: 12px; margin: 2px; }"
+            "QListWidget::item:selected { background: #ECFDF3; color: #101828; border-color: #16B364; }"
+        )
+        self.notification_list.itemClicked.connect(self._open_notification_item)
+        left_layout.addWidget(self.notification_list, 1)
+        self.notification_page_label = QtWidgets.QLabel("Hiển thị 10 bản ghi   < 1 2 3 >")
+        self.notification_page_label.setStyleSheet("color: #667085; font-size: 13px;")
+        left_layout.addWidget(self.notification_page_label)
+        body.addWidget(left_card, 7)
+
+        right_card = QtWidgets.QFrame()
+        right_card.setStyleSheet("background: white; border: 1px solid #EAECF0; border-radius: 16px;")
+        right_layout = QtWidgets.QVBoxLayout(right_card)
+        right_layout.setContentsMargins(18, 18, 18, 18)
+        right_layout.setSpacing(12)
+        detail_title = QtWidgets.QLabel("Chi tiết thông báo")
+        detail_title.setStyleSheet("font-size: 18px; font-weight: 900; color: #101828;")
+        self.notification_detail_title = QtWidgets.QLabel("Chưa chọn thông báo")
+        self.notification_detail_title.setWordWrap(True)
+        self.notification_detail_title.setStyleSheet("font-size: 16px; font-weight: 900; color: #101828;")
+        self.notification_detail_body = QtWidgets.QLabel("Chọn thông báo trong danh sách để xem chi tiết.")
+        self.notification_detail_body.setWordWrap(True)
+        self.notification_detail_body.setStyleSheet("color: #475467; font-size: 13px;")
+        self.notification_detail_actions = QtWidgets.QHBoxLayout()
+        right_layout.addWidget(detail_title)
+        right_layout.addWidget(self.notification_detail_title)
+        right_layout.addWidget(self.notification_detail_body)
+        right_layout.addStretch()
+        right_layout.addLayout(self.notification_detail_actions)
+        body.addWidget(right_card, 3)
+        layout.addLayout(body, 1)
+
+        self.load_notifications()
+        return page
+
+    def load_notifications(self):
+        from controllers.notification_controller import NotificationController
+
+        if not hasattr(self, "notification_list"):
+            return
+        self.notification_list.clear()
+        user_id = self.user_data.get("user_id")
+        self.notifications = NotificationController.list_for_user(user_id)
+        self._render_notification_tabs()
+        keyword = self.notification_search.text().strip().lower() if hasattr(self, "notification_search") else ""
+        rows = [dict(row) for row in self.notifications]
+        tab = getattr(self, "active_notification_tab", "all")
+        if tab == "unread":
+            rows = [row for row in rows if not row.get("is_read")]
+        elif tab not in {"all", "other"}:
+            rows = [row for row in rows if str(row.get("type") or "system") == tab]
+        elif tab == "other":
+            known = {"appointment", "result", "patient", "prescription", "warning", "system"}
+            rows = [row for row in rows if str(row.get("type") or "") not in known]
+        if keyword:
+            rows = [row for row in rows if keyword in f"{row.get('title', '')} {row.get('content', '')}".lower()]
+        if not rows:
+            self.notification_list.addItem("Không có thông báo.")
+            self._render_notification_detail(None)
+            self.refresh_notification_badge()
+            return
+        for row in rows:
+            status = "●" if not row.get("is_read") else "○"
+            item = QtWidgets.QListWidgetItem(f"{status} [{self._notification_type_label(row.get('type'))}] {row.get('title', '')}\n{row.get('content', '')}")
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, row)
+            self.notification_list.addItem(item)
+        self.notification_list.setCurrentRow(0)
+        self._render_notification_detail(rows[0])
+        self.refresh_notification_badge()
+
+    def _render_notification_tabs(self):
+        if not hasattr(self, "notification_tabs"):
+            return
+        while self.notification_tabs.count():
+            item = self.notification_tabs.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        rows = getattr(self, "notifications", []) or []
+        tab_defs = [
+            ("all", f"Tất cả ({len(rows)})"),
+            ("unread", f"Chưa đọc ({len([r for r in rows if not r.get('is_read')])})"),
+            ("appointment", f"Lịch hẹn ({len([r for r in rows if r.get('type') == 'appointment'])})"),
+            ("result", f"Kết quả ({len([r for r in rows if r.get('type') == 'result'])})"),
+            ("system", f"Hệ thống ({len([r for r in rows if r.get('type') == 'system'])})"),
+            ("other", "Khác"),
+        ]
+        for key, text in tab_defs:
+            btn = QtWidgets.QPushButton(text)
+            btn.setMinimumHeight(38)
+            active = key == getattr(self, "active_notification_tab", "all")
+            btn.setStyleSheet(
+                "QPushButton { "
+                + ("background: #ECFDF3; color: #16B364; border: none;" if active else "background: white; color: #667085; border: 1px solid #EAECF0;")
+                + " border-radius: 10px; padding: 0 14px; font-weight: 800; }"
+            )
+            btn.clicked.connect(lambda checked=False, tab=key: self._set_notification_tab(tab))
+            self.notification_tabs.addWidget(btn)
+        self.notification_tabs.addStretch()
+
+    def _set_notification_tab(self, tab):
+        self.active_notification_tab = tab
+        self.load_notifications()
+
+    def _notification_type_label(self, value):
+        return {
+            "appointment": "Lịch hẹn",
+            "result": "Kết quả",
+            "patient": "Bệnh nhân",
+            "prescription": "Đơn thuốc",
+            "warning": "Cảnh báo",
+            "system": "Hệ thống",
+        }.get(str(value or "system"), "Khác")
+
+    def _render_notification_detail(self, row):
+        if not hasattr(self, "notification_detail_title"):
+            return
+        while self.notification_detail_actions.count():
+            item = self.notification_detail_actions.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        if not row:
+            self.notification_detail_title.setText("Chưa chọn thông báo")
+            self.notification_detail_body.setText("Chọn thông báo trong danh sách để xem chi tiết.")
+            return
+        status = "Chưa đọc" if not row.get("is_read") else "Đã đọc"
+        self.notification_detail_title.setText(str(row.get("title") or "Thông báo"))
+        self.notification_detail_body.setText(
+            f"Loại: {self._notification_type_label(row.get('type'))}\n"
+            f"Trạng thái: {status}\n"
+            f"Thời gian: {row.get('created_at') or 'Chưa cập nhật'}\n\n"
+            f"{row.get('content') or ''}\n\n"
+            f"Nguồn liên kết: {row.get('target_page') or 'dashboard'} #{row.get('target_id') or ''}"
+        )
+        open_btn = QtWidgets.QPushButton("Mở liên kết")
+        delete_btn = QtWidgets.QPushButton("Xóa thông báo")
+        for btn in [open_btn, delete_btn]:
+            btn.setMinimumHeight(40)
+            btn.setStyleSheet("background: white; color: #344054; border: 1px solid #D0D5DD; border-radius: 10px; padding: 8px 12px; font-weight: 800;")
+            self.notification_detail_actions.addWidget(btn)
+        open_btn.clicked.connect(lambda checked=False, r=row: self._open_notification_row(r))
+
+    def mark_all_notifications_read(self):
+        from controllers.notification_controller import NotificationController
+
+        NotificationController.mark_all_read(self.user_data.get("user_id"))
+        self.load_notifications()
+
+    def _open_notification_item(self, item):
+        row = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if not isinstance(row, dict):
+            return
+        self._render_notification_detail(row)
+        self._open_notification_row(row)
+
+    def _open_notification_row(self, row):
+        from controllers.notification_controller import NotificationController
+
+        NotificationController.mark_read(row.get("notification_id"), self.user_data.get("user_id"))
+        self.switch_page(NotificationController.target_index(row.get("target_page")))
+        self.refresh_notification_badge()
+
     def switch_page(self, index):
         self.content_stack.setCurrentIndex(index)
         for i, btn in enumerate(self.nav_buttons):
