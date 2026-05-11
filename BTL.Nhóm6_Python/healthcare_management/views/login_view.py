@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap, QFont, QCursor
+from pathlib import Path
 
 from controllers.auth_controller import AuthController
 from views.main_view import MainView
@@ -43,16 +44,17 @@ class LoginView(QWidget):
         bg_label = QLabel(left_panel)
         bg_label.setGeometry(0, 0, 520, 720)
 
-        pixmap = QPixmap("healthcare_management/assets/bg.jpg")
-
-        bg_label.setPixmap(
-            pixmap.scaled(
-                520,
-                720,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation
+        bg_path = Path(__file__).resolve().parents[1] / "assets" / "bg.jpg"
+        pixmap = QPixmap(str(bg_path))
+        if not pixmap.isNull():
+            bg_label.setPixmap(
+                pixmap.scaled(
+                    520,
+                    720,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation
+                )
             )
-        )
 
         bg_label.setScaledContents(True)
 

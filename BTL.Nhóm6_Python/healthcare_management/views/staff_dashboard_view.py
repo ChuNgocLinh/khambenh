@@ -3175,7 +3175,15 @@ class StaffDashboardView(QtWidgets.QWidget):
     def _refresh_staff_appointment_table(self):
         role = self._get_current_user_role()
         user_context = self._build_appointment_user_context()
-        self.staff_appointment_rows = AppointmentController.get_all_for_role(role, user_context) or []
+        rows = AppointmentController.get_all_for_role(role, user_context) or []
+        if isinstance(rows, dict):
+            self.staff_appointment_rows = []
+            self.staff_appt_table.setRowCount(0)
+            self._reset_staff_appointment_detail()
+            self._set_staff_appt_feedback(rows.get("message") or "Không thể tải danh sách lịch hẹn.", is_error=True)
+            return
+
+        self.staff_appointment_rows = list(rows)
         visible_rows = self.staff_appointment_rows[:8]
         self.staff_appt_table.setRowCount(len(visible_rows))
 
@@ -3187,7 +3195,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             self.staff_appt_table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(a.get("doctor_name", ""))))
             self.staff_appt_table.setCellWidget(row, 4, self._create_status_badge_widget(str(a.get("status") or "pending")))
             self.staff_appt_table.setCellWidget(row, 5, self._create_appointment_actions_widget(row))
-        if filtered:
+        if visible_rows:
             self.staff_appt_table.selectRow(0)
         else:
             self._reset_staff_appointment_detail()
@@ -3887,6 +3895,10 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_appt_detail_timeline.setText("Lịch sử cập nhật sẽ hiển thị tại đây.")
 
     def _set_staff_appointment_detail(self, appt):
+        if not hasattr(self, "staff_appt_detail_patient"):
+            self._update_staff_appt_right_panel(appt)
+            return
+
         service_text = self._extract_service_name_from_note(str(appt.get("note") or "")) or "-"
         status = str(appt.get("status") or "")
         patient_name = str(appt.get("patient_name") or "Chưa có tên")
@@ -4292,6 +4304,1518 @@ class StaffDashboardView(QtWidgets.QWidget):
         layout.addWidget(when_lbl)
         return row
 
+    def _build_staff_billing_page(self):
+        page = QtWidgets.QFrame()
+        page.setStyleSheet("background: #f8fbff; border: none;")
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        header = QtWidgets.QHBoxLayout()
+        title_col = QtWidgets.QVBoxLayout()
+        heading = QtWidgets.QLabel("Thanh toán & Hóa đơn")
+        heading.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Thanh toán & Hóa đơn")
+        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        title_col.addWidget(heading)
+        title_col.addWidget(breadcrumb)
+        header.addLayout(title_col, 1)
+        for text, style in [("🔔", "font-size: 21px;"), ("👤", "background: #eaf2ff; border-radius: 21px; font-size: 20px;")]:
+            lbl = QtWidgets.QLabel(text)
+            lbl.setFixedSize(42, 42)
+            lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet("border: none; " + style)
+            header.addWidget(lbl)
+        user_lbl = QtWidgets.QLabel(f"{self.username}  ▾")
+        user_lbl.setStyleSheet("border: none; background: transparent; color: #0f172a; font-weight: 900;")
+        header.addWidget(user_lbl)
+        layout.addLayout(header)
+
+        self.staff_billing_rows = self._build_staff_billing_catalog()
+        pending = [b for b in self.staff_billing_rows if self._staff_bill_status_key(b) == "unpaid"]
+        paid = [b for b in self.staff_billing_rows if self._staff_bill_status_key(b) == "paid"]
+        refunded = [b for b in self.staff_billing_rows if self._staff_bill_status_key(b) == "refunded"]
+        paid_total = sum(float(b.get("total_amount") or 0) for b in paid)
+        kpi_row = QtWidgets.QHBoxLayout()
+        kpi_row.setSpacing(16)
+        kpi_row.addWidget(self._staff_bill_kpi("🧾", "Hóa đơn chờ thanh toán", len(pending), f"Tổng tiền: {self._format_staff_money(sum(float(b.get('total_amount') or 0) for b in pending))}", "#fff3e4", "#f97316"))
+        kpi_row.addWidget(self._staff_bill_kpi("💵", "Đã thanh toán hôm nay", len(paid), f"Tổng tiền: {self._format_staff_money(paid_total)}", "#e8f8ef", "#13a66b"))
+        kpi_row.addWidget(self._staff_bill_kpi("↩", "Hoàn tiền hôm nay", len(refunded), f"Tổng tiền: {self._format_staff_money(sum(float(b.get('total_amount') or 0) for b in refunded))}", "#eaf2ff", "#2563eb"))
+        kpi_row.addWidget(self._staff_bill_kpi("♦", "Doanh thu hôm nay", self._format_staff_money(paid_total), f"{len(paid)} hóa đơn", "#f0eaff", "#6d5dfc"), 2)
+        layout.addLayout(kpi_row)
+
+        body = QtWidgets.QHBoxLayout()
+        body.setSpacing(18)
+        left = self._build_section_card("")
+        left_layout = left.layout()
+        tabs = QtWidgets.QHBoxLayout()
+        self.staff_bill_active_tab = "all"
+        self.staff_bill_status_tabs = {}
+        for key, text in [("all", "Tất cả"), ("unpaid", f"Chờ thanh toán  {len(pending)}"), ("paid", "Đã thanh toán"), ("cancelled", "Đã hủy"), ("refunded", "Hoàn tiền")]:
+            btn = QtWidgets.QPushButton(text)
+            btn.setCheckable(True)
+            btn.setChecked(key == "all")
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(
+                "QPushButton { background: #ffffff; border: 1px solid transparent; border-radius: 9px; padding: 9px 13px; color: #64748b; font-size: 13px; font-weight: 900; }"
+                "QPushButton:checked { background: #ecfdf5; color: #13a66b; border-color: #d1fae5; }"
+            )
+            btn.clicked.connect(lambda _, k=key: self._set_staff_bill_tab(k))
+            self.staff_bill_status_tabs[key] = btn
+            tabs.addWidget(btn)
+        tabs.addStretch()
+        left_layout.addLayout(tabs)
+
+        filters = QtWidgets.QHBoxLayout()
+        filters.setSpacing(10)
+        self.staff_bill_search_input = QtWidgets.QLineEdit()
+        self.staff_bill_search_input.setPlaceholderText("Tìm kiếm bệnh nhân, mã hóa đơn...")
+        self.staff_bill_search_input.setStyleSheet(self._intake_input_style())
+        self.staff_bill_from_date = QtWidgets.QDateEdit(QtCore.QDate.currentDate().addDays(-7))
+        self.staff_bill_to_date = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
+        for date_input in [self.staff_bill_from_date, self.staff_bill_to_date]:
+            date_input.setCalendarPopup(True)
+            date_input.setDisplayFormat("dd/MM/yyyy")
+            date_input.setStyleSheet(self._intake_input_style())
+            date_input.dateChanged.connect(self._refresh_staff_billing_table)
+        self.staff_bill_search_input.textChanged.connect(self._refresh_staff_billing_table)
+        filter_btn = QtWidgets.QPushButton("⚗  Bộ lọc")
+        filter_btn.setStyleSheet(self._intake_secondary_button_style())
+        filter_btn.clicked.connect(self._refresh_staff_billing_table)
+        filters.addWidget(self.staff_bill_search_input, 2)
+        filters.addWidget(self.staff_bill_from_date)
+        filters.addWidget(QtWidgets.QLabel("~"))
+        filters.addWidget(self.staff_bill_to_date)
+        filters.addWidget(filter_btn)
+        left_layout.addLayout(filters)
+
+        self.staff_bill_patient_id_input = QtWidgets.QLineEdit()
+        self.staff_bill_appointment_id_input = QtWidgets.QLineEdit()
+        self.staff_bill_amount_input = QtWidgets.QLineEdit()
+        for hidden_input in [self.staff_bill_patient_id_input, self.staff_bill_appointment_id_input, self.staff_bill_amount_input]:
+            hidden_input.setVisible(False)
+
+        self.staff_bill_list_title = QtWidgets.QLabel("Danh sách hóa đơn (0)")
+        self.staff_bill_list_title.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 16px; font-weight: 900;")
+        left_layout.addWidget(self.staff_bill_list_title)
+        self.staff_bill_table = QtWidgets.QTableWidget(0, 6)
+        self.staff_bill_table.setHorizontalHeaderLabels(["Mã hóa đơn", "Bệnh nhân", "Ngày tạo", "Tổng tiền", "Trạng thái", "Thao tác"])
+        self.staff_bill_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.staff_bill_table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self.staff_bill_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.staff_bill_table.setShowGrid(False)
+        self.staff_bill_table.verticalHeader().setVisible(False)
+        self.staff_bill_table.verticalHeader().setDefaultSectionSize(58)
+        self.staff_bill_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.staff_bill_table.horizontalHeader().setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_bill_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_bill_table.setStyleSheet(
+            "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; color: #0f172a; font-size: 13px; font-weight: 700; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 900; border: none; padding: 10px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; }"
+            "QTableWidget::item:selected { background: #ecfdf5; color: #0f172a; }"
+        )
+        self.staff_bill_table.itemSelectionChanged.connect(self._on_staff_billing_row_selected)
+        left_layout.addWidget(self.staff_bill_table, 1)
+        self.staff_bill_footer_label = QtWidgets.QLabel("Hiển thị 0 bản ghi")
+        self.staff_bill_footer_label.setStyleSheet("border: none; background: transparent; color: #64748b; font-size: 12px; font-weight: 700;")
+        left_layout.addWidget(self.staff_bill_footer_label)
+
+        right = self._build_section_card("Thông tin hóa đơn")
+        right_layout = right.layout()
+        print_row = QtWidgets.QHBoxLayout()
+        print_row.addStretch()
+        print_btn = QtWidgets.QPushButton("🖨  In hóa đơn")
+        print_btn.clicked.connect(self._handle_staff_print_receipt)
+        print_btn.setStyleSheet("background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 8px; padding: 7px 12px; font-weight: 900;")
+        print_row.addWidget(print_btn)
+        right_layout.addLayout(print_row)
+        self.staff_bill_detail_header = QtWidgets.QLabel("Chưa chọn hóa đơn")
+        self.staff_bill_detail_header.setWordWrap(True)
+        self.staff_bill_detail_header.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 13px; font-weight: 800;")
+        self.staff_bill_patient_card = QtWidgets.QLabel("Chọn hóa đơn ở bảng bên trái để xem chi tiết.")
+        self.staff_bill_patient_card.setWordWrap(True)
+        self.staff_bill_patient_card.setStyleSheet("background: #f8fafc; border: 1px solid #e7edf5; border-radius: 10px; padding: 12px; color: #334155; font-weight: 800;")
+        right_layout.addWidget(self.staff_bill_detail_header)
+        right_layout.addWidget(self.staff_bill_patient_card)
+        title = QtWidgets.QLabel("Chi tiết dịch vụ")
+        title.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 15px; font-weight: 900;")
+        right_layout.addWidget(title)
+        self.staff_bill_service_table = QtWidgets.QTableWidget(0, 4)
+        self.staff_bill_service_table.setHorizontalHeaderLabels(["Dịch vụ", "SL", "Đơn giá", "Thành tiền"])
+        self.staff_bill_service_table.verticalHeader().setVisible(False)
+        self.staff_bill_service_table.setShowGrid(False)
+        self.staff_bill_service_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.staff_bill_service_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.staff_bill_service_table.setFixedHeight(155)
+        self.staff_bill_service_table.setStyleSheet("QTableWidget { border: none; background: #ffffff; font-size: 12px; } QHeaderView::section { border: none; background: #ffffff; color: #64748b; font-weight: 800; } QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 6px; }")
+        right_layout.addWidget(self.staff_bill_service_table)
+        self.staff_bill_total_label = QtWidgets.QLabel("Tổng cần thanh toán: --")
+        self.staff_bill_total_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        self.staff_bill_total_label.setStyleSheet("border: none; background: transparent; color: #f97316; font-size: 18px; font-weight: 900;")
+        right_layout.addWidget(self.staff_bill_total_label)
+        pay_title = QtWidgets.QLabel("Thanh toán")
+        pay_title.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 15px; font-weight: 900;")
+        right_layout.addWidget(pay_title)
+        method_row = QtWidgets.QHBoxLayout()
+        self.staff_bill_method_buttons = []
+        for idx, text in enumerate(["✓  Tiền mặt", "💳  Thẻ ATM/Visa", "🏦  Chuyển khoản"]):
+            btn = QtWidgets.QPushButton(text)
+            btn.setCheckable(True)
+            btn.setChecked(idx == 0)
+            btn.setStyleSheet("QPushButton { background: #ffffff; color: #475569; border: 1px solid #dbe4ee; border-radius: 8px; padding: 10px; font-size: 12px; font-weight: 900; } QPushButton:checked { background: #13a66b; color: #ffffff; border-color: #13a66b; }")
+            btn.clicked.connect(lambda _, b=btn: self._set_staff_bill_payment_method(b))
+            self.staff_bill_method_buttons.append(btn)
+            method_row.addWidget(btn)
+        right_layout.addLayout(method_row)
+        right_layout.addWidget(QtWidgets.QLabel("Số tiền nhận"))
+        self.staff_bill_received_input = QtWidgets.QLineEdit()
+        self.staff_bill_received_input.setStyleSheet(self._intake_input_style())
+        self.staff_bill_received_input.textChanged.connect(self._update_staff_bill_change)
+        right_layout.addWidget(self.staff_bill_received_input)
+        self.staff_bill_change_label = QtWidgets.QLabel("Tiền thừa: 0 đ")
+        self.staff_bill_change_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        self.staff_bill_change_label.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 13px; font-weight: 900;")
+        right_layout.addWidget(self.staff_bill_change_label)
+        self.staff_bill_confirm_btn = QtWidgets.QPushButton("✓  Xác nhận thanh toán")
+        self.staff_bill_confirm_btn.setStyleSheet(self._intake_primary_button_style())
+        self.staff_bill_confirm_btn.clicked.connect(self._handle_staff_confirm_payment)
+        right_layout.addWidget(self.staff_bill_confirm_btn)
+        self.staff_bill_feedback = QtWidgets.QLabel("")
+        self.staff_bill_feedback.setWordWrap(True)
+        self.staff_bill_feedback.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #166534; font-weight: 700;")
+        right_layout.addWidget(self.staff_bill_feedback)
+        right_layout.addStretch()
+
+        body.addWidget(left, 7)
+        body.addWidget(right, 3)
+        layout.addLayout(body, 1)
+        self._refresh_staff_billing_table()
+        return page
+
+    def _staff_bill_kpi(self, icon, title, value, note, bg_color, fg_color):
+        card = QtWidgets.QFrame()
+        card.setMinimumHeight(96)
+        card.setStyleSheet("background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
+        layout = QtWidgets.QHBoxLayout(card)
+        layout.setContentsMargins(16, 14, 16, 14)
+        icon_lbl = QtWidgets.QLabel(str(icon))
+        icon_lbl.setFixedSize(44, 44)
+        icon_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        icon_lbl.setStyleSheet(f"background: {bg_color}; color: {fg_color}; border: none; border-radius: 12px; font-size: 20px; font-weight: 900;")
+        text_col = QtWidgets.QVBoxLayout()
+        for text, style in [
+            (title, "color: #334155; font-size: 12px; font-weight: 900;"),
+            (str(value), f"color: {fg_color}; font-size: 22px; font-weight: 900;"),
+            (note, "color: #64748b; font-size: 11px; font-weight: 700;"),
+        ]:
+            label = QtWidgets.QLabel(text)
+            label.setStyleSheet("border: none; background: transparent; " + style)
+            text_col.addWidget(label)
+        layout.addWidget(icon_lbl)
+        layout.addLayout(text_col, 1)
+        return card
+
+    def _build_staff_billing_catalog(self):
+        sample = [
+            (128, "Nguyễn Văn Hùng", 850000, "unpaid", "0987 654 321", 35),
+            (127, "Trần Thị Mai", 650000, "unpaid", "0912 345 678", 28),
+            (126, "Lê Văn Nam", 1200000, "unpaid", "0908 111 222", 42),
+            (125, "Phạm Thị Lan", 1500000, "paid", "0933 222 111", 31),
+            (124, "Hoàng Anh Tuấn", 700000, "paid", "0977 333 444", 39),
+            (123, "Vũ Thị Hương", 1350000, "unpaid", "0966 444 555", 46),
+            (122, "Đỗ Minh Quân", 950000, "paid", "0955 555 666", 30),
+            (121, "Nguyễn Thị Hoa", 600000, "cancelled", "0944 666 777", 52),
+            (120, "Bùi Văn Dũng", 1100000, "unpaid", "0933 777 888", 44),
+            (119, "Trương Thị Kiều", 800000, "refunded", "0922 888 999", 27),
+        ]
+        rows = []
+        try:
+            rows = PaymentController.get_all() or []
+        except Exception:
+            rows = []
+        catalog = []
+        for idx, row in enumerate(rows):
+            item = dict(row)
+            sid, name, amount, status, phone, age = sample[idx % len(sample)]
+            item.setdefault("patient_name", name)
+            item.setdefault("patient_phone", phone)
+            item.setdefault("patient_age", age)
+            item.setdefault("patient_address", "123 Đường Lê Lợi, P.1, Q.1, TP.HCM")
+            item.setdefault("staff_name", self.username)
+            catalog.append(item)
+        seen = {str(x.get("payment_id")) for x in catalog}
+        for sid, name, amount, status, phone, age in sample:
+            if str(sid) not in seen:
+                catalog.append({"payment_id": sid, "patient_name": name, "patient_phone": phone, "patient_age": age, "patient_address": "123 Đường Lê Lợi, P.1, Q.1, TP.HCM", "payment_date": "23/05/2026 08:15", "total_amount": amount, "status": status, "staff_name": "Nguyễn Thị Lan"})
+        return catalog
+
+    def _staff_bill_status_key(self, bill):
+        raw = str(bill.get("status") or "unpaid").lower().strip()
+        return {"pending": "unpaid", "waiting": "unpaid", "paid": "paid", "done": "paid", "cancelled": "cancelled", "canceled": "cancelled", "refunded": "refunded", "refund": "refunded"}.get(raw, raw if raw in {"unpaid", "paid", "cancelled", "refunded"} else "unpaid")
+
+    def _staff_bill_status_text(self, bill):
+        return {"unpaid": "Chờ thanh toán", "paid": "Đã thanh toán", "cancelled": "Đã hủy", "refunded": "Hoàn tiền"}.get(self._staff_bill_status_key(bill), "Chờ thanh toán")
+
+    def _set_staff_bill_tab(self, key):
+        self.staff_bill_active_tab = key
+        for tab_key, btn in self.staff_bill_status_tabs.items():
+            btn.setChecked(tab_key == key)
+        self._refresh_staff_billing_table()
+
+    def _refresh_staff_billing_table(self):
+        if not hasattr(self, "staff_bill_table"):
+            return
+        if not getattr(self, "staff_billing_rows", None):
+            self.staff_billing_rows = self._build_staff_billing_catalog()
+        keyword = str(self.staff_bill_search_input.text() or "").strip().lower() if hasattr(self, "staff_bill_search_input") else ""
+        active_tab = getattr(self, "staff_bill_active_tab", "all")
+        filtered = []
+        for bill in self.staff_billing_rows:
+            haystack = f"{self._staff_bill_code(bill)} {bill.get('patient_name', '')} {self._staff_bill_status_text(bill)}".lower()
+            if active_tab != "all" and self._staff_bill_status_key(bill) != active_tab:
+                continue
+            if keyword and keyword not in haystack:
+                continue
+            filtered.append(bill)
+        self.staff_billing_filtered_rows = filtered
+        self.staff_bill_table.blockSignals(True)
+        self.staff_bill_table.setRowCount(len(filtered))
+        for row, bill in enumerate(filtered):
+            for col, value in enumerate([self._staff_bill_code(bill), self._staff_display_text(bill.get("patient_name") or ""), str(bill.get("payment_date") or bill.get("appointment_date") or ""), self._format_staff_money(bill.get("total_amount"))]):
+                self.staff_bill_table.setItem(row, col, QtWidgets.QTableWidgetItem(value))
+            self.staff_bill_table.setCellWidget(row, 4, self._staff_bill_badge(bill))
+            self.staff_bill_table.setCellWidget(row, 5, self._staff_bill_actions(row))
+        self.staff_bill_table.blockSignals(False)
+        self.staff_bill_list_title.setText(f"Danh sách hóa đơn ({len(filtered)})")
+        self.staff_bill_footer_label.setText(f"Hiển thị {min(len(filtered), 10)} bản ghi")
+        if filtered:
+            self.staff_bill_table.selectRow(0)
+            self._update_staff_bill_detail(filtered[0])
+        else:
+            self._reset_staff_bill_detail()
+
+    def _staff_bill_code(self, bill):
+        try:
+            return f"HD{int(bill.get('payment_id') or 0):06d}"
+        except (TypeError, ValueError):
+            return f"HD{bill.get('payment_id') or '------'}"
+
+    def _staff_bill_badge(self, bill):
+        bg, fg = {"unpaid": ("#fff3e4", "#f97316"), "paid": ("#dcfce7", "#16a34a"), "cancelled": ("#fee2e2", "#ef4444"), "refunded": ("#dbeafe", "#2563eb")}.get(self._staff_bill_status_key(bill), ("#fff3e4", "#f97316"))
+        badge = QtWidgets.QLabel(self._staff_bill_status_text(bill))
+        badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        badge.setMinimumWidth(116)
+        badge.setStyleSheet(f"background: {bg}; color: {fg}; border: none; border-radius: 11px; padding: 5px 10px; font-size: 11px; font-weight: 900;")
+        wrap = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrap)
+        layout.setContentsMargins(2, 4, 2, 4)
+        layout.addWidget(badge)
+        return wrap
+
+    def _staff_bill_actions(self, row):
+        wrap = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrap)
+        layout.setContentsMargins(0, 0, 0, 0)
+        for icon in ["👁", "⋮"]:
+            btn = QtWidgets.QPushButton(icon)
+            btn.setFixedSize(32, 30)
+            btn.setStyleSheet("QPushButton { background: #ffffff; border: 1px solid #dbe4ee; border-radius: 8px; color: #2563eb; font-weight: 900; }")
+            btn.clicked.connect(lambda _, r=row: self._select_staff_bill_row(r))
+            layout.addWidget(btn)
+        return wrap
+
+    def _select_staff_bill_row(self, row):
+        if 0 <= row < len(getattr(self, "staff_billing_filtered_rows", [])):
+            self.staff_bill_table.selectRow(row)
+            self._update_staff_bill_detail(self.staff_billing_filtered_rows[row])
+
+    def _on_staff_billing_row_selected(self):
+        row = self.staff_bill_table.currentRow()
+        if row < 0 or row >= len(getattr(self, "staff_billing_filtered_rows", [])):
+            self.staff_billing_selected_id = None
+            self.staff_billing_selected_status = ""
+            return
+        self._update_staff_bill_detail(self.staff_billing_filtered_rows[row])
+
+    def _update_staff_bill_detail(self, bill):
+        self.staff_billing_selected = bill
+        self.staff_billing_selected_id = bill.get("payment_id")
+        self.staff_billing_selected_status = self._staff_bill_status_key(bill)
+        amount = float(bill.get("total_amount") or 0)
+        self.staff_bill_detail_header.setText(f"Mã hóa đơn        {self._staff_bill_code(bill)}        {self._staff_bill_status_text(bill)}\nNgày tạo: {bill.get('payment_date') or bill.get('appointment_date') or '--'}\nNhân viên: {bill.get('staff_name') or self.username}")
+        self.staff_bill_patient_card.setText(f"👤  {self._staff_display_text(bill.get('patient_name') or '')}\n{bill.get('patient_age', 35)} tuổi  •  {bill.get('patient_phone') or 'Chưa có SĐT'}\nĐịa chỉ: {bill.get('patient_address') or '--'}")
+        services = self._staff_bill_services(bill)
+        self.staff_bill_service_table.setRowCount(len(services))
+        for row, (name, qty, unit_price) in enumerate(services):
+            for col, value in enumerate([name, str(qty), self._format_staff_money(unit_price), self._format_staff_money(qty * unit_price)]):
+                self.staff_bill_service_table.setItem(row, col, QtWidgets.QTableWidgetItem(value))
+        self.staff_bill_total_label.setText(f"Tổng cần thanh toán: {self._format_staff_money(amount)}")
+        self.staff_bill_received_input.blockSignals(True)
+        self.staff_bill_received_input.setText(str(int(amount)) if self.staff_billing_selected_status == "unpaid" else "")
+        self.staff_bill_received_input.blockSignals(False)
+        self._update_staff_bill_change()
+        can_pay = self.staff_billing_selected_status == "unpaid"
+        self.staff_bill_confirm_btn.setEnabled(can_pay)
+        self.staff_bill_confirm_btn.setText("✓  Xác nhận thanh toán" if can_pay else "Đã xử lý hóa đơn")
+        self._set_staff_billing_feedback(f"Đã chọn hóa đơn {self._staff_bill_code(bill)}.", is_error=False)
+
+    def _reset_staff_bill_detail(self):
+        self.staff_billing_selected = None
+        self.staff_billing_selected_id = None
+        self.staff_billing_selected_status = ""
+        self.staff_bill_detail_header.setText("Chưa chọn hóa đơn")
+        self.staff_bill_patient_card.setText("Chọn hóa đơn ở bảng bên trái để xem chi tiết.")
+        self.staff_bill_service_table.setRowCount(0)
+        self.staff_bill_total_label.setText("Tổng cần thanh toán: --")
+        self.staff_bill_received_input.clear()
+        self.staff_bill_change_label.setText("Tiền thừa: 0 đ")
+
+    def _staff_bill_services(self, bill):
+        amount = float(bill.get("total_amount") or 0)
+        if amount >= 850000:
+            return [("Khám tổng quát", 1, 300000), ("Xét nghiệm máu", 1, 250000), ("Siêu âm ổ bụng", 1, max(0, amount - 550000))]
+        return [("Khám tổng quát", 1, amount)]
+
+    def _set_staff_bill_payment_method(self, selected_btn):
+        for btn in self.staff_bill_method_buttons:
+            btn.setChecked(btn is selected_btn)
+
+    def _update_staff_bill_change(self):
+        bill = getattr(self, "staff_billing_selected", None)
+        amount = float((bill or {}).get("total_amount") or 0)
+        raw = self.staff_bill_received_input.text().replace(".", "").replace(",", "").strip() if hasattr(self, "staff_bill_received_input") else ""
+        try:
+            received = float(raw or 0)
+        except ValueError:
+            received = 0
+        self.staff_bill_change_label.setText(f"Tiền thừa: {self._format_staff_money(max(0, received - amount))}")
+
+    def _handle_staff_confirm_payment(self):
+        bill = getattr(self, "staff_billing_selected", None)
+        if not bill:
+            self._set_staff_billing_feedback("Vui lòng chọn hóa đơn trước khi xác nhận thanh toán.", is_error=True)
+            return
+        if self._staff_bill_status_key(bill) != "unpaid":
+            self._set_staff_billing_feedback("Chỉ hóa đơn chờ thanh toán mới được xác nhận.", is_error=True)
+            return
+        raw = self.staff_bill_received_input.text().replace(".", "").replace(",", "").strip()
+        try:
+            received = float(raw or 0)
+        except ValueError:
+            self._set_staff_billing_feedback("Số tiền nhận không hợp lệ.", is_error=True)
+            return
+        if received < float(bill.get("total_amount") or 0):
+            self._set_staff_billing_feedback("Số tiền nhận chưa đủ để thanh toán hóa đơn.", is_error=True)
+            return
+        try:
+            if isinstance(bill.get("payment_id"), int):
+                PaymentController.update_status(bill["payment_id"], "paid")
+        except Exception:
+            pass
+        bill["status"] = "paid"
+        self._refresh_staff_billing_table()
+        self._set_staff_billing_feedback(f"Đã xác nhận thanh toán cho {self._staff_bill_code(bill)}.", is_error=False)
+
+    def _handle_staff_print_receipt(self):
+        bill = getattr(self, "staff_billing_selected", None)
+        if not bill:
+            self._set_staff_billing_feedback("Vui lòng chọn hóa đơn để in.", is_error=True)
+            return
+        QtWidgets.QMessageBox.information(self, "In hóa đơn", f"Hóa đơn {self._staff_bill_code(bill)} đã sẵn sàng để in.")
+        self._set_staff_billing_feedback(f"Đã mở xem trước hóa đơn {self._staff_bill_code(bill)}.", is_error=False)
+
+    def _set_staff_billing_feedback(self, message, is_error=False):
+        if not hasattr(self, "staff_bill_feedback"):
+            return
+        color = "#b91c1c" if is_error else "#166534"
+        self.staff_bill_feedback.setStyleSheet(f"border: none; background: transparent; font-size: 12px; color: {color}; font-weight: 700;")
+        self.staff_bill_feedback.setText(message)
+
+    def _build_appointment_management_page(self):
+        page = QtWidgets.QFrame()
+        page.setStyleSheet("background: #f8fbff; border: none;")
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        header = QtWidgets.QFrame()
+        header.setStyleSheet("background: transparent; border: none;")
+        header_layout = QtWidgets.QHBoxLayout(header)
+        header_layout.setContentsMargins(4, 0, 4, 0)
+        header_layout.setSpacing(14)
+
+        title_col = QtWidgets.QVBoxLayout()
+        title_col.setSpacing(5)
+        heading = QtWidgets.QLabel("Quản lý lịch hẹn")
+        heading.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Quản lý lịch hẹn")
+        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        title_col.addWidget(heading)
+        title_col.addWidget(breadcrumb)
+
+        bell = QtWidgets.QLabel("🔔")
+        bell.setFixedSize(34, 34)
+        bell.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell.setStyleSheet("border: none; background: transparent; font-size: 21px; color: #64748b;")
+        avatar = QtWidgets.QLabel("👤")
+        avatar.setFixedSize(42, 42)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet("border: none; background: #eaf2ff; border-radius: 21px; font-size: 22px;")
+        user_lbl = QtWidgets.QLabel(f"{self.username}  ▾")
+        user_lbl.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #0f172a; font-weight: 900;")
+        header_layout.addLayout(title_col)
+        header_layout.addStretch()
+        header_layout.addWidget(bell)
+        header_layout.addWidget(avatar)
+        header_layout.addWidget(user_lbl)
+        layout.addWidget(header)
+
+        tabs = QtWidgets.QHBoxLayout()
+        tabs.setSpacing(28)
+        for index, label in enumerate(["Lịch hẹn hôm nay", "Lịch hẹn ngày mai", "📅  Lịch hẹn theo ngày"]):
+            tab = QtWidgets.QPushButton(label)
+            tab.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            if index == 0:
+                tab.setStyleSheet(
+                    "QPushButton { border: none; border-bottom: 3px solid #13a66b; background: transparent; padding: 8px 12px; color: #13a66b; font-size: 15px; font-weight: 900; }"
+                )
+            else:
+                tab.setStyleSheet(
+                    "QPushButton { border: none; background: transparent; padding: 8px 12px; color: #64748b; font-size: 15px; font-weight: 800; }"
+                    "QPushButton:hover { color: #13a66b; }"
+                )
+            tabs.addWidget(tab)
+        tabs.addStretch()
+        layout.addLayout(tabs)
+
+        content = QtWidgets.QHBoxLayout()
+        content.setSpacing(22)
+
+        form_card = self._build_section_card("Thông tin lịch hẹn")
+        self.staff_appt_form_card = form_card
+        self.staff_appt_form_card.setVisible(False)
+        form_grid = QtWidgets.QGridLayout()
+        form_grid.setHorizontalSpacing(10)
+        form_grid.setVerticalSpacing(8)
+
+        self.staff_appt_patient_id_input = QtWidgets.QLineEdit()
+        self.staff_appt_patient_id_input.setPlaceholderText("Nhập Patient ID")
+        self.staff_appt_doctor_combo = QtWidgets.QComboBox()
+        self.staff_appt_service_combo = QtWidgets.QComboBox()
+        self.staff_appt_date_input = QtWidgets.QDateEdit()
+        self.staff_appt_date_input.setCalendarPopup(True)
+        self.staff_appt_date_input.setDisplayFormat("yyyy-MM-dd")
+        self.staff_appt_date_input.setDate(QtCore.QDate.currentDate())
+        self.staff_appt_time_input = QtWidgets.QTimeEdit()
+        self.staff_appt_time_input.setDisplayFormat("HH:mm")
+        self.staff_appt_time_input.setTime(QtCore.QTime.currentTime())
+        self.staff_appt_status_combo = QtWidgets.QComboBox()
+        self.staff_appt_status_combo.addItems(["pending", "confirmed", "in_progress", "done", "cancelled"])
+        self.staff_appt_status_combo.setCurrentText("pending")
+        self.staff_appt_note_input = QtWidgets.QLineEdit()
+        self.staff_appt_note_input.setPlaceholderText("Ghi chú điều phối (tuỳ chọn)")
+        for widget in [
+            self.staff_appt_patient_id_input,
+            self.staff_appt_doctor_combo,
+            self.staff_appt_service_combo,
+            self.staff_appt_date_input,
+            self.staff_appt_time_input,
+            self.staff_appt_status_combo,
+            self.staff_appt_note_input,
+        ]:
+            widget.setStyleSheet(self._intake_input_style())
+
+        form_grid.addWidget(QtWidgets.QLabel("Patient ID:"), 0, 0)
+        form_grid.addWidget(self.staff_appt_patient_id_input, 0, 1)
+        form_grid.addWidget(QtWidgets.QLabel("Bác sĩ:"), 0, 2)
+        form_grid.addWidget(self.staff_appt_doctor_combo, 0, 3)
+        form_grid.addWidget(QtWidgets.QLabel("Dịch vụ:"), 1, 0)
+        form_grid.addWidget(self.staff_appt_service_combo, 1, 1)
+        form_grid.addWidget(QtWidgets.QLabel("Ngày khám:"), 1, 2)
+        form_grid.addWidget(self.staff_appt_date_input, 1, 3)
+        form_grid.addWidget(QtWidgets.QLabel("Giờ khám:"), 2, 0)
+        form_grid.addWidget(self.staff_appt_time_input, 2, 1)
+        form_grid.addWidget(QtWidgets.QLabel("Trạng thái:"), 2, 2)
+        form_grid.addWidget(self.staff_appt_status_combo, 2, 3)
+        form_grid.addWidget(QtWidgets.QLabel("Ghi chú:"), 3, 0)
+        form_grid.addWidget(self.staff_appt_note_input, 3, 1, 1, 3)
+
+        actions = QtWidgets.QHBoxLayout()
+        btn_create_form = QtWidgets.QPushButton("➕ Tạo lịch hẹn")
+        btn_reschedule = QtWidgets.QPushButton("🕒 Dời/Cập nhật lịch")
+        btn_cancel = QtWidgets.QPushButton("❌ Hủy lịch đã chọn")
+        btn_clear = QtWidgets.QPushButton("Làm mới biểu mẫu")
+        btn_create_form.setStyleSheet(self._intake_primary_button_style())
+        for btn in [btn_reschedule, btn_cancel, btn_clear]:
+            btn.setStyleSheet(self._intake_secondary_button_style())
+        btn_create_form.clicked.connect(self._handle_staff_appointment_create)
+        btn_reschedule.clicked.connect(self._handle_staff_appointment_reschedule)
+        btn_cancel.clicked.connect(self._handle_staff_appointment_cancel)
+        btn_clear.clicked.connect(self._reset_staff_appointment_form)
+        actions.addWidget(btn_create_form)
+        actions.addWidget(btn_reschedule)
+        actions.addWidget(btn_cancel)
+        actions.addStretch()
+        actions.addWidget(btn_clear)
+
+        self.staff_appt_feedback = QtWidgets.QLabel("Sẵn sàng điều phối lịch hẹn.")
+        self.staff_appt_feedback.setWordWrap(True)
+        self.staff_appt_feedback.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #475569;")
+        form_card.layout().addLayout(form_grid)
+        form_card.layout().addLayout(actions)
+        form_card.layout().addWidget(self.staff_appt_feedback)
+
+        left_panel = self._build_section_card("")
+        left_layout = left_panel.layout()
+        search_row = QtWidgets.QHBoxLayout()
+        search_row.setSpacing(10)
+        self.staff_appt_search_input = QtWidgets.QLineEdit()
+        self.staff_appt_search_input.setPlaceholderText("Tìm kiếm bệnh nhân, SĐT, dịch vụ...")
+        self.staff_appt_search_input.setMinimumHeight(42)
+        self.staff_appt_search_input.setStyleSheet(self._intake_input_style())
+        self.staff_appt_search_input.textChanged.connect(self._apply_staff_appointment_filters)
+        create_btn = QtWidgets.QPushButton("+  Tạo lịch hẹn")
+        create_btn.setFixedWidth(150)
+        create_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        create_btn.setStyleSheet(self._intake_primary_button_style())
+        create_btn.clicked.connect(self._toggle_staff_appointment_form)
+        search_row.addWidget(self.staff_appt_search_input, 1)
+        search_row.addWidget(create_btn)
+        left_layout.addLayout(search_row)
+
+        filters = QtWidgets.QHBoxLayout()
+        filters.setSpacing(10)
+        self.staff_appt_filter_doctor_combo = QtWidgets.QComboBox()
+        self.staff_appt_filter_service_combo = QtWidgets.QComboBox()
+        self.staff_appt_filter_status_combo = QtWidgets.QComboBox()
+        self.staff_appt_filter_status_combo.addItems(["Trạng thái", "pending", "confirmed", "in_progress", "done", "cancelled"])
+        self.staff_appt_filter_date_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
+        self.staff_appt_filter_date_input.setDisplayFormat("dd/MM/yyyy")
+        self.staff_appt_filter_date_input.setCalendarPopup(True)
+        for widget in [
+            self.staff_appt_filter_doctor_combo,
+            self.staff_appt_filter_service_combo,
+            self.staff_appt_filter_status_combo,
+            self.staff_appt_filter_date_input,
+        ]:
+            widget.setStyleSheet(self._intake_input_style())
+        for combo in [self.staff_appt_filter_doctor_combo, self.staff_appt_filter_service_combo, self.staff_appt_filter_status_combo]:
+            combo.currentIndexChanged.connect(self._apply_staff_appointment_filters)
+        self.staff_appt_filter_date_input.dateChanged.connect(self._apply_staff_appointment_filters)
+        filters.addWidget(self.staff_appt_filter_doctor_combo)
+        filters.addWidget(self.staff_appt_filter_service_combo)
+        filters.addWidget(self.staff_appt_filter_status_combo)
+        filters.addWidget(self.staff_appt_filter_date_input)
+        left_layout.addLayout(filters)
+        left_layout.addWidget(self.staff_appt_form_card)
+
+        self.staff_appt_table = QtWidgets.QTableWidget()
+        self.staff_appt_table.setColumnCount(6)
+        self.staff_appt_table.setHorizontalHeaderLabels(["Giờ hẹn", "Bệnh nhân", "Dịch vụ", "Bác sĩ", "Trạng thái", "Thao tác"])
+        self.staff_appt_table.setSelectionBehavior(QtWidgets.QTableWidget.SelectionBehavior.SelectRows)
+        self.staff_appt_table.setSelectionMode(QtWidgets.QTableWidget.SelectionMode.SingleSelection)
+        self.staff_appt_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.staff_appt_table.setShowGrid(False)
+        self.staff_appt_table.verticalHeader().setVisible(False)
+        self.staff_appt_table.verticalHeader().setDefaultSectionSize(48)
+        self.staff_appt_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.staff_appt_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_appt_table.horizontalHeader().setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.Fixed)
+        self.staff_appt_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_appt_table.setColumnWidth(4, 150)
+        self.staff_appt_table.setColumnWidth(5, 92)
+        self.staff_appt_table.setStyleSheet(
+            "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 900; border: none; padding: 10px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; color: #0f172a; font-weight: 700; }"
+            "QTableWidget::item:selected { background: #ecfdf5; color: #0f172a; }"
+        )
+        self.staff_appt_table.itemSelectionChanged.connect(self._handle_staff_appointment_selection)
+        left_layout.addWidget(self.staff_appt_table, 1)
+
+        self.staff_appt_paging_label = QtWidgets.QLabel("Hiển thị 0 lịch hẹn")
+        self.staff_appt_paging_label.setStyleSheet("border: none; background: transparent; color: #64748b; font-size: 12px; font-weight: 700;")
+        left_layout.addWidget(self.staff_appt_paging_label)
+
+        legend = QtWidgets.QHBoxLayout()
+        legend.setSpacing(18)
+        for text, color, note in [
+            ("Đang chờ", "#f59e0b", "Bệnh nhân chưa đến/chưa xác nhận"),
+            ("Đã xác nhận", "#13a66b", "Bệnh nhân và chờ đến lượt"),
+            ("Đang khám", "#2563eb", "Bệnh nhân đang được bác sĩ khám"),
+            ("Đã hoàn tất", "#8b5cf6", "Khám xong và đã thanh toán"),
+            ("Đã hủy", "#ef4444", "Lịch hẹn đã bị hủy"),
+        ]:
+            legend.addWidget(self._build_staff_status_legend_item(text, color, note))
+        left_layout.addLayout(legend)
+
+        detail_panel = self._build_section_card("Chi tiết lịch hẹn")
+        detail_layout = detail_panel.layout()
+        self.staff_appt_detail_patient = QtWidgets.QLabel("Chưa chọn lịch hẹn")
+        self.staff_appt_detail_patient.setWordWrap(True)
+        self.staff_appt_detail_patient.setStyleSheet("border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;")
+        self.staff_appt_detail_info = QtWidgets.QLabel("Chọn một lịch hẹn ở bảng bên trái để xem chi tiết.")
+        self.staff_appt_detail_info.setWordWrap(True)
+        self.staff_appt_detail_info.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #475569; font-weight: 700;")
+        self.staff_appt_detail_timeline = QtWidgets.QLabel("Lịch sử cập nhật sẽ hiển thị tại đây.")
+        self.staff_appt_detail_timeline.setWordWrap(True)
+        self.staff_appt_detail_timeline.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #475569; font-weight: 700;")
+        detail_layout.addWidget(self.staff_appt_detail_patient)
+        detail_layout.addWidget(self.staff_appt_detail_info)
+        detail_layout.addSpacing(10)
+        timeline_title = QtWidgets.QLabel("Lịch sử cập nhật")
+        timeline_title.setStyleSheet("border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;")
+        detail_layout.addWidget(timeline_title)
+        detail_layout.addWidget(self.staff_appt_detail_timeline)
+        detail_layout.addStretch()
+
+        detail_actions_title = QtWidgets.QLabel("Thao tác")
+        detail_actions_title.setStyleSheet("border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;")
+        self.staff_appt_btn_edit = QtWidgets.QPushButton("✎  Sửa lịch hẹn")
+        self.staff_appt_btn_cancel = QtWidgets.QPushButton("🗑  Hủy lịch hẹn")
+        self.staff_appt_btn_print = QtWidgets.QPushButton("🖨  In phiếu hẹn")
+        self.staff_appt_btn_edit.clicked.connect(self._show_staff_appointment_form_for_selected)
+        self.staff_appt_btn_cancel.clicked.connect(self._handle_staff_appointment_cancel)
+        self.staff_appt_btn_print.clicked.connect(self._handle_staff_appt_print)
+        self.staff_appt_btn_edit.setStyleSheet("background: #ffffff; color: #13a66b; border: 1px solid #13a66b; border-radius: 9px; padding: 10px; font-weight: 900;")
+        self.staff_appt_btn_cancel.setStyleSheet("background: #ffffff; color: #ef4444; border: 1px solid #ef4444; border-radius: 9px; padding: 10px; font-weight: 900;")
+        self.staff_appt_btn_print.setStyleSheet(self._intake_primary_button_style())
+        detail_layout.addWidget(detail_actions_title)
+        detail_layout.addWidget(self.staff_appt_btn_edit)
+        detail_layout.addWidget(self.staff_appt_btn_cancel)
+        detail_layout.addWidget(self.staff_appt_btn_print)
+
+        content.addWidget(left_panel, 7)
+        content.addWidget(detail_panel, 3)
+        layout.addLayout(content, 1)
+
+        self._load_staff_appointment_dropdowns()
+        self._refresh_staff_appointment_table()
+        return page
+
+    def _apply_staff_appointment_filters(self):
+        self._refresh_staff_appointment_table()
+
+    def _refresh_staff_appointment_table(self):
+        role = self._get_current_user_role()
+        user_context = self._build_appointment_user_context()
+        rows = AppointmentController.get_all_for_role(role, user_context) or []
+        if isinstance(rows, dict):
+            self.staff_appointment_rows = []
+            self.staff_appt_table.setRowCount(0)
+            self._reset_staff_appointment_detail()
+            self._set_staff_appt_feedback(rows.get("message") or "Không thể tải danh sách lịch hẹn.", is_error=True)
+            return
+
+        query = str(self.staff_appt_search_input.text() if hasattr(self, "staff_appt_search_input") else "").strip().lower()
+        doctor_id = self.staff_appt_filter_doctor_combo.currentData() if hasattr(self, "staff_appt_filter_doctor_combo") else None
+        service_name = str(self.staff_appt_filter_service_combo.currentData() or "") if hasattr(self, "staff_appt_filter_service_combo") else ""
+        status_filter = self.staff_appt_filter_status_combo.currentText() if hasattr(self, "staff_appt_filter_status_combo") else "Trạng thái"
+
+        filtered = []
+        for appt in list(rows):
+            current_service = self._extract_service_name_from_note(str(appt.get("note") or ""))
+            haystack = " ".join([
+                str(appt.get("appointment_id") or ""),
+                str(appt.get("patient_name") or ""),
+                str(appt.get("patient_phone") or ""),
+                str(appt.get("doctor_name") or ""),
+                current_service,
+            ]).lower()
+            if query and query not in haystack:
+                continue
+            if doctor_id and str(appt.get("doctor_id") or "") != str(doctor_id):
+                continue
+            if service_name and current_service != service_name:
+                continue
+            if status_filter != "Trạng thái" and str(appt.get("status") or "") != status_filter:
+                continue
+            appt = dict(appt)
+            appt["service_name"] = current_service
+            filtered.append(appt)
+
+        self.staff_appointment_rows = filtered
+        self.staff_appt_table.blockSignals(True)
+        self.staff_appt_table.setRowCount(len(filtered))
+        for row, appt in enumerate(filtered):
+            service_text = str(appt.get("service_name") or "")
+            self.staff_appt_table.setItem(row, 0, QtWidgets.QTableWidgetItem(self._staff_display_text(str(appt.get("appointment_date", "")))))
+            self.staff_appt_table.setItem(row, 1, QtWidgets.QTableWidgetItem(self._staff_display_text(str(appt.get("patient_name", "")))))
+            self.staff_appt_table.setItem(row, 2, QtWidgets.QTableWidgetItem(self._staff_display_text(service_text)))
+            self.staff_appt_table.setItem(row, 3, QtWidgets.QTableWidgetItem(self._staff_display_text(str(appt.get("doctor_name", "")))))
+            self.staff_appt_table.setCellWidget(row, 4, self._create_status_badge_widget(str(appt.get("status") or "pending")))
+            self.staff_appt_table.setCellWidget(row, 5, self._create_appointment_actions_widget(row))
+        self.staff_appt_table.blockSignals(False)
+
+        if hasattr(self, "staff_appt_paging_label"):
+            self.staff_appt_paging_label.setText(f"Hiển thị {len(filtered)} lịch hẹn")
+        if filtered:
+            self.staff_appt_table.selectRow(0)
+            self._set_staff_appointment_detail(filtered[0])
+        else:
+            self._reset_staff_appointment_detail()
+
+    def _handle_staff_appointment_selection(self):
+        row = self.staff_appt_table.currentRow()
+        if row < 0 or row >= len(self.staff_appointment_rows):
+            self.staff_appointment_selected_id = None
+            self.shared_selected_appointment_id = None
+            self._reset_staff_appointment_detail()
+            return
+
+        appt = self.staff_appointment_rows[row]
+        self.staff_appointment_selected_id = appt.get("appointment_id")
+        self.shared_selected_appointment_id = self.staff_appointment_selected_id
+        self.shared_selected_patient_id = appt.get("patient_id")
+        self.staff_appt_patient_id_input.setText(str(appt.get("patient_id") or ""))
+
+        doctor_index = self.staff_appt_doctor_combo.findData(appt.get("doctor_id"))
+        if doctor_index >= 0:
+            self.staff_appt_doctor_combo.setCurrentIndex(doctor_index)
+        service_name = self._extract_service_name_from_note(str(appt.get("note") or ""))
+        self.shared_selected_service_name = service_name
+        service_index = self.staff_appt_service_combo.findData(service_name)
+        if service_index >= 0:
+            self.staff_appt_service_combo.setCurrentIndex(service_index)
+        dt = QtCore.QDateTime.fromString(str(appt.get("appointment_date") or ""), "yyyy-MM-dd HH:mm:ss")
+        if dt.isValid():
+            self.staff_appt_date_input.setDate(dt.date())
+            self.staff_appt_time_input.setTime(dt.time())
+        status_index = self.staff_appt_status_combo.findText(str(appt.get("status") or "pending"))
+        if status_index >= 0:
+            self.staff_appt_status_combo.setCurrentIndex(status_index)
+        self.staff_appt_note_input.setText(str(appt.get("note") or ""))
+        self._set_staff_appointment_detail(appt)
+        self._set_staff_appt_feedback(f"Đã chọn lịch hẹn #{self.staff_appointment_selected_id} để cập nhật/hủy.", is_error=False)
+
+    def _build_staff_service_lookup_page(self):
+        page = QtWidgets.QFrame()
+        page.setStyleSheet("background: #f8fbff; border: none;")
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        header = QtWidgets.QFrame()
+        header.setStyleSheet("background: transparent; border: none;")
+        header_layout = QtWidgets.QHBoxLayout(header)
+        header_layout.setContentsMargins(4, 0, 4, 0)
+        header_layout.setSpacing(14)
+        title_col = QtWidgets.QVBoxLayout()
+        title_col.setSpacing(5)
+        heading = QtWidgets.QLabel("Dịch vụ & Gói khám")
+        heading.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Dịch vụ & Gói khám")
+        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        title_col.addWidget(heading)
+        title_col.addWidget(breadcrumb)
+        bell = QtWidgets.QLabel("🔔")
+        bell.setFixedSize(34, 34)
+        bell.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        bell.setStyleSheet("border: none; background: transparent; font-size: 21px; color: #64748b;")
+        avatar = QtWidgets.QLabel("👤")
+        avatar.setFixedSize(42, 42)
+        avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet("border: none; background: #eaf2ff; border-radius: 21px; font-size: 20px;")
+        user_lbl = QtWidgets.QLabel(f"{self.username}  ▾")
+        user_lbl.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #0f172a; font-weight: 900;")
+        header_layout.addLayout(title_col, 1)
+        header_layout.addWidget(bell)
+        header_layout.addWidget(avatar)
+        header_layout.addWidget(user_lbl)
+        layout.addWidget(header)
+
+        self.staff_service_rows = self._build_staff_service_catalog()
+
+        kpi_row = QtWidgets.QHBoxLayout()
+        kpi_row.setSpacing(16)
+        total_services = len([s for s in self.staff_service_rows if not s.get("is_package")])
+        total_packages = len([s for s in self.staff_service_rows if s.get("is_package")])
+        active_count = len([s for s in self.staff_service_rows if self._staff_service_is_active(s)])
+        revenue = sum(float(s.get("price") or 0) for s in self.staff_service_rows[:10]) * 21
+        kpi_row.addWidget(self._build_staff_service_kpi_card("📄", "Tổng dịch vụ", str(total_services), "Đang áp dụng", "#efe9ff", "#6d5dfc"))
+        kpi_row.addWidget(self._build_staff_service_kpi_card("💼", "Gói khám", str(total_packages), "Đang áp dụng", "#eaf2ff", "#2563eb"))
+        kpi_row.addWidget(self._build_staff_service_kpi_card("🎓", "Dịch vụ nổi bật", "6", "Được quan tâm", "#ffeaf1", "#f43f5e"))
+        kpi_row.addWidget(self._build_staff_service_kpi_card("💧", "Tổng doanh thu dịch vụ", self._format_staff_money(revenue), "Trong tháng 05", "#eaf2ff", "#4f46e5"), 2)
+        layout.addLayout(kpi_row)
+
+        body = QtWidgets.QHBoxLayout()
+        body.setSpacing(18)
+
+        list_card = self._build_section_card("")
+        list_layout = list_card.layout()
+        tab_row = QtWidgets.QHBoxLayout()
+        tab_row.setSpacing(22)
+        self.staff_service_tab_service = QtWidgets.QPushButton("Dịch vụ")
+        self.staff_service_tab_package = QtWidgets.QPushButton("Gói khám")
+        for idx, btn in enumerate([self.staff_service_tab_service, self.staff_service_tab_package]):
+            btn.setCheckable(True)
+            btn.setChecked(idx == 0)
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(
+                "QPushButton { border: none; background: transparent; padding: 8px 12px; color: #64748b; font-size: 14px; font-weight: 900; }"
+                "QPushButton:checked { color: #13a66b; border-bottom: 3px solid #13a66b; }"
+            )
+        self.staff_service_tab_service.clicked.connect(lambda: self._set_staff_service_mode(False))
+        self.staff_service_tab_package.clicked.connect(lambda: self._set_staff_service_mode(True))
+        tab_row.addWidget(self.staff_service_tab_service)
+        tab_row.addWidget(self.staff_service_tab_package)
+        tab_row.addStretch()
+        list_layout.addLayout(tab_row)
+
+        filter_row = QtWidgets.QHBoxLayout()
+        filter_row.setSpacing(12)
+        self.staff_service_search_input = QtWidgets.QLineEdit()
+        self.staff_service_search_input.setPlaceholderText("Tìm kiếm dịch vụ...")
+        self.staff_service_search_input.setStyleSheet(self._intake_input_style())
+        self.staff_service_category_combo = QtWidgets.QComboBox()
+        self.staff_service_category_combo.addItems(["Tất cả danh mục", "Khám bệnh", "Khám chuyên khoa", "Xét nghiệm", "Chẩn đoán hình ảnh", "Tiêm chủng", "Tư vấn"])
+        self.staff_service_category_combo.setStyleSheet(self._intake_input_style())
+        self.staff_service_status_combo = QtWidgets.QComboBox()
+        self.staff_service_status_combo.addItems(["Tất cả", "Đang áp dụng", "Ngưng áp dụng"])
+        self.staff_service_status_combo.setStyleSheet(self._intake_input_style())
+        add_btn = QtWidgets.QPushButton("+  Thêm dịch vụ")
+        add_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        add_btn.setStyleSheet(self._intake_primary_button_style())
+        add_btn.clicked.connect(self._show_staff_service_add_dialog)
+        self.staff_service_search_input.textChanged.connect(self._refresh_staff_service_lookup)
+        self.staff_service_category_combo.currentIndexChanged.connect(self._refresh_staff_service_lookup)
+        self.staff_service_status_combo.currentIndexChanged.connect(self._refresh_staff_service_lookup)
+        filter_row.addWidget(self.staff_service_search_input, 2)
+        filter_row.addWidget(self.staff_service_category_combo)
+        filter_row.addWidget(self.staff_service_status_combo)
+        filter_row.addWidget(add_btn)
+        list_layout.addLayout(filter_row)
+
+        self.staff_service_list_title = QtWidgets.QLabel("Danh sách dịch vụ (0)")
+        self.staff_service_list_title.setStyleSheet("border: none; background: transparent; font-size: 17px; color: #0f172a; font-weight: 900;")
+        list_layout.addWidget(self.staff_service_list_title)
+
+        self.staff_service_table = QtWidgets.QTableWidget(0, 7)
+        self.staff_service_table.setHorizontalHeaderLabels(["STT", "Tên dịch vụ", "Danh mục", "Giá (đ)", "Thời gian", "Trạng thái", "Thao tác"])
+        self.staff_service_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.staff_service_table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self.staff_service_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.staff_service_table.setShowGrid(False)
+        self.staff_service_table.verticalHeader().setVisible(False)
+        self.staff_service_table.verticalHeader().setDefaultSectionSize(58)
+        self.staff_service_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.staff_service_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_service_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_service_table.horizontalHeader().setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.staff_service_table.setStyleSheet(
+            "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; color: #0f172a; font-size: 13px; font-weight: 700; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 900; border: none; padding: 10px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; }"
+            "QTableWidget::item:selected { background: #ecfdf5; color: #0f172a; }"
+        )
+        self.staff_service_table.itemSelectionChanged.connect(self._handle_staff_service_selection)
+        list_layout.addWidget(self.staff_service_table, 1)
+
+        footer = QtWidgets.QHBoxLayout()
+        self.staff_service_lookup_empty = QtWidgets.QLabel("Hiển thị 0 bản ghi")
+        self.staff_service_lookup_empty.setStyleSheet("border: none; background: transparent; color: #64748b; font-size: 12px; font-weight: 700;")
+        footer.addWidget(self.staff_service_lookup_empty)
+        footer.addStretch()
+        for label in ["‹", "1", "2", "3", "4", "›"]:
+            btn = QtWidgets.QPushButton(label)
+            btn.setFixedSize(36, 32)
+            btn.setStyleSheet(
+                "QPushButton { background: #ffffff; border: 1px solid #dbe4ee; border-radius: 8px; color: #334155; font-weight: 900; }"
+                "QPushButton:hover { border-color: #13a66b; color: #13a66b; }"
+            )
+            if label == "1":
+                btn.setStyleSheet("background: #13a66b; border: none; border-radius: 8px; color: white; font-weight: 900;")
+            footer.addWidget(btn)
+        list_layout.addLayout(footer)
+
+        detail_card = self._build_section_card("Thông tin dịch vụ")
+        detail_layout = detail_card.layout()
+        detail_layout.setSpacing(14)
+        profile = QtWidgets.QHBoxLayout()
+        self.staff_service_icon = QtWidgets.QLabel("✚")
+        self.staff_service_icon.setFixedSize(82, 82)
+        self.staff_service_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.staff_service_icon.setStyleSheet("background: #e7f8ef; color: #13a66b; border-radius: 14px; font-size: 40px; font-weight: 900;")
+        info_col = QtWidgets.QVBoxLayout()
+        self.staff_service_detail_name = QtWidgets.QLabel("Chưa chọn dịch vụ")
+        self.staff_service_detail_name.setWordWrap(True)
+        self.staff_service_detail_name.setStyleSheet("border: none; background: transparent; font-size: 18px; color: #0f172a; font-weight: 900;")
+        self.staff_service_detail_meta = QtWidgets.QLabel("Danh mục: --")
+        self.staff_service_detail_meta.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #475569; font-weight: 700;")
+        info_col.addWidget(self.staff_service_detail_name)
+        info_col.addWidget(self.staff_service_detail_meta)
+        profile.addWidget(self.staff_service_icon)
+        profile.addLayout(info_col, 1)
+        detail_layout.addLayout(profile)
+
+        self.staff_service_detail_info = QtWidgets.QLabel("Giá dịch vụ: --\nThời gian: --\nTrạng thái: --")
+        self.staff_service_detail_info.setWordWrap(True)
+        self.staff_service_detail_info.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 13px; font-weight: 800; line-height: 150%;")
+        detail_layout.addWidget(self.staff_service_detail_info)
+        self.staff_service_detail_description = QtWidgets.QLabel("Mô tả\nChưa có thông tin.")
+        self.staff_service_detail_description.setWordWrap(True)
+        self.staff_service_detail_description.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 13px; font-weight: 700;")
+        detail_layout.addWidget(self.staff_service_detail_description)
+        self.staff_service_detail_process = QtWidgets.QLabel(
+            "Quy trình thực hiện\n1. Đăng ký thông tin\n2. Khám lâm sàng\n3. Chỉ định cận lâm sàng (nếu cần)\n4. Bác sĩ tư vấn kết quả"
+        )
+        self.staff_service_detail_process.setWordWrap(True)
+        self.staff_service_detail_process.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 13px; font-weight: 700;")
+        detail_layout.addWidget(self.staff_service_detail_process)
+        self.staff_service_detail_note = QtWidgets.QLabel("Lưu ý\n- Mang theo giấy tờ tùy thân")
+        self.staff_service_detail_note.setWordWrap(True)
+        self.staff_service_detail_note.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 13px; font-weight: 700;")
+        detail_layout.addWidget(self.staff_service_detail_note)
+
+        detail_actions = QtWidgets.QHBoxLayout()
+        self.staff_service_edit_btn = QtWidgets.QPushButton("✎  Sửa dịch vụ")
+        self.staff_service_disable_btn = QtWidgets.QPushButton("🗑  Ngưng áp dụng")
+        self.staff_service_edit_btn.clicked.connect(self._show_staff_service_edit_dialog)
+        self.staff_service_disable_btn.clicked.connect(self._handle_staff_service_disable)
+        self.staff_service_edit_btn.setStyleSheet("background: #ffffff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 9px; padding: 11px; font-weight: 900;")
+        self.staff_service_disable_btn.setStyleSheet("background: #fff1f2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 9px; padding: 11px; font-weight: 900;")
+        detail_actions.addWidget(self.staff_service_edit_btn)
+        detail_actions.addWidget(self.staff_service_disable_btn)
+        detail_layout.addLayout(detail_actions)
+
+        related_title = QtWidgets.QLabel("Dịch vụ thường được chọn kèm")
+        related_title.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 16px; font-weight: 900;")
+        detail_layout.addWidget(related_title)
+        self.staff_service_related_box = QtWidgets.QVBoxLayout()
+        detail_layout.addLayout(self.staff_service_related_box)
+        detail_layout.addStretch()
+
+        self.staff_service_feedback = QtWidgets.QLabel("")
+        self.staff_service_feedback.setWordWrap(True)
+        self.staff_service_feedback.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #0f766e; font-weight: 700;")
+        detail_layout.addWidget(self.staff_service_feedback)
+
+        body.addWidget(list_card, 7)
+        body.addWidget(detail_card, 3)
+        layout.addLayout(body, 1)
+
+        self.staff_service_show_packages = False
+        self._refresh_staff_service_lookup()
+        return page
+
+    def _build_staff_service_catalog(self):
+        sample_services = [
+            {"service_id": "sample-1", "service_name": "Khám tổng quát", "category": "Khám bệnh", "price": 300000, "duration": 30, "description": "Khám sức khỏe tổng quát, đánh giá các chỉ số cơ bản và tư vấn hướng điều trị.", "is_active": True},
+            {"service_id": "sample-2", "service_name": "Khám tim mạch", "category": "Khám chuyên khoa", "price": 400000, "duration": 30, "description": "Khám chuyên khoa tim mạch, đo huyết áp, điện tim và tư vấn theo tình trạng bệnh.", "is_active": True},
+            {"service_id": "sample-3", "service_name": "Khám nhi khoa", "category": "Khám chuyên khoa", "price": 350000, "duration": 25, "description": "Khám và tư vấn sức khỏe cho trẻ em.", "is_active": True},
+            {"service_id": "sample-4", "service_name": "Khám tai mũi họng", "category": "Khám chuyên khoa", "price": 320000, "duration": 25, "description": "Khám tai mũi họng, nội soi khi cần và kê đơn điều trị.", "is_active": True},
+            {"service_id": "sample-5", "service_name": "Khám răng hàm mặt", "category": "Khám chuyên khoa", "price": 250000, "duration": 20, "description": "Kiểm tra răng miệng, tư vấn chăm sóc và điều trị cơ bản.", "is_active": True},
+            {"service_id": "sample-6", "service_name": "Siêu âm tổng quát", "category": "Chẩn đoán hình ảnh", "price": 450000, "duration": 20, "description": "Siêu âm ổ bụng tổng quát, hỗ trợ chẩn đoán nhanh.", "is_active": True},
+            {"service_id": "sample-7", "service_name": "Siêu âm tim", "category": "Chẩn đoán hình ảnh", "price": 600000, "duration": 30, "description": "Siêu âm tim, đánh giá cấu trúc và chức năng tim.", "is_active": True},
+            {"service_id": "sample-8", "service_name": "Xét nghiệm máu tổng quát", "category": "Xét nghiệm", "price": 180000, "duration": 15, "description": "Xét nghiệm công thức máu và các chỉ số cơ bản.", "is_active": True},
+            {"service_id": "sample-9", "service_name": "Xét nghiệm đường huyết", "category": "Xét nghiệm", "price": 90000, "duration": 10, "description": "Kiểm tra đường huyết nhanh.", "is_active": True},
+            {"service_id": "sample-10", "service_name": "X-quang phổi", "category": "Chẩn đoán hình ảnh", "price": 120000, "duration": 15, "description": "Chụp X-quang phổi hỗ trợ chẩn đoán hô hấp.", "is_active": False},
+        ]
+        sample_packages = [
+            {"service_id": "package-1", "service_name": "Gói khám tổng quát", "category": "Gói khám", "price": 1200000, "duration": 90, "description": "Gói kiểm tra sức khỏe định kỳ gồm khám tổng quát, xét nghiệm máu và siêu âm.", "is_active": True, "is_package": True},
+            {"service_id": "package-2", "service_name": "Gói khám doanh nghiệp", "category": "Gói khám", "price": 950000, "duration": 75, "description": "Gói khám sức khỏe cho nhân viên doanh nghiệp.", "is_active": True, "is_package": True},
+            {"service_id": "package-3", "service_name": "Gói tim mạch nâng cao", "category": "Gói khám", "price": 1500000, "duration": 100, "description": "Gói khám chuyên sâu tim mạch kèm siêu âm tim và xét nghiệm cần thiết.", "is_active": True, "is_package": True},
+        ]
+
+        rows = []
+        try:
+            rows = ServiceController.get_all() or []
+        except Exception:
+            rows = []
+
+        catalog = []
+        seen_names = set()
+        for row in rows:
+            service = dict(row)
+            name = str(service.get("service_name") or service.get("name") or "").strip()
+            if not name:
+                continue
+            service["service_name"] = self._staff_display_text(name)
+            service.setdefault("category", self._staff_service_category(service))
+            service.setdefault("duration", self._staff_service_duration(service))
+            service.setdefault("description", self._staff_service_description(service))
+            service["is_package"] = "gói" in service["service_name"].lower()
+            catalog.append(service)
+            seen_names.add(service["service_name"].lower())
+
+        for item in sample_services + sample_packages:
+            if item["service_name"].lower() not in seen_names:
+                catalog.append(dict(item))
+        return catalog
+
+    def _build_staff_service_kpi_card(self, icon, title, value, note, bg_color, fg_color):
+        card = QtWidgets.QFrame()
+        card.setMinimumHeight(92)
+        card.setStyleSheet("background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
+        layout = QtWidgets.QHBoxLayout(card)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(12)
+        icon_label = QtWidgets.QLabel(icon)
+        icon_label.setFixedSize(44, 44)
+        icon_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        icon_label.setStyleSheet(f"background: {bg_color}; color: {fg_color}; border: none; border-radius: 12px; font-size: 20px;")
+        text_col = QtWidgets.QVBoxLayout()
+        text_col.setSpacing(3)
+        title_label = QtWidgets.QLabel(title)
+        title_label.setStyleSheet("border: none; background: transparent; color: #64748b; font-size: 12px; font-weight: 800;")
+        value_label = QtWidgets.QLabel(str(value))
+        value_label.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 21px; font-weight: 900;")
+        note_label = QtWidgets.QLabel(note)
+        note_label.setStyleSheet("border: none; background: transparent; color: #94a3b8; font-size: 11px; font-weight: 700;")
+        text_col.addWidget(title_label)
+        text_col.addWidget(value_label)
+        text_col.addWidget(note_label)
+        layout.addWidget(icon_label)
+        layout.addLayout(text_col, 1)
+        return card
+
+    @staticmethod
+    def _format_staff_money(value):
+        try:
+            amount = int(float(value or 0))
+        except (TypeError, ValueError):
+            amount = 0
+        return f"{amount:,}".replace(",", ".") + " đ"
+
+    def _staff_service_category(self, service):
+        category = str(service.get("category") or service.get("service_type") or "").strip()
+        if category:
+            return self._staff_display_text(category)
+        name = str(service.get("service_name") or service.get("name") or "").lower()
+        if "xét nghiệm" in name or "xet nghiem" in name:
+            return "Xét nghiệm"
+        if "siêu âm" in name or "x-quang" in name or "x quang" in name:
+            return "Chẩn đoán hình ảnh"
+        if "tiêm" in name:
+            return "Tiêm chủng"
+        if "gói" in name:
+            return "Gói khám"
+        if any(token in name for token in ["tim", "nhi", "tai", "răng", "rang"]):
+            return "Khám chuyên khoa"
+        return "Khám bệnh"
+
+    def _staff_service_duration(self, service):
+        duration = service.get("duration") or service.get("duration_minutes")
+        try:
+            return int(duration)
+        except (TypeError, ValueError):
+            pass
+        category = self._staff_service_category(service)
+        if category == "Xét nghiệm":
+            return 15
+        if category == "Chẩn đoán hình ảnh":
+            return 20
+        if category == "Gói khám":
+            return 90
+        return 30
+
+    def _staff_service_description(self, service):
+        description = str(service.get("description") or "").strip()
+        if description:
+            return self._staff_display_text(description)
+        return "Dịch vụ được áp dụng tại CarePlus, hỗ trợ tiếp nhận và điều phối khám nhanh."
+
+    def _staff_service_is_active(self, service):
+        status = str(service.get("status") or "").lower().strip()
+        if status in {"inactive", "disabled", "ngưng áp dụng", "ngung ap dung"}:
+            return False
+        if "is_active" in service:
+            return bool(service.get("is_active"))
+        return True
+
+    def _staff_service_status_text(self, service):
+        return "Đang áp dụng" if self._staff_service_is_active(service) else "Ngưng áp dụng"
+
+    def _set_staff_service_mode(self, show_packages):
+        self.staff_service_show_packages = bool(show_packages)
+        self.staff_service_tab_service.setChecked(not show_packages)
+        self.staff_service_tab_package.setChecked(bool(show_packages))
+        self._refresh_staff_service_lookup()
+
+    def _refresh_staff_service_lookup(self):
+        if not hasattr(self, "staff_service_table"):
+            return
+        if not getattr(self, "staff_service_rows", None):
+            self.staff_service_rows = self._build_staff_service_catalog()
+
+        keyword = str(self.staff_service_search_input.text() or "").strip().lower()
+        category_filter = str(self.staff_service_category_combo.currentText() or "")
+        status_filter = str(self.staff_service_status_combo.currentText() or "")
+        show_packages = bool(getattr(self, "staff_service_show_packages", False))
+
+        filtered = []
+        for service in self.staff_service_rows:
+            is_package = bool(service.get("is_package"))
+            if is_package != show_packages:
+                continue
+            name = str(service.get("service_name") or service.get("name") or "")
+            category = self._staff_service_category(service)
+            status_text = self._staff_service_status_text(service)
+            haystack = f"{name} {category} {status_text}".lower()
+            if keyword and keyword not in haystack:
+                continue
+            if not category_filter.startswith("Tất cả") and category != category_filter:
+                continue
+            if not status_filter.startswith("Tất cả") and status_text != status_filter:
+                continue
+            filtered.append(service)
+
+        self.staff_service_filtered_rows = filtered
+        self.staff_service_table.blockSignals(True)
+        self.staff_service_table.setRowCount(len(filtered))
+        for row, service in enumerate(filtered):
+            name = self._staff_display_text(service.get("service_name") or service.get("name") or "")
+            category = self._staff_service_category(service)
+            price = self._format_staff_money(service.get("price")).replace(" đ", "")
+            duration = f"{self._staff_service_duration(service)} phút"
+            values = [str(row + 1), name, category, price, duration]
+            for col, value in enumerate(values):
+                item = QtWidgets.QTableWidgetItem(value)
+                align = QtCore.Qt.AlignmentFlag.AlignVCenter
+                if col == 0:
+                    align |= QtCore.Qt.AlignmentFlag.AlignCenter
+                else:
+                    align |= QtCore.Qt.AlignmentFlag.AlignLeft
+                item.setTextAlignment(align)
+                if col == 1:
+                    item.setData(QtCore.Qt.ItemDataRole.UserRole, row)
+                self.staff_service_table.setItem(row, col, item)
+            self.staff_service_table.setCellWidget(row, 5, self._build_staff_service_status_badge(service))
+            self.staff_service_table.setCellWidget(row, 6, self._build_staff_service_actions_widget(row))
+        self.staff_service_table.blockSignals(False)
+
+        title = "Danh sách gói khám" if show_packages else "Danh sách dịch vụ"
+        self.staff_service_list_title.setText(f"{title} ({len(filtered)})")
+        self.staff_service_lookup_empty.setText(f"Hiển thị {len(filtered)} bản ghi")
+        if filtered:
+            self.staff_service_table.selectRow(0)
+            self._update_staff_service_detail(filtered[0])
+        else:
+            self._reset_staff_service_detail()
+
+    def _build_staff_service_status_badge(self, service):
+        active = self._staff_service_is_active(service)
+        label = QtWidgets.QLabel(self._staff_service_status_text(service))
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        label.setMinimumWidth(108)
+        label.setStyleSheet(
+            "background: #dcfce7; color: #16a34a; border: none; border-radius: 12px; padding: 5px 10px; font-size: 12px; font-weight: 900;"
+            if active else
+            "background: #fee2e2; color: #ef4444; border: none; border-radius: 12px; padding: 5px 10px; font-size: 12px; font-weight: 900;"
+        )
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(2, 4, 2, 4)
+        layout.addWidget(label)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        return wrapper
+
+    def _build_staff_service_actions_widget(self, row):
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        actions = [("👁", "Xem chi tiết"), ("✎", "Sửa dịch vụ"), ("⋮", "Thêm thao tác")]
+        for icon, tooltip in actions:
+            btn = QtWidgets.QPushButton(icon)
+            btn.setToolTip(tooltip)
+            btn.setFixedSize(32, 30)
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(
+                "QPushButton { background: #ffffff; border: 1px solid #dbe4ee; border-radius: 8px; color: #475569; font-size: 13px; font-weight: 900; }"
+                "QPushButton:hover { border-color: #13a66b; color: #13a66b; }"
+            )
+            if tooltip.startswith("Xem"):
+                btn.clicked.connect(lambda _, r=row: self._select_staff_service_row(r))
+            elif tooltip.startswith("Sửa"):
+                btn.clicked.connect(lambda _, r=row: self._edit_staff_service_row(r))
+            else:
+                btn.clicked.connect(lambda _, r=row: self._select_staff_service_row(r))
+            layout.addWidget(btn)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        return wrapper
+
+    def _select_staff_service_row(self, row):
+        if 0 <= row < len(getattr(self, "staff_service_filtered_rows", [])):
+            self.staff_service_table.selectRow(row)
+            self._update_staff_service_detail(self.staff_service_filtered_rows[row])
+
+    def _edit_staff_service_row(self, row):
+        self._select_staff_service_row(row)
+        self._show_staff_service_edit_dialog()
+
+    def _handle_staff_service_selection(self):
+        if not hasattr(self, "staff_service_table"):
+            return
+        row = self.staff_service_table.currentRow()
+        if row < 0 or row >= len(getattr(self, "staff_service_filtered_rows", [])):
+            return
+        self._update_staff_service_detail(self.staff_service_filtered_rows[row])
+
+    def _update_staff_service_detail(self, service):
+        self.staff_service_selected = service
+        name = self._staff_display_text(service.get("service_name") or service.get("name") or "")
+        category = self._staff_service_category(service)
+        self.staff_service_detail_name.setText(name)
+        self.staff_service_detail_meta.setText(f"Danh mục: {category}")
+        self.staff_service_icon.setText("💼" if service.get("is_package") else "✚")
+        self.staff_service_detail_info.setText(
+            f"Giá dịch vụ: {self._format_staff_money(service.get('price'))}\n"
+            f"Thời gian: {self._staff_service_duration(service)} phút\n"
+            f"Trạng thái: {self._staff_service_status_text(service)}"
+        )
+        self.staff_service_detail_description.setText(f"Mô tả\n{self._staff_service_description(service)}")
+        self.staff_service_detail_process.setText(
+            "Quy trình thực hiện\n"
+            "1. Đăng ký thông tin tại quầy\n"
+            "2. Điều dưỡng hướng dẫn vào phòng khám\n"
+            "3. Thực hiện khám hoặc chỉ định cận lâm sàng\n"
+            "4. Bác sĩ tư vấn kết quả và hướng xử lý"
+        )
+        self.staff_service_detail_note.setText("Lưu ý\n- Mang theo giấy tờ tùy thân\n- Đến trước giờ hẹn 10 phút")
+        self.staff_service_disable_btn.setText("🗑  Ngưng áp dụng" if self._staff_service_is_active(service) else "↺  Áp dụng lại")
+
+        while self.staff_service_related_box.count():
+            item = self.staff_service_related_box.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        related = [s for s in self.staff_service_rows if s is not service and not s.get("is_package") and self._staff_service_is_active(s)][:3]
+        for row in related:
+            self.staff_service_related_box.addWidget(self._build_staff_related_service_row(row))
+
+    def _reset_staff_service_detail(self):
+        self.staff_service_selected = None
+        self.staff_service_detail_name.setText("Chưa chọn dịch vụ")
+        self.staff_service_detail_meta.setText("Danh mục: --")
+        self.staff_service_detail_info.setText("Giá dịch vụ: --\nThời gian: --\nTrạng thái: --")
+        self.staff_service_detail_description.setText("Mô tả\nChưa có thông tin.")
+        self.staff_service_feedback.setText("")
+
+    def _build_staff_related_service_row(self, service):
+        row = QtWidgets.QFrame()
+        row.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;")
+        layout = QtWidgets.QHBoxLayout(row)
+        layout.setContentsMargins(10, 8, 10, 8)
+        name = QtWidgets.QLabel(self._staff_display_text(service.get("service_name") or service.get("name") or ""))
+        name.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 12px; font-weight: 800;")
+        price = QtWidgets.QLabel(self._format_staff_money(service.get("price")))
+        price.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        price.setStyleSheet("border: none; background: transparent; color: #13a66b; font-size: 12px; font-weight: 900;")
+        layout.addWidget(name, 1)
+        layout.addWidget(price)
+        return row
+
+    def _show_staff_service_add_dialog(self):
+        self._open_staff_service_editor()
+
+    def _show_staff_service_edit_dialog(self):
+        if not getattr(self, "staff_service_selected", None):
+            self._set_staff_service_feedback("Vui lòng chọn dịch vụ cần sửa.", is_error=True)
+            return
+        self._open_staff_service_editor(self.staff_service_selected)
+
+    def _open_staff_service_editor(self, service=None):
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Sửa dịch vụ" if service else "Thêm dịch vụ")
+        dialog.setMinimumWidth(460)
+        layout = QtWidgets.QVBoxLayout(dialog)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(10)
+
+        name_input = QtWidgets.QLineEdit()
+        name_input.setPlaceholderText("Tên dịch vụ")
+        name_input.setText(str((service or {}).get("service_name") or (service or {}).get("name") or ""))
+        price_input = QtWidgets.QDoubleSpinBox()
+        price_input.setRange(0, 999999999)
+        price_input.setDecimals(0)
+        price_input.setSingleStep(50000)
+        price_input.setValue(float((service or {}).get("price") or 0))
+        category_combo = QtWidgets.QComboBox()
+        category_combo.addItems(["Khám bệnh", "Khám chuyên khoa", "Xét nghiệm", "Chẩn đoán hình ảnh", "Tiêm chủng", "Tư vấn", "Gói khám"])
+        category_index = category_combo.findText(self._staff_service_category(service or {}))
+        if category_index >= 0:
+            category_combo.setCurrentIndex(category_index)
+        duration_input = QtWidgets.QSpinBox()
+        duration_input.setRange(5, 240)
+        duration_input.setSuffix(" phút")
+        duration_input.setValue(self._staff_service_duration(service or {}))
+        desc_input = QtWidgets.QTextEdit()
+        desc_input.setPlaceholderText("Mô tả dịch vụ")
+        desc_input.setPlainText(self._staff_service_description(service or {}) if service else "")
+
+        for label_text, widget in [
+            ("Tên dịch vụ", name_input),
+            ("Danh mục", category_combo),
+            ("Giá", price_input),
+            ("Thời gian", duration_input),
+            ("Mô tả", desc_input),
+        ]:
+            label = QtWidgets.QLabel(label_text)
+            label.setStyleSheet("font-weight: 800; color: #334155;")
+            layout.addWidget(label)
+            widget.setStyleSheet(self._intake_input_style())
+            layout.addWidget(widget)
+
+        actions = QtWidgets.QHBoxLayout()
+        cancel_btn = QtWidgets.QPushButton("Hủy")
+        save_btn = QtWidgets.QPushButton("Lưu")
+        cancel_btn.clicked.connect(dialog.reject)
+        save_btn.setStyleSheet(self._intake_primary_button_style())
+        cancel_btn.setStyleSheet("background: #ffffff; color: #475569; border: 1px solid #dbe4ee; border-radius: 8px; padding: 9px 14px; font-weight: 800;")
+        actions.addStretch()
+        actions.addWidget(cancel_btn)
+        actions.addWidget(save_btn)
+        layout.addLayout(actions)
+
+        def save_service():
+            name = name_input.text().strip()
+            if not name:
+                self._set_staff_service_feedback("Tên dịch vụ không được để trống.", is_error=True)
+                return
+            data = {
+                "name": name,
+                "price": float(price_input.value()),
+                "description": desc_input.toPlainText().strip(),
+                "category": category_combo.currentText(),
+                "duration": duration_input.value(),
+            }
+            try:
+                if service and isinstance(service.get("service_id"), int):
+                    ServiceController.update(service["service_id"], data)
+                elif service and str(service.get("service_id", "")).startswith(("sample-", "package-")):
+                    service.update({"service_name": data["name"], "price": data["price"], "description": data["description"], "category": data["category"], "duration": data["duration"]})
+                else:
+                    ServiceController.create(data)
+                    self.staff_service_rows = self._build_staff_service_catalog()
+            except Exception as exc:
+                if service:
+                    service.update({"service_name": data["name"], "price": data["price"], "description": data["description"], "category": data["category"], "duration": data["duration"]})
+                else:
+                    self.staff_service_rows.insert(0, {"service_id": f"local-{len(self.staff_service_rows) + 1}", "service_name": data["name"], "price": data["price"], "description": data["description"], "category": data["category"], "duration": data["duration"], "is_active": True, "is_package": data["category"] == "Gói khám"})
+                self._set_staff_service_feedback(f"Lưu trên giao diện vì chưa ghi được CSDL: {exc}", is_error=True)
+            dialog.accept()
+            self._refresh_staff_service_lookup()
+
+        save_btn.clicked.connect(save_service)
+        dialog.exec()
+
+    def _handle_staff_service_disable(self):
+        service = getattr(self, "staff_service_selected", None)
+        if not service:
+            self._set_staff_service_feedback("Vui lòng chọn dịch vụ trước.", is_error=True)
+            return
+        new_state = not self._staff_service_is_active(service)
+        service_id = service.get("service_id")
+        try:
+            if isinstance(service_id, int):
+                from database.db import execute
+                execute("UPDATE Services SET is_active=? WHERE service_id=?", (1 if new_state else 0, service_id))
+            service["is_active"] = new_state
+            self._set_staff_service_feedback("Đã cập nhật trạng thái dịch vụ.", is_error=False)
+        except Exception as exc:
+            service["is_active"] = new_state
+            self._set_staff_service_feedback(f"Đã cập nhật tạm trên giao diện: {exc}", is_error=True)
+        self._refresh_staff_service_lookup()
+
+    @staticmethod
+    def _staff_display_text(value):
+        text = str(value or "")
+        replacements = {
+            "Nguy?n Van A": "Nguyễn Văn A",
+            "Tr?n Th? B": "Trần Thị B",
+            "Bác si": "Bác sĩ",
+            "Xét nghi?m": "Xét nghiệm",
+            "Khám t?ng quát": "Khám tổng quát",
+            "N?i khoa": "Nội khoa",
+            "Ngo?i khoa": "Ngoại khoa",
+            "ChÆ°a cÃ³ SÄT": "Chưa có SĐT",
+        }
+        for source, target in replacements.items():
+            text = text.replace(source, target)
+        return text
+
+    @staticmethod
+    def _staff_status_label(status):
+        labels = {
+            "pending": "Đang chờ",
+            "confirmed": "Đã xác nhận",
+            "in_progress": "Đang khám",
+            "done": "Đã hoàn tất",
+            "cancelled": "Đã hủy",
+        }
+        return labels.get(str(status or "").lower().strip(), status or "-")
+
+    def _create_status_badge_widget(self, status):
+        status_key = str(status or "pending").lower().strip()
+        bg_color, fg_color = self._get_status_badge_style(status_key)
+        badge = QtWidgets.QLabel(self._staff_status_label(status_key))
+        badge.setMinimumWidth(104)
+        badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        badge.setStyleSheet(
+            f"background: {bg_color}; color: {fg_color}; border: none; border-radius: 11px;"
+            " padding: 5px 12px; font-size: 12px; font-weight: 900;"
+        )
+        wrapper = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(wrapper)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.addWidget(badge)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        return wrapper
+
+    def _create_appointment_actions_widget(self, row):
+        container = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        view_btn = QtWidgets.QPushButton("👁")
+        view_btn.setToolTip("Xem chi tiết")
+        menu_btn = QtWidgets.QPushButton("⋮")
+        menu_btn.setToolTip("Tùy chọn")
+        for btn in [view_btn, menu_btn]:
+            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            btn.setFixedSize(34, 30)
+            btn.setStyleSheet(
+                "QPushButton {border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff;"
+                " color: #334155; font-size: 13px; font-weight: 900;}"
+                "QPushButton:hover {border-color: #1A9B6C; color: #1A9B6C;}"
+            )
+        view_btn.clicked.connect(lambda _, r=row: self._handle_staff_appt_quick_view(r))
+        menu_btn.clicked.connect(lambda _, r=row, b=menu_btn: self._show_staff_appt_actions_menu(r, b))
+        layout.addWidget(view_btn)
+        layout.addWidget(menu_btn)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        return container
+
+    def _set_staff_appointment_detail(self, appt):
+        service_text = self._staff_display_text(self._extract_service_name_from_note(str(appt.get("note") or "")) or "-")
+        status = str(appt.get("status") or "")
+        patient_name = self._staff_display_text(str(appt.get("patient_name") or "Chưa có tên"))
+        appointment_date = self._staff_display_text(str(appt.get("appointment_date") or ""))
+        doctor_name = self._staff_display_text(str(appt.get("doctor_name") or ""))
+        phone = self._staff_display_text(str(appt.get("patient_phone") or "Chưa có SĐT"))
+        note = self._staff_display_text(str(appt.get("note") or "Không có"))
+        self.staff_appt_detail_patient.setText(
+            f"👤  {patient_name}\n"
+            f"BN #{appt.get('patient_id', '')}  •  {phone}"
+        )
+        self.staff_appt_detail_info.setText(
+            f"Thời gian hẹn: {appointment_date}\n"
+            f"Dịch vụ khám: {service_text}\n"
+            f"Bác sĩ: {doctor_name}\n"
+            f"Phòng khám: Phòng khám 1\n"
+            f"Trạng thái: {self._staff_status_label(status)}\n"
+            f"Ghi chú: {note}"
+        )
+        date_part = appointment_date[:10] if appointment_date else "Hôm nay"
+        self.staff_appt_detail_timeline.setText(
+            f"● {date_part} 07:30\n  Nhân viên tạo lịch hẹn\n\n"
+            f"● {date_part} 07:35\n  Bệnh nhân xác nhận lịch hẹn\n\n"
+            f"● {date_part} 07:40\n  Nhân viên xác nhận lịch hẹn"
+        )
+
     def _nav_button_style(self, is_active=False):
         base = (
             "QPushButton { border: none; text-align: left; padding: 14px 20px; border-radius: 10px; "
@@ -4306,7 +5830,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             return
 
         if hasattr(self, "topbar"):
-            self.topbar.setVisible(index not in {1, 2, 3})
+            self.topbar.setVisible(index not in {1, 2, 3, 4, 5})
 
         for i, btn in enumerate(self.nav_buttons):
             btn.setStyleSheet(self._nav_button_style(is_active=(i == index)))

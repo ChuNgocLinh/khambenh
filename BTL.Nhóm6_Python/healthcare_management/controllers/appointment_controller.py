@@ -1,6 +1,6 @@
-from healthcare_management.models.appointment_model import AppointmentModel
-from healthcare_management.models.doctor_model import DoctorModel
-from healthcare_management.models.service_model import ServiceModel
+from models.appointment_model import AppointmentModel
+from models.doctor_model import DoctorModel
+from models.service_model import ServiceModel
 from datetime import datetime
 
 

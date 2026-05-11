@@ -340,11 +340,13 @@ class DashboardView(QtWidgets.QWidget):
         self.content_stack.addWidget(self.page_dashboard)
 
         # Các trang placeholder khác
-        from views.doctor_management_views import MedicalRecordView, PrescriptionView, DoctorPatientListView, DoctorAppointmentView
+        from views.doctor_management_views import PrescriptionView, DoctorPatientListView
+        from views.doctor_patient_record_view import DoctorPatientRecordView
+        from views.doctor_schedule_view import DoctorScheduleView
         
         self.page_patient_list = DoctorPatientListView(self.user_data.get("doctor_id"))
-        self.page_doctor_appts = DoctorAppointmentView(self.user_data.get("doctor_id"))
-        self.page_medical_record = MedicalRecordView(self.user_data.get("doctor_id"))
+        self.page_doctor_appts = DoctorScheduleView(self.user_data.get("doctor_id"))
+        self.page_medical_record = DoctorPatientRecordView(self.user_data.get("doctor_id"))
         self.page_prescription = PrescriptionView(self.user_data.get("doctor_id"))
 
         role = str(self.user_data.get("role") or "doctor").lower().strip()
@@ -2050,6 +2052,8 @@ class DashboardView(QtWidgets.QWidget):
             
     def switch_page(self, index):
         self.content_stack.setCurrentIndex(index)
+        for widget in [self.header_title, self.user_avatar, self.user_name_lbl, self.btn_logout]:
+            widget.setVisible(index not in {1, 3})
         for i, btn in enumerate(self.nav_buttons):
             style = "QPushButton { border: none; text-align: left; padding: 13px 20px; border-radius: 12px; color: #333; font-size: 14px; font-weight: 600; }"
             if i == index:
