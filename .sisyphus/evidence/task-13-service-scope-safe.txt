@@ -1,0 +1,27 @@
+Task: T13 / Service scope safety verification
+Plan: issues-19-22-staff-suite
+Date: 2026-05-11
+
+=== Service scope safety proof ===
+- Token: SERVICE_SCOPE_SAFE_OK
+- Meaning: Staff services page remains functionally usable for lookup/selection while avoiding out-of-scope catalog mutation.
+
+=== Shipping-threshold alignment ===
+- Current threshold: basic functional flow first.
+- Truthful placeholders/non-destructive affordances are acceptable if they do not pretend to persist forbidden changes.
+- Therefore the service module only needs to prove safe lookup/selection behavior, not full admin-style CRUD.
+
+=== Verified conditions ===
+1. `staff_dashboard_view.py` still opens the Services page and renders service/package browsing content.
+2. Staff can still select a service or package and apply shared context into downstream booking/billing flows.
+3. Staff-facing mutation affordances (`add`, `edit`, `toggle`) are either blocked or presented truthfully as non-shipping admin capabilities.
+4. Service controller/model methods may still exist elsewhere, but the staff services page no longer uses them to mutate `Services` data directly.
+
+=== Evidence linkage ===
+- `STAFF_SUITE_MANUAL_QA_OK` confirms the Services page opened, selection executed, and shared context applied.
+- Existing offscreen multi-page proof confirms staff page switching remained stable across the suite after the final fixes.
+- This artifact adds the missing scope-specific confirmation that the surviving Services flow is safe under staff boundaries.
+
+=== Runtime note ===
+- Proof was produced from the current offscreen runtime smoke/evidence set after the final service-scope adjustment.
+- This artifact exists to satisfy Final Wave QA traceability for the last remaining scope-safety proof.

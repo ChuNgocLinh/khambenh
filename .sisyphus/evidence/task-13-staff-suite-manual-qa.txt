@@ -1,0 +1,21 @@
+Task: T13 / Final manual QA evidence refresh
+Plan: issues-19-22-staff-suite
+Date: 2026-05-11
+
+=== Runtime entry-path proof ===
+- Token: MAIN_RUNTIME_OK
+- Meaning: `main.py -> LoginView.login() -> MainView(role='staff') -> staff_dashboard.switch_page(4..8)` executed without crash under offscreen runtime smoke.
+
+=== Multi-page staff suite manual QA smoke ===
+- Token: STAFF_SUITE_MANUAL_QA_OK
+- Result payload: `billing_rows=1;services_rows=2;notifications_rows=4;reports_kpi=4;settings_profile_saved`
+- Coverage achieved in the smoke:
+  1. Billing page opened and create invoice path executed without runtime crash.
+  2. Services page opened, service selection path executed, and shared context applied.
+  3. Notifications page opened, selection path executed, mark-read path executed.
+  4. Reports page opened and KPI shell rendered.
+  5. Settings page opened and profile save handler executed.
+
+=== Notes ===
+- This is still a headless/offscreen runtime verification, not a human-observed GUI session.
+- The purpose of this artifact is to prove the staff suite basic functional flow in the current environment where direct interactive GUI verification is constrained.

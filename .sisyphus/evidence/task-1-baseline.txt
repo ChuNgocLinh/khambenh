@@ -1,0 +1,81 @@
+Task: 1. Thiết lập baseline verify và chốt blast radius của cụm staff pages
+Plan: issues-19-22-staff-suite
+Date: 2026-05-11
+
+=== Baseline Verify Commands ===
+
+1) Compile baseline (required)
+Command:
+python3 -m py_compile "BTL.Nhóm6_Python/healthcare_management/views/staff_dashboard_view.py"
+Workdir:
+/home/cuong-tmi04/code/khambenh
+Result:
+PASS (exit code 0, no output)
+
+2) Pytest baseline attempt #1 (as defined in plan using `python`)
+Command:
+python -m pytest -q
+Workdir:
+/home/cuong-tmi04/code/khambenh/BTL.Nhóm6_Python/healthcare_management
+Result:
+BLOCKED
+Output:
+/bin/bash: dòng 1: python: không tìm thấy lệnh
+
+3) Pytest baseline attempt #2 (fallback with `python3`)
+Command:
+python3 -m pytest -q
+Workdir:
+/home/cuong-tmi04/code/khambenh/BTL.Nhóm6_Python/healthcare_management
+Result:
+BLOCKED
+Output:
+/usr/bin/python3: No module named pytest
+
+=== Regression Checklist (switch_page indices for issues 19-22) ===
+
+- [x] index 4 -> Billing page
+  - def _build_staff_billing_page: staff_dashboard_view.py:3151
+  - def _refresh_staff_billing_table: staff_dashboard_view.py:3255
+  - switch_page refresh hook: staff_dashboard_view.py:3874
+
+- [x] index 5 -> Services page
+  - def _build_staff_service_lookup_page: staff_dashboard_view.py:787
+  - def _refresh_staff_service_lookup: staff_dashboard_view.py:898
+  - switch_page refresh hook: staff_dashboard_view.py:3877
+
+- [x] index 6 -> Notifications page
+  - def _build_staff_notifications_page: staff_dashboard_view.py:343
+  - def _refresh_staff_notifications: staff_dashboard_view.py:3531
+  - switch_page refresh hook: staff_dashboard_view.py:3879
+
+- [x] index 7 -> Reports page
+  - def _build_staff_reports_page: staff_dashboard_view.py:395
+  - def _refresh_staff_reports: staff_dashboard_view.py:3601
+  - switch_page refresh hook: staff_dashboard_view.py:3881
+
+=== Blast Radius (Task-1 scope lock for issues #19-#22) ===
+
+Core view file:
+- BTL.Nhóm6_Python/healthcare_management/views/staff_dashboard_view.py
+
+Billing-related controller/model:
+- BTL.Nhóm6_Python/healthcare_management/controllers/payment_controller.py
+- BTL.Nhóm6_Python/healthcare_management/models/payment_model.py
+
+Service-related controller/model:
+- BTL.Nhóm6_Python/healthcare_management/controllers/service_controller.py
+- BTL.Nhóm6_Python/healthcare_management/models/service_model.py
+
+Notification data-source controller/model (status/date normalization inputs):
+- BTL.Nhóm6_Python/healthcare_management/controllers/appointment_controller.py
+- BTL.Nhóm6_Python/healthcare_management/models/appointment_model.py
+- BTL.Nhóm6_Python/healthcare_management/controllers/patient_controller.py
+- BTL.Nhóm6_Python/healthcare_management/models/patient_model.py
+
+Report aggregation controller:
+- BTL.Nhóm6_Python/healthcare_management/controllers/report_controller.py
+
+Scope statement:
+- Baseline này KHÔNG bao gồm DB schema migration/init_db.sql changes.
+- Không sửa feature behavior ở Task-1; chỉ xác nhận phạm vi và trạng thái verify hiện tại.

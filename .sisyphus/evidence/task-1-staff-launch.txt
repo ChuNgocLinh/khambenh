@@ -1,0 +1,39 @@
+Task: 1. Baseline app launch smoke for staff flow
+Plan: issues-19-22-staff-suite
+Date: 2026-05-11
+
+=== App Launch Smoke Attempts ===
+
+Attempt #1
+Command:
+python3 main.py
+Workdir:
+/home/cuong-tmi04/code/khambenh/BTL.Nhóm6_Python/healthcare_management
+Result:
+BLOCKED
+Traceback (first failing frame):
+ModuleNotFoundError: No module named 'healthcare_management'
+
+Repro stack summary:
+- main.py imports views.login_view
+- login_view imports views.main_view
+- main_view imports views.staff_dashboard_view
+- staff_dashboard_view imports controllers.patient_controller
+- patient_controller imports healthcare_management.models.patient_model
+- Running from package-internal workdir does not expose top-level package name `healthcare_management`
+
+Attempt #2
+Command:
+python3 BTL.Nhóm6_Python/healthcare_management/main.py
+Workdir:
+/home/cuong-tmi04/code/khambenh
+Result:
+BLOCKED
+Traceback (first failing frame):
+ModuleNotFoundError: No module named 'healthcare_management'
+
+=== Baseline Conclusion ===
+
+- Staff app-launch smoke currently blocked before UI login (pre-DB stage).
+- Blocker type: Python import path/package layout mismatch in runtime entry execution context.
+- This is not a schema/data blocker; DB/env smoke for staff login cannot continue until import path issue is resolved in later task scope.
