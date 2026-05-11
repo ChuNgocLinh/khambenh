@@ -33,8 +33,8 @@ def _patch_dashboard_dependencies(monkeypatch):
         lambda doctor_id: [],
     )
     monkeypatch.setattr(
-        "views.doctor_management_views.PatientController.get_all",
-        lambda: [],
+        "views.doctor_management_views.PatientController.get_by_doctor",
+        lambda doctor_id: [],
     )
     monkeypatch.setattr(
         "controllers.notification_controller.NotificationController.list_for_user",

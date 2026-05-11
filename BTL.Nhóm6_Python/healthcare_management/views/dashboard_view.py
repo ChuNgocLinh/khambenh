@@ -3624,6 +3624,15 @@ class DashboardView(QtWidgets.QWidget):
         for i, btn in enumerate(self.nav_buttons):
             btn.setStyleSheet(self._doctor_sidebar_button_style(i == index))
 
+    def open_patient_record(self, patient_id):
+        profile = getattr(self, "page_patient_record", None)
+        if hasattr(profile, "set_patient"):
+            profile.set_patient(patient_id)
+        if profile is not None:
+            index = self.content_stack.indexOf(profile)
+            if index >= 0:
+                self.switch_page(index)
+
     def create_stat_card(self, icon, title, value, bg_color, text_color):
         card = QtWidgets.QFrame(); card.setMinimumHeight(130); card.setStyleSheet(f"background-color: {bg_color}; border-radius: 20px; border: none;")
         layout = QtWidgets.QHBoxLayout(card); layout.setContentsMargins(25, 25, 25, 25)

@@ -20,7 +20,7 @@ def _patch_dashboard(monkeypatch, rows, unread):
     monkeypatch.setattr(DashboardView, "_build_settings_page", lambda self: QtWidgets.QWidget())
     monkeypatch.setattr("views.doctor_schedule_view.AppointmentController.get_management_rows_by_doctor", lambda doctor_id: [])
     monkeypatch.setattr("views.doctor_examination_view.AppointmentController.get_by_doctor", lambda doctor_id: [])
-    monkeypatch.setattr("views.doctor_management_views.PatientController.get_all", lambda: [])
+    monkeypatch.setattr("views.doctor_management_views.PatientController.get_by_doctor", lambda doctor_id: [])
     monkeypatch.setattr("controllers.notification_controller.NotificationController.list_for_user", lambda user_id: rows)
     monkeypatch.setattr("controllers.notification_controller.NotificationController.unread_count", lambda user_id: unread[0])
 

@@ -1,4 +1,5 @@
-﻿from datetime import date, datetime
+﻿import csv
+from datetime import date, datetime
 from PyQt6 import QtWidgets, QtCore, QtGui, QtPrintSupport
 from controllers.medical_record_controller import MedicalRecordController
 from controllers.prescription_controller import PrescriptionController
@@ -2761,6 +2762,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
         add_btn = button("+ Thêm bệnh nhân")
         add_btn.clicked.connect(self.add_patient)
         export_btn = button("Xuất danh sách", "outline")
+        export_btn.clicked.connect(self.export_patients)
         row.addWidget(export_btn)
         row.addWidget(add_btn)
         layout.addLayout(row)
@@ -2829,7 +2831,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
             ("Xem hồ sơ", lambda: self.open_patient_profile_by_id(self.selected_patient_id), "primary"),
             ("Tạo lịch hẹn", self._go_schedule, "outline"),
             ("Khám bệnh", lambda: self._switch_page(3), "outline"),
-            ("Xóa bệnh nhân", lambda: None, "danger"),
+            ("Xóa bệnh nhân", self.delete_selected_patient, "danger"),
         ]:
             btn = button(text, kind)
             btn.clicked.connect(cb)
@@ -2839,7 +2841,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
 
     def load_data(self):
         try:
-            rows = PatientController.get_all() or []
+            rows = PatientController.get_by_doctor(self.doctor_id) or []
         except Exception as exc:
             self.all_rows = []
             self.status_label.setText(f"Lỗi tải dữ liệu: {exc}")
@@ -2851,10 +2853,54 @@ class DoctorPatientListView(QtWidgets.QWidget):
         self._apply_filters()
 
     def _decorate_patient(self, row, index):
-        status_key = ["new", "active", "follow_up", "recent"][index % 4]
-        row.setdefault("status_key", status_key)
-        row.setdefault("last_visit", row.get("last_visit") or row.get("created_at") or "Chưa có")
+        row["status_key"] = self._derive_status_key(row)
+        row["patient_code"] = row.get("patient_code") or f"BN{int(row.get('patient_id') or 0):06d}"
+        row["last_visit"] = self._display_datetime(
+            row.get("last_visit") or row.get("last_record_at") or row.get("latest_appointment_at")
+        )
         return row
+
+    def _derive_status_key(self, row):
+        if int(row.get("active_appointment_count") or 0) > 0 or int(row.get("draft_record_count") or 0) > 0:
+            return "active"
+        if row.get("next_visit"):
+            return "follow_up"
+        if int(row.get("record_count") or 0) == 0 and int(row.get("appointment_count") or 0) <= 1:
+            return "new"
+        last_seen = self._parse_datetime(row.get("last_visit") or row.get("last_record_at") or row.get("latest_appointment_at"))
+        if last_seen and (datetime.now() - last_seen).days <= 30:
+            return "recent"
+        return "active"
+
+    @staticmethod
+    def _parse_datetime(value):
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime(value.year, value.month, value.day)
+        if isinstance(value, str):
+            raw = value.strip()
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(raw, fmt)
+                except ValueError:
+                    continue
+        return None
+
+    def _display_datetime(self, value):
+        parsed = self._parse_datetime(value)
+        if parsed:
+            return parsed.strftime("%d/%m/%Y")
+        return str(value or "Chưa có")
+
+    @staticmethod
+    def _normalize_gender(value):
+        text = str(value or "").strip().lower()
+        if text in {"nam", "male", "m"}:
+            return "Nam"
+        if text in {"nữ", "nu", "female", "f"}:
+            return "Nữ"
+        return str(value or "")
 
     def _render_tabs(self):
         while self.tab_row.count():
@@ -2887,11 +2933,14 @@ class DoctorPatientListView(QtWidgets.QWidget):
     def _matches(self, row):
         keyword = self.search_input.text().strip().lower()
         if keyword:
-            haystack = f"BN{int(row.get('patient_id') or 0):06d} {row.get('name', '')} {row.get('phone', '')}".lower()
+            haystack = " ".join(
+                str(row.get(key) or "")
+                for key in ("patient_code", "patient_id", "name", "phone", "cccd", "email")
+            ).lower()
             if keyword not in haystack:
                 return False
         gender = self.gender_filter.currentText()
-        if gender != "Tất cả giới tính" and str(row.get("gender") or "") != gender:
+        if gender != "Tất cả giới tính" and self._normalize_gender(row.get("gender")) != gender:
             return False
         if self.active_tab != "all" and row.get("status_key") != self.active_tab:
             return False
@@ -2927,9 +2976,9 @@ class DoctorPatientListView(QtWidgets.QWidget):
             status_label, status_color, status_bg = self.STATUS_META.get(row.get("status_key"), self.STATUS_META["new"])
             values = [
                 start + row_index + 1,
-                f"BN{int(patient_id or 0):06d}",
+                row.get("patient_code") or f"BN{int(patient_id or 0):06d}",
                 "",
-                row.get("gender", ""),
+                self._normalize_gender(row.get("gender")),
                 row.get("dob", ""),
                 row.get("phone", ""),
                 row.get("last_visit", ""),
@@ -2971,7 +3020,11 @@ class DoctorPatientListView(QtWidgets.QWidget):
         wrapper = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
-        for text, cb in [("Xem", lambda checked=False, r=row: self.open_patient_profile_by_id(r.get("patient_id"))), ("Sua", lambda: None), ("...", lambda: None)]:
+        for text, cb in [
+            ("Xem", lambda checked=False, r=row: self.open_patient_profile_by_id(r.get("patient_id"))),
+            ("Sửa", lambda checked=False, r=row: self.edit_patient(r)),
+            ("...", lambda checked=False, r=row: self.show_patient_menu(r)),
+        ]:
             btn = icon_button(text)
             btn.clicked.connect(cb)
             layout.addWidget(btn)
@@ -2999,18 +3052,22 @@ class DoctorPatientListView(QtWidgets.QWidget):
         text = QtWidgets.QVBoxLayout()
         name = QtWidgets.QLabel(str(row.get("name", "")))
         name.setStyleSheet("font-size: 18px; font-weight: 900; color: #101828;")
-        code = QtWidgets.QLabel(f"BN{int(row.get('patient_id') or 0):06d}")
+        code = QtWidgets.QLabel(row.get("patient_code") or f"BN{int(row.get('patient_id') or 0):06d}")
         code.setStyleSheet("color: #667085;")
         text.addWidget(name)
         text.addWidget(code)
         head.addLayout(text)
         self.detail_header_layout.addLayout(head)
         self.detail_info.setText(
-            f"Giới tính: {row.get('gender', 'Chưa cập nhật')}\n"
+            f"Giới tính: {self._normalize_gender(row.get('gender')) or 'Chưa cập nhật'}\n"
             f"Ngày sinh: {row.get('dob', 'Chưa cập nhật')} ({age_from_dob(row.get('dob')) or 'Chưa rõ tuổi'})\n"
             f"SĐT: {row.get('phone', 'Chưa cập nhật')}\n"
+            f"CCCD: {row.get('cccd') or 'Chưa cập nhật'}\n"
+            f"Nghề nghiệp: {row.get('occupation') or 'Chưa cập nhật'}\n"
             f"Địa chỉ: {row.get('address') or 'Chưa cập nhật'}\n"
-            "Nhóm máu: Chưa cập nhật\nDị ứng: Chưa cập nhật\nGhi chú: Theo dõi trong hồ sơ bệnh án."
+            f"Lần khám gần nhất: {row.get('last_visit') or 'Chưa có'}\n"
+            f"Số lần khám: {int(row.get('appointment_count') or 0)} lịch hẹn, {int(row.get('record_count') or 0)} hồ sơ\n"
+            f"Ghi chú: {row.get('intake_notes') or 'Chưa cập nhật'}"
         )
 
     def _go_page(self, page):
@@ -3029,6 +3086,9 @@ class DoctorPatientListView(QtWidgets.QWidget):
         self.selected_patient_id = patient_id
         dashboard = self._find_dashboard()
         if dashboard:
+            if hasattr(dashboard, "open_patient_record"):
+                dashboard.open_patient_record(patient_id)
+                return
             profile = getattr(dashboard, "page_patient_record", None)
             if hasattr(profile, "set_patient"):
                 profile.set_patient(patient_id)
@@ -3037,8 +3097,99 @@ class DoctorPatientListView(QtWidgets.QWidget):
     def add_patient(self):
         dialog = PatientCreateDialog(self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
-            PatientController.create(dialog.get_data())
+            result = PatientController.create_with_status(dialog.get_data())
+            if not result.get("status"):
+                QtWidgets.QMessageBox.warning(self, "Không thể thêm bệnh nhân", result.get("message", "Lỗi không xác định"))
+                return
+            QtWidgets.QMessageBox.information(self, "Thành công", result.get("message", "Đã thêm bệnh nhân."))
             self.load_data()
+
+    def edit_patient(self, row):
+        if not row:
+            return
+        dialog = PatientEditDialog(row, self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        result = PatientController.update_with_status(row.get("patient_id"), dialog.get_data())
+        if not result.get("status"):
+            QtWidgets.QMessageBox.warning(self, "Không thể cập nhật", result.get("message", "Lỗi không xác định"))
+            return
+        QtWidgets.QMessageBox.information(self, "Thành công", result.get("message", "Đã cập nhật bệnh nhân."))
+        self.load_data()
+
+    def delete_selected_patient(self):
+        row = next((p for p in self.all_rows if p.get("patient_id") == self.selected_patient_id), None)
+        self.delete_patient(row)
+
+    def delete_patient(self, row):
+        if not row:
+            QtWidgets.QMessageBox.warning(self, "Thiếu dữ liệu", "Vui lòng chọn bệnh nhân cần xóa.")
+            return
+        patient_id = row.get("patient_id")
+        confirm = QtWidgets.QMessageBox.question(
+            self,
+            "Xóa bệnh nhân",
+            f"Bạn có chắc muốn xóa bệnh nhân {row.get('name') or patient_id}?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        if not PatientController.delete(patient_id):
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Không thể xóa",
+                "Không thể xóa bệnh nhân này. Hồ sơ có thể đang được tham chiếu bởi lịch hẹn hoặc bệnh án.",
+            )
+            return
+        self.selected_patient_id = None
+        QtWidgets.QMessageBox.information(self, "Đã xóa", "Đã xóa bệnh nhân khỏi hệ thống.")
+        self.load_data()
+
+    def show_patient_menu(self, row):
+        menu = QtWidgets.QMenu(self)
+        menu.addAction("Xem hồ sơ", lambda: self.open_patient_profile_by_id(row.get("patient_id")))
+        menu.addAction("Tạo lịch hẹn", self._go_schedule)
+        menu.addAction("Sửa thông tin", lambda: self.edit_patient(row))
+        menu.addSeparator()
+        menu.addAction("Xóa bệnh nhân", lambda: self.delete_patient(row))
+        menu.exec(QtGui.QCursor.pos())
+
+    def export_patients(self):
+        if not self.filtered_rows:
+            QtWidgets.QMessageBox.information(self, "Xuất danh sách", "Không có bệnh nhân để xuất.")
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "Xuất danh sách bệnh nhân",
+            "danh_sach_benh_nhan.csv",
+            "CSV Files (*.csv)",
+        )
+        if not path:
+            return
+        headers = ["Mã BN", "Họ và tên", "Giới tính", "Ngày sinh", "SĐT", "CCCD", "Lần khám gần nhất", "Trạng thái"]
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(headers)
+                for row in self.filtered_rows:
+                    status_label = self.STATUS_META.get(row.get("status_key"), self.STATUS_META["new"])[0]
+                    writer.writerow(
+                        [
+                            row.get("patient_code"),
+                            row.get("name"),
+                            self._normalize_gender(row.get("gender")),
+                            row.get("dob"),
+                            row.get("phone"),
+                            row.get("cccd"),
+                            row.get("last_visit"),
+                            status_label,
+                        ]
+                    )
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Không thể xuất", str(exc))
+            return
+        QtWidgets.QMessageBox.information(self, "Xuất danh sách", f"Đã xuất {len(self.filtered_rows)} bệnh nhân.")
 
     def _go_schedule(self):
         self._switch_page(1)

@@ -1,4 +1,4 @@
-from healthcare_management.models.patient_model import PatientModel
+from models.patient_model import PatientModel
 
 
 class PatientController:
@@ -7,6 +7,10 @@ class PatientController:
     @staticmethod
     def get_all():
         return PatientModel.get_all()
+
+    @staticmethod
+    def get_by_doctor(doctor_id):
+        return PatientModel.get_by_doctor(doctor_id)
 
     @staticmethod
     def get_by_id(patient_id):
