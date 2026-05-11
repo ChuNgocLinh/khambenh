@@ -252,8 +252,8 @@ class DashboardView(QtWidgets.QWidget):
         self.sidebar_layout.addWidget(self.logo)
 
         menu_items = [
-            ("🏠", "Dashboard"),
-            ("📅", "Lịch hẹn"),
+            ("🏠", "Trang chủ"),
+            ("📅", "Lịch khám"),
             ("👥", "Bệnh nhân của tôi"),
             ("📂", "Hồ sơ khám bệnh"),
             ("💬", "Tư vấn & lịch sử chăm sóc"),
@@ -355,7 +355,7 @@ class DashboardView(QtWidgets.QWidget):
         self.page_medical_record.role = role
         self.page_prescription.role = role
         
-        self.content_stack.addWidget(self.page_doctor_appts)   # 1: Lịch hẹn
+        self.content_stack.addWidget(self._build_schedule_page())   # 1: Lịch khám
         self.content_stack.addWidget(self.page_patient_list)    # 2: Bệnh nhân của tôi
         self.content_stack.addWidget(self.page_medical_record)  # 3: Hồ sơ khám bệnh
         self.content_stack.addWidget(self._build_consultation_page())  # 4: Tư vấn & lịch sử chăm sóc
@@ -1504,6 +1504,293 @@ class DashboardView(QtWidgets.QWidget):
                 f"Đã mở danh sách lịch hẹn để xem chi tiết ca của {patient_name}.",
             )
             return
+
+    def _build_schedule_page(self):
+        page = QtWidgets.QWidget()
+        page_layout = QtWidgets.QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(12)
+
+        # --- FILTER BAR ---
+        filter_frame = QtWidgets.QFrame()
+        filter_frame.setStyleSheet("background: white; border-radius: 10px; border: 1px solid #e2e8f0;")
+        fl = QtWidgets.QHBoxLayout(filter_frame)
+        fl.setContentsMargins(12, 8, 12, 8)
+        fl.setSpacing(8)
+        nav_s = ("QPushButton { background: white; border: 1px solid #e2e8f0; border-radius: 6px;"
+                 " padding: 6px 10px; font-size: 13px; color: #334155; }"
+                 " QPushButton:hover { background: #f8fafc; }")
+        for txt, w in [("‹", 32), ("  23/05/2026  📅", 0), ("›", 32)]:
+            b = QtWidgets.QPushButton(txt)
+            if w: b.setFixedSize(w, 32)
+            b.setStyleSheet(nav_s + (" QPushButton { font-weight: 600; }" if w == 0 else ""))
+            b.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            fl.addWidget(b)
+        fl.addSpacing(4)
+        btn_today = QtWidgets.QPushButton("Hôm nay")
+        btn_today.setStyleSheet(nav_s + " QPushButton { font-weight: 600; }")
+        btn_today.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        fl.addWidget(btn_today)
+        fl.addStretch()
+        combo_s = ("QComboBox { background: white; border: 1px solid #e2e8f0; border-radius: 6px;"
+                   " padding: 6px 12px; font-size: 13px; color: #334155; min-width: 130px; }"
+                   " QComboBox::drop-down { border: none; width: 20px; }"
+                   " QComboBox::down-arrow { image: none; border: none; }")
+        for items in [["Tất cả trạng thái"], ["Tất cả dịch vụ"], ["Tất cả phòng khám"]]:
+            cb = QtWidgets.QComboBox()
+            cb.addItems(items)
+            cb.setStyleSheet(combo_s)
+            fl.addWidget(cb)
+        btn_add = QtWidgets.QPushButton("  + Thêm lịch khám")
+        btn_add.setStyleSheet("QPushButton { background: #16a34a; color: white; border: none; border-radius: 8px;"
+                              " padding: 8px 16px; font-size: 13px; font-weight: 700; }"
+                              " QPushButton:hover { background: #15803d; }")
+        btn_add.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        fl.addWidget(btn_add)
+        page_layout.addWidget(filter_frame)
+
+        # --- MAIN CONTENT ---
+        content_h = QtWidgets.QHBoxLayout()
+        content_h.setSpacing(16)
+
+        # ===== LEFT: TIMELINE =====
+        left_card = QtWidgets.QFrame()
+        left_card.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #e8ecf1;")
+        left_vl = QtWidgets.QVBoxLayout(left_card)
+        left_vl.setContentsMargins(20, 16, 20, 16)
+        left_vl.setSpacing(8)
+        t_lbl = QtWidgets.QLabel("Lịch khám trong ngày - Thứ Sáu, 23/05/2026")
+        t_lbl.setStyleSheet("font-size: 16px; font-weight: 700; color: #1e293b; background: transparent; border: none;")
+        left_vl.addWidget(t_lbl)
+        # Legend
+        leg = QtWidgets.QHBoxLayout()
+        leg.setSpacing(16)
+        for dot_c, txt in [("#16a34a","Đã khám"),("#3b82f6","Đang khám"),("#f59e0b","Đang chờ"),("#ef4444","Đã hủy"),("#94a3b8","Đã đặt lịch")]:
+            hl = QtWidgets.QHBoxLayout(); hl.setSpacing(4)
+            d = QtWidgets.QLabel("●"); d.setStyleSheet(f"color: {dot_c}; font-size: 10px; background: transparent; border: none;")
+            tl = QtWidgets.QLabel(txt); tl.setStyleSheet("font-size: 12px; color: #64748b; background: transparent; border: none;")
+            hl.addWidget(d); hl.addWidget(tl); leg.addLayout(hl)
+        leg.addStretch()
+        left_vl.addLayout(leg)
+        # Timeline scroll
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background: transparent; border: none;")
+        tw = QtWidgets.QWidget(); tw.setStyleSheet("background: transparent;")
+        tl_layout = QtWidgets.QVBoxLayout(tw)
+        tl_layout.setContentsMargins(0, 8, 0, 8)
+        tl_layout.setSpacing(0)
+        # Mock appointments: (hour_label, time_range, name, info, service, status_key, is_selected)
+        appts = [
+            ("07:00", "07:00 - 07:30", "Trần Văn Hùng", "Nam, 40 tuổi", "Khám tổng quát", "booked", False),
+            ("08:00", "08:00 - 08:30", "Nguyễn Thị Lan", "Nữ, 32 tuổi", "Khám phụ khoa", "done", False),
+            ("09:00", "09:00 - 09:30", "Lê Minh Tuấn", "Nam, 35 tuổi", "Tư vấn sức khỏe", "in_progress", True),
+            ("10:00", "10:00 - 10:30", "Phạm Thị Mai", "Nữ, 28 tuổi", "Đau đầu, chóng mặt", "waiting", False),
+            ("11:00", "10:30 - 11:00", "Hoàng Văn Nam", "Nam, 45 tuổi", "Khám tim mạch", "waiting", False),
+            ("12:00", "11:00 - 11:30", "Vũ Thị Hương", "Nữ, 30 tuổi", "Khám thai định kỳ", "done", False),
+            ("13:00", "13:30 - 14:00", "Đỗ Quốc Bảo", "Nam, 50 tuổi", "Khám cơ xương khớp", "booked", False),
+            ("14:00", "14:00 - 14:30", "Trần Thị Thu", "Nữ, 26 tuổi", "Dị ứng, mẩn ngứa", "waiting", False),
+            ("15:00", "15:00 - 15:30", "Nguyễn Văn Đạt", "Nam, 33 tuổi", "Khám da liễu", "cancelled", False),
+            ("16:00", "16:00 - 16:30", "Lý Thị Nga", "Nữ, 29 tuổi", "Khám tổng quát", "booked", False),
+            ("17:00", None, None, None, None, None, False),
+        ]
+        status_map = {
+            "done": ("Đã khám", "#16a34a", "#f0fdf4", "  ✓"),
+            "in_progress": ("Đang khám", "#3b82f6", "#eff6ff", "  🩺"),
+            "waiting": ("Đang chờ", "#f59e0b", "#fffbeb", "  ✕"),
+            "cancelled": ("Đã hủy", "#ef4444", "#fef2f2", "  ✕"),
+            "booked": ("Đã đặt lịch", "#94a3b8", "#f8fafc", ""),
+        }
+        for hour, t_range, name, info, service, st_key, selected in appts:
+            row = QtWidgets.QHBoxLayout()
+            row.setSpacing(12)
+            row.setContentsMargins(0, 0, 0, 0)
+            h_lbl = QtWidgets.QLabel(hour)
+            h_lbl.setFixedWidth(50)
+            h_lbl.setStyleSheet("font-size: 13px; color: #94a3b8; font-weight: 600; background: transparent; border: none;")
+            h_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+            row.addWidget(h_lbl)
+            if t_range and st_key:
+                st_text, st_color, st_bg, st_icon = status_map[st_key]
+                border_color = st_color
+                card_bg = "#eef6fc" if selected else "white"
+                card = QtWidgets.QFrame()
+                card.setStyleSheet(f"background: {card_bg}; border-left: 3px solid {border_color};"
+                                   f" border-radius: 8px; border-top: 1px solid #f1f5f9;"
+                                   f" border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9;")
+                card.setFixedHeight(58)
+                cl = QtWidgets.QHBoxLayout(card)
+                cl.setContentsMargins(12, 8, 12, 8)
+                cl.setSpacing(8)
+                info_vl = QtWidgets.QVBoxLayout()
+                info_vl.setSpacing(1)
+                tr_lbl = QtWidgets.QLabel(t_range)
+                tr_lbl.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {st_color}; background: transparent; border: none;")
+                nm_lbl = QtWidgets.QLabel(f"<b>{name}</b> - {info}")
+                nm_lbl.setStyleSheet("font-size: 13px; color: #334155; background: transparent; border: none;")
+                sv_lbl = QtWidgets.QLabel(service)
+                sv_lbl.setStyleSheet("font-size: 12px; color: #64748b; background: transparent; border: none;")
+                info_vl.addWidget(tr_lbl); info_vl.addWidget(nm_lbl); info_vl.addWidget(sv_lbl)
+                cl.addLayout(info_vl)
+                cl.addStretch()
+                badge = QtWidgets.QLabel(st_text)
+                badge.setStyleSheet(f"background: {st_bg}; color: {st_color}; font-size: 11px; font-weight: 700;"
+                                    f" padding: 3px 10px; border-radius: 10px; border: none;")
+                badge.setFixedHeight(22)
+                cl.addWidget(badge)
+                if st_icon.strip():
+                    ic = QtWidgets.QLabel(st_icon.strip())
+                    ic.setStyleSheet(f"font-size: 14px; color: {st_color}; background: transparent; border: none;")
+                    cl.addWidget(ic)
+                row.addWidget(card)
+            else:
+                line = QtWidgets.QFrame()
+                line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+                line.setStyleSheet("background: #f1f5f9; border: none; max-height: 1px;")
+                row.addWidget(line)
+            tl_layout.addLayout(row)
+            sep = QtWidgets.QFrame()
+            sep.setFixedHeight(1)
+            sep.setStyleSheet("background: #f1f5f9; border: none; margin-left: 62px;")
+            tl_layout.addWidget(sep)
+            tl_layout.addSpacing(4)
+        tl_layout.addStretch()
+        scroll.setWidget(tw)
+        left_vl.addWidget(scroll)
+        content_h.addWidget(left_card, 65)
+
+        # ===== RIGHT PANEL =====
+        right_w = QtWidgets.QWidget()
+        right_w.setStyleSheet("background: transparent;")
+        rv = QtWidgets.QVBoxLayout(right_w)
+        rv.setContentsMargins(0, 0, 0, 0)
+        rv.setSpacing(12)
+        # Calendar
+        cal_card = QtWidgets.QFrame()
+        cal_card.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #e8ecf1;")
+        cal_vl = QtWidgets.QVBoxLayout(cal_card)
+        cal_vl.setContentsMargins(16, 12, 16, 12)
+        cal_vl.setSpacing(8)
+        cal_header = QtWidgets.QHBoxLayout()
+        cal_prev = QtWidgets.QPushButton("‹")
+        cal_prev.setFixedSize(28, 28)
+        cal_prev.setStyleSheet("QPushButton { background: transparent; border: none; font-size: 16px; color: #64748b; }")
+        cal_title = QtWidgets.QLabel("Lịch tháng 5, 2026")
+        cal_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #1e293b; background: transparent; border: none;")
+        cal_title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        cal_next = QtWidgets.QPushButton("›")
+        cal_next.setFixedSize(28, 28)
+        cal_next.setStyleSheet("QPushButton { background: transparent; border: none; font-size: 16px; color: #64748b; }")
+        cal_header.addWidget(cal_prev); cal_header.addStretch(); cal_header.addWidget(cal_title); cal_header.addStretch(); cal_header.addWidget(cal_next)
+        cal_vl.addLayout(cal_header)
+        # Day headers
+        dh = QtWidgets.QHBoxLayout()
+        for d in ["T2","T3","T4","T5","T6","T7","CN"]:
+            dl = QtWidgets.QLabel(d)
+            dl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            dl.setStyleSheet("font-size: 12px; font-weight: 600; color: #94a3b8; background: transparent; border: none;")
+            dh.addWidget(dl)
+        cal_vl.addLayout(dh)
+        # Calendar grid (May 2026 starts on Friday)
+        cal_days = [
+            [28,29,30,1,2,3,4],[5,6,7,8,9,10,11],[12,13,14,15,16,17,18],
+            [19,20,21,22,23,24,25],[26,27,28,29,30,31,1]
+        ]
+        for week in cal_days:
+            wl = QtWidgets.QHBoxLayout()
+            for i, day in enumerate(week):
+                dl = QtWidgets.QLabel(str(day))
+                dl.setFixedSize(32, 32)
+                dl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                is_other = (week == cal_days[0] and day > 7) or (week == cal_days[-1] and day < 7)
+                is_other = (week == cal_days[0] and day >= 28) or (week == cal_days[-1] and day <= 1)
+                if day == 23 and week == cal_days[3]:
+                    dl.setStyleSheet("background: #16a34a; color: white; border-radius: 16px; font-size: 13px; font-weight: 700; border: none;")
+                elif is_other:
+                    dl.setStyleSheet("color: #cbd5e1; font-size: 13px; background: transparent; border: none;")
+                else:
+                    dl.setStyleSheet("color: #334155; font-size: 13px; background: transparent; border: none;")
+                wl.addWidget(dl)
+            cal_vl.addLayout(wl)
+        rv.addWidget(cal_card)
+
+        # Detail card
+        det_card = QtWidgets.QFrame()
+        det_card.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #e8ecf1;")
+        det_vl = QtWidgets.QVBoxLayout(det_card)
+        det_vl.setContentsMargins(16, 16, 16, 16)
+        det_vl.setSpacing(10)
+        det_title = QtWidgets.QLabel("Thông tin lịch khám")
+        det_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1e293b; background: transparent; border: none;")
+        det_vl.addWidget(det_title)
+        # Patient info row
+        pi = QtWidgets.QHBoxLayout(); pi.setSpacing(10)
+        avt = QtWidgets.QLabel("👤")
+        avt.setFixedSize(48, 48)
+        avt.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        avt.setStyleSheet("background: #e0f2fe; color: #0284c7; border-radius: 24px; font-size: 22px;")
+        pi.addWidget(avt)
+        pi_info = QtWidgets.QVBoxLayout(); pi_info.setSpacing(2)
+        nm_row = QtWidgets.QHBoxLayout(); nm_row.setSpacing(6)
+        nm = QtWidgets.QLabel("Lê Minh Tuấn"); nm.setStyleSheet("font-size: 15px; font-weight: 700; color: #1e293b; background: transparent; border: none;")
+        badge_g = QtWidgets.QLabel("Nam"); badge_g.setStyleSheet("background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 8px; border: none;")
+        nm_row.addWidget(nm); nm_row.addWidget(badge_g); nm_row.addStretch()
+        pi_info.addLayout(nm_row)
+        sub = QtWidgets.QLabel("35 tuổi  ·  0987 654 321"); sub.setStyleSheet("font-size: 12px; color: #64748b; background: transparent; border: none;")
+        pi_info.addWidget(sub)
+        code = QtWidgets.QLabel("Mã BN: BN000123"); code.setStyleSheet("font-size: 12px; color: #94a3b8; background: transparent; border: none;")
+        pi_info.addWidget(code)
+        pi.addLayout(pi_info)
+        det_vl.addLayout(pi)
+        # Detail fields
+        det_sep = QtWidgets.QFrame(); det_sep.setFixedHeight(1); det_sep.setStyleSheet("background: #f1f5f9; border: none;")
+        det_vl.addWidget(det_sep)
+        fields = [
+            ("🕐  Thời gian", "09:00 - 09:30", False),
+            ("🏥  Dịch vụ", "Tư vấn sức khỏe", False),
+            ("📍  Phòng khám", "Phòng khám 1", False),
+            ("📋  Trạng thái", "Đang khám", True),
+            ("📝  Ghi chú", "Không có", False),
+        ]
+        for icon_txt, val, is_badge in fields:
+            fr = QtWidgets.QHBoxLayout()
+            fl_lbl = QtWidgets.QLabel(icon_txt)
+            fl_lbl.setStyleSheet("font-size: 13px; color: #64748b; background: transparent; border: none;")
+            fr.addWidget(fl_lbl)
+            fr.addStretch()
+            if is_badge:
+                vl = QtWidgets.QLabel(val)
+                vl.setStyleSheet("background: #dcfce7; color: #16a34a; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 8px; border: none;")
+            else:
+                vl = QtWidgets.QLabel(val)
+                vl.setStyleSheet("font-size: 13px; color: #1e293b; font-weight: 600; background: transparent; border: none;")
+            fr.addWidget(vl)
+            det_vl.addLayout(fr)
+        # Actions
+        act_sep = QtWidgets.QFrame(); act_sep.setFixedHeight(1); act_sep.setStyleSheet("background: #f1f5f9; border: none;")
+        det_vl.addWidget(act_sep)
+        act_title = QtWidgets.QLabel("Hành động")
+        act_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1e293b; background: transparent; border: none;")
+        det_vl.addWidget(act_title)
+        actions = [
+            ("🩺  Bắt đầu khám", "#16a34a", "white", "#16a34a"),
+            ("👁  Xem hồ sơ bệnh nhân", "white", "#334155", "#e2e8f0"),
+            ("✏  Chỉnh sửa lịch", "white", "#334155", "#e2e8f0"),
+            ("🗑  Hủy lịch khám", "white", "#ef4444", "#fecaca"),
+        ]
+        for txt, bg, fg, bd in actions:
+            ab = QtWidgets.QPushButton(txt)
+            ab.setStyleSheet(f"QPushButton {{ background: {bg}; color: {fg}; border: 1px solid {bd};"
+                             f" border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 600; }}"
+                             f" QPushButton:hover {{ opacity: 0.9; }}")
+            ab.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            det_vl.addWidget(ab)
+        rv.addWidget(det_card)
+        rv.addStretch()
+        content_h.addWidget(right_w, 35)
+        page_layout.addLayout(content_h)
+        return page
 
     def _build_consultation_page(self):
         page = QtWidgets.QWidget()
