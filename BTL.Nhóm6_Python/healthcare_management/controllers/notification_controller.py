@@ -41,5 +41,11 @@ class NotificationController:
         return NotificationModel.mark_all_read(user_id)
 
     @staticmethod
+    def delete(notification_id, user_id):
+        if not notification_id or not user_id:
+            return False
+        return NotificationModel.delete(notification_id, user_id)
+
+    @staticmethod
     def target_index(target_page):
         return NotificationController.PAGE_TO_INDEX.get(str(target_page or "dashboard"), 0)

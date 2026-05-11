@@ -3341,7 +3341,7 @@ class DashboardView(QtWidgets.QWidget):
             return "Chưa cập nhật"
         return text
             
-    def _build_persisted_notification_center_page(self):
+    def _build_legacy_notification_center_page(self):
         page = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -3361,7 +3361,7 @@ class DashboardView(QtWidgets.QWidget):
         self.load_notifications()
         return page
 
-    def load_notifications(self):
+    def _load_legacy_notifications(self):
         from controllers.notification_controller import NotificationController
 
         if not hasattr(self, "notification_list"):
@@ -3390,13 +3390,13 @@ class DashboardView(QtWidgets.QWidget):
             self.bell_badge.setVisible(count > 0)
         return count
 
-    def mark_all_notifications_read(self):
+    def _mark_all_legacy_notifications_read(self):
         from controllers.notification_controller import NotificationController
 
         NotificationController.mark_all_read(self.user_data.get("user_id"))
         self.load_notifications()
 
-    def _open_notification_item(self, item):
+    def _open_legacy_notification_item(self, item):
         from controllers.notification_controller import NotificationController
 
         row = item.data(QtCore.Qt.ItemDataRole.UserRole)
@@ -3421,6 +3421,9 @@ class DashboardView(QtWidgets.QWidget):
         layout.addWidget(breadcrumb)
 
         self.active_notification_tab = "all"
+        self.notification_page_size = 10
+        self.notification_current_page = 1
+        self.notifications = []
         self.notification_tabs = QtWidgets.QHBoxLayout()
         self.notification_tabs.setSpacing(8)
         layout.addLayout(self.notification_tabs)
@@ -3440,7 +3443,7 @@ class DashboardView(QtWidgets.QWidget):
         self.notification_search.setStyleSheet(
             "background: white; color: #344054; border: 1px solid #D0D5DD; border-radius: 10px; padding: 8px 12px;"
         )
-        self.notification_search.textChanged.connect(self.load_notifications)
+        self.notification_search.textChanged.connect(self._apply_notification_filters)
         mark_all_btn = QtWidgets.QPushButton("Đánh dấu tất cả đã đọc")
         settings_btn = QtWidgets.QPushButton("Cài đặt thông báo")
         for btn in [mark_all_btn, settings_btn]:
@@ -3463,7 +3466,7 @@ class DashboardView(QtWidgets.QWidget):
         )
         self.notification_list.itemClicked.connect(self._open_notification_item)
         left_layout.addWidget(self.notification_list, 1)
-        self.notification_page_label = QtWidgets.QLabel("Hiển thị 10 bản ghi   < 1 2 3 >")
+        self.notification_page_label = QtWidgets.QLabel("")
         self.notification_page_label.setStyleSheet("color: #667085; font-size: 13px;")
         left_layout.addWidget(self.notification_page_label)
         body.addWidget(left_card, 7)
@@ -3498,9 +3501,16 @@ class DashboardView(QtWidgets.QWidget):
 
         if not hasattr(self, "notification_list"):
             return
-        self.notification_list.clear()
         user_id = self.user_data.get("user_id")
         self.notifications = NotificationController.list_for_user(user_id)
+        self.notification_current_page = 1
+        self._apply_notification_filters()
+        self.refresh_notification_badge()
+
+    def _apply_notification_filters(self):
+        if not hasattr(self, "notification_list"):
+            return
+        self.notification_list.clear()
         self._render_notification_tabs()
         keyword = self.notification_search.text().strip().lower() if hasattr(self, "notification_search") else ""
         rows = [dict(row) for row in self.notifications]
@@ -3517,16 +3527,26 @@ class DashboardView(QtWidgets.QWidget):
         if not rows:
             self.notification_list.addItem("Không có thông báo.")
             self._render_notification_detail(None)
-            self.refresh_notification_badge()
+            if hasattr(self, "notification_page_label"):
+                self.notification_page_label.setText("Hiển thị 0 bản ghi")
             return
-        for row in rows:
+        page_size = int(getattr(self, "notification_page_size", 10) or 10)
+        total = len(rows)
+        max_page = max(1, (total + page_size - 1) // page_size)
+        self.notification_current_page = min(max(1, getattr(self, "notification_current_page", 1)), max_page)
+        start = (self.notification_current_page - 1) * page_size
+        page_rows = rows[start:start + page_size]
+        for row in page_rows:
             status = "●" if not row.get("is_read") else "○"
             item = QtWidgets.QListWidgetItem(f"{status} [{self._notification_type_label(row.get('type'))}] {row.get('title', '')}\n{row.get('content', '')}")
             item.setData(QtCore.Qt.ItemDataRole.UserRole, row)
             self.notification_list.addItem(item)
+        if hasattr(self, "notification_page_label"):
+            self.notification_page_label.setText(
+                f"Hiển thị {start + 1}-{start + len(page_rows)} / {total} bản ghi | Trang {self.notification_current_page}/{max_page}"
+            )
         self.notification_list.setCurrentRow(0)
-        self._render_notification_detail(rows[0])
-        self.refresh_notification_badge()
+        self._render_notification_detail(page_rows[0])
 
     def _render_notification_tabs(self):
         if not hasattr(self, "notification_tabs"):
@@ -3536,13 +3556,17 @@ class DashboardView(QtWidgets.QWidget):
             if item.widget():
                 item.widget().deleteLater()
         rows = getattr(self, "notifications", []) or []
+        known_tabs = {"appointment", "result", "patient", "prescription", "warning", "system"}
         tab_defs = [
             ("all", f"Tất cả ({len(rows)})"),
             ("unread", f"Chưa đọc ({len([r for r in rows if not r.get('is_read')])})"),
             ("appointment", f"Lịch hẹn ({len([r for r in rows if r.get('type') == 'appointment'])})"),
             ("result", f"Kết quả ({len([r for r in rows if r.get('type') == 'result'])})"),
+            ("patient", f"Bệnh nhân ({len([r for r in rows if r.get('type') == 'patient'])})"),
+            ("prescription", f"Đơn thuốc ({len([r for r in rows if r.get('type') == 'prescription'])})"),
+            ("warning", f"Cảnh báo ({len([r for r in rows if r.get('type') == 'warning'])})"),
             ("system", f"Hệ thống ({len([r for r in rows if r.get('type') == 'system'])})"),
-            ("other", "Khác"),
+            ("other", f"Khác ({len([r for r in rows if str(r.get('type') or '') not in known_tabs])})"),
         ]
         for key, text in tab_defs:
             btn = QtWidgets.QPushButton(text)
@@ -3559,7 +3583,8 @@ class DashboardView(QtWidgets.QWidget):
 
     def _set_notification_tab(self, tab):
         self.active_notification_tab = tab
-        self.load_notifications()
+        self.notification_current_page = 1
+        self._apply_notification_filters()
 
     def _notification_type_label(self, value):
         return {
@@ -3598,26 +3623,74 @@ class DashboardView(QtWidgets.QWidget):
             btn.setStyleSheet("background: white; color: #344054; border: 1px solid #D0D5DD; border-radius: 10px; padding: 8px 12px; font-weight: 800;")
             self.notification_detail_actions.addWidget(btn)
         open_btn.clicked.connect(lambda checked=False, r=row: self._open_notification_row(r))
+        delete_btn.clicked.connect(lambda checked=False, r=row: self._delete_notification_row(r))
 
     def mark_all_notifications_read(self):
         from controllers.notification_controller import NotificationController
 
-        NotificationController.mark_all_read(self.user_data.get("user_id"))
+        if not NotificationController.mark_all_read(self.user_data.get("user_id")):
+            self._set_notification_status("Không thể đánh dấu tất cả đã đọc.")
+            return
         self.load_notifications()
 
     def _open_notification_item(self, item):
+        from controllers.notification_controller import NotificationController
+
         row = item.data(QtCore.Qt.ItemDataRole.UserRole)
         if not isinstance(row, dict):
             return
+        if not row.get("is_read"):
+            NotificationController.mark_read(row.get("notification_id"), self.user_data.get("user_id"))
+            row["is_read"] = True
+            self._update_cached_notification(row)
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, row)
+            item.setText(f"○ [{self._notification_type_label(row.get('type'))}] {row.get('title', '')}\n{row.get('content', '')}")
         self._render_notification_detail(row)
-        self._open_notification_row(row)
+        self._render_notification_tabs()
+        if getattr(self, "active_notification_tab", "all") == "unread":
+            self._apply_notification_filters()
+        self.refresh_notification_badge()
 
     def _open_notification_row(self, row):
         from controllers.notification_controller import NotificationController
 
         NotificationController.mark_read(row.get("notification_id"), self.user_data.get("user_id"))
-        self.switch_page(NotificationController.target_index(row.get("target_page")))
+        target_page = row.get("target_page")
+        target_id = row.get("target_id")
+        self._focus_notification_target(target_page, target_id)
+        self.switch_page(NotificationController.target_index(target_page))
         self.refresh_notification_badge()
+
+    def _delete_notification_row(self, row):
+        from controllers.notification_controller import NotificationController
+
+        if not NotificationController.delete(row.get("notification_id"), self.user_data.get("user_id")):
+            self._set_notification_status("Không thể xóa thông báo.")
+            return
+        self.notifications = [
+            item for item in getattr(self, "notifications", [])
+            if item.get("notification_id") != row.get("notification_id")
+        ]
+        self._apply_notification_filters()
+        self.refresh_notification_badge()
+
+    def _update_cached_notification(self, row):
+        notification_id = row.get("notification_id")
+        for index, cached in enumerate(getattr(self, "notifications", []) or []):
+            if cached.get("notification_id") == notification_id:
+                self.notifications[index] = row
+                return
+
+    def _set_notification_status(self, message):
+        if hasattr(self, "notification_page_label"):
+            self.notification_page_label.setText(message)
+
+    def _focus_notification_target(self, target_page, target_id):
+        if not target_id:
+            return
+        if target_page == "patient_profile" and hasattr(self, "page_patient_record"):
+            if hasattr(self.page_patient_record, "set_patient"):
+                self.page_patient_record.set_patient(target_id)
 
     def switch_page(self, index):
         self.content_stack.setCurrentIndex(index)

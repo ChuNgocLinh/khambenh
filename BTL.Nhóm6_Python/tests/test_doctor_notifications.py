@@ -53,10 +53,14 @@ def test_notification_feed_badge_mark_read_and_navigation(monkeypatch):
     assert view.bell_badge.text() == "1"
     assert view.notification_list.count() == 1
 
+    view.switch_page(6)
     view._open_notification_item(view.notification_list.item(0))
     assert marked == [(1, 2)]
-    assert view.content_stack.currentIndex() == 1
+    assert view.content_stack.currentIndex() == 6
     assert view.bell_badge.text() == "0"
+
+    view._open_notification_row(rows[0])
+    assert view.content_stack.currentIndex() == 1
 
 
 def test_notification_empty_and_mark_all(monkeypatch):

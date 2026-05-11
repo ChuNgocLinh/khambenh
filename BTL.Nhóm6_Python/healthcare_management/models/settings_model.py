@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from config import DB_TYPE
 from database.db import execute, fetch_one
 
 
@@ -40,6 +41,34 @@ class SettingsModel:
 
     @staticmethod
     def ensure_table_exists():
+        if DB_TYPE != "mysql":
+            return execute(
+                """
+                IF OBJECT_ID('dbo.UserSettings', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.UserSettings (
+                        user_id INT PRIMARY KEY,
+                        gender NVARCHAR(10) NULL DEFAULT N'Nam',
+                        dob DATE NULL,
+                        address NVARCHAR(255) NULL DEFAULT N'',
+                        avatar_path NVARCHAR(255) NULL DEFAULT N'',
+                        notify_new_appointment BIT NOT NULL DEFAULT 1,
+                        notify_reminder BIT NOT NULL DEFAULT 1,
+                        notify_system BIT NOT NULL DEFAULT 1,
+                        theme_mode NVARCHAR(20) NULL DEFAULT N'Sáng',
+                        font_size NVARCHAR(20) NULL DEFAULT N'Trung bình',
+                        display_density NVARCHAR(20) NULL DEFAULT N'Thoải mái',
+                        language NVARCHAR(20) NULL DEFAULT N'Tiếng Việt',
+                        backup_mode NVARCHAR(20) NULL DEFAULT N'cloud',
+                        last_backup_at DATETIME2 NULL,
+                        last_sync_at DATETIME2 NULL,
+                        updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                        CONSTRAINT FK_UserSettings_Users FOREIGN KEY (user_id) REFERENCES dbo.Users(user_id)
+                    )
+                END
+                """
+            )
+
         return execute(
             """
             CREATE TABLE IF NOT EXISTS UserSettings (
