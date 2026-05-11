@@ -1,7 +1,24 @@
+# pyright: reportMissingImports=false
 import sys
+from pathlib import Path
+
+
+def _bootstrap_import_paths():
+    """Normalize sys.path so mixed absolute imports resolve from entry script."""
+    current_dir = Path(__file__).resolve().parent
+    package_root = current_dir.parent
+
+    for path in (package_root, current_dir):
+        path_str = str(path)
+        if path_str not in sys.path:
+            sys.path.insert(0, path_str)
+
+
+_bootstrap_import_paths()
+
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QColor, QPalette
-from views.login_view import LoginView
+from views.login_view import LoginView  # pyright: ignore[reportImplicitRelativeImport]
 
 
 def _apply_accessible_text_theme(app):

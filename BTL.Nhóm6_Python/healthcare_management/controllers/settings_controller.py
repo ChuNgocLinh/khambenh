@@ -104,6 +104,104 @@ class SettingsController:
         return True, "Đã lưu thông tin cá nhân thành công."
 
     @staticmethod
+    def update_staff_personal_info(user_id, payload):
+        if not user_id:
+            return False, "Không tìm thấy user_id để cập nhật hồ sơ staff."
+
+        SettingsModel = import_module("models.settings_model").SettingsModel
+        db_module = import_module("database.db")
+        fetch_one = db_module.fetch_one
+        execute = db_module.execute
+
+        name = str(payload.get("name", "")).strip()
+        if not name:
+            return False, "Vui lòng nhập họ tên."
+        if len(name) > 100:
+            return False, "Họ tên không được vượt quá 100 ký tự."
+
+        email = str(payload.get("email", "")).strip().lower()
+        if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            return False, "Email không hợp lệ."
+        if len(email) > 100:
+            return False, "Email không được vượt quá 100 ký tự."
+
+        phone = str(payload.get("phone", "")).strip()
+        if phone and not re.match(r"^[0-9+\-\s]{8,20}$", phone):
+            return False, "Số điện thoại không hợp lệ."
+
+        gender = str(payload.get("gender", "Nam")).strip() or "Nam"
+        if gender not in {"Nam", "Nữ"}:
+            return False, "Giới tính không hợp lệ."
+
+        dob = payload.get("dob")
+        if dob:
+            try:
+                datetime.strptime(str(dob), "%Y-%m-%d")
+            except ValueError:
+                return False, "Ngày sinh không hợp lệ."
+
+        address = str(payload.get("address", "")).strip()
+        if len(address) > 255:
+            return False, "Địa chỉ không được vượt quá 255 ký tự."
+
+        patient_row = fetch_one(
+            """
+            SELECT patient_id, name, phone, email
+            FROM Patients
+            WHERE user_id=?
+            ORDER BY patient_id DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+        if not isinstance(patient_row, dict):
+            return False, (
+                "Không tìm thấy hồ sơ bệnh nhân liên kết với tài khoản staff. "
+                "Chưa thể lưu họ tên/SĐT/email một cách an toàn."
+            )
+
+        previous_patient = {
+            "name": str(patient_row.get("name") or ""),
+            "phone": str(patient_row.get("phone") or ""),
+            "email": str(patient_row.get("email") or ""),
+        }
+        patient_saved = execute(
+            "UPDATE Patients SET name=?, phone=?, email=? WHERE patient_id=?",
+            (
+                name,
+                phone,
+                email,
+                patient_row.get("patient_id"),
+            ),
+        )
+        if not patient_saved:
+            return False, "Không thể cập nhật thông tin staff trong hồ sơ bệnh nhân."
+
+        SettingsModel.get_or_create_by_user_id(user_id)
+        settings_saved = SettingsModel.update_fields(
+            user_id,
+            {
+                "gender": gender,
+                "dob": dob,
+                "address": address,
+            },
+        )
+        if not settings_saved:
+            # Roll back patient profile update to keep settings/profile consistent.
+            execute(
+                "UPDATE Patients SET name=?, phone=?, email=? WHERE patient_id=?",
+                (
+                    previous_patient["name"],
+                    previous_patient["phone"],
+                    previous_patient["email"],
+                    patient_row.get("patient_id"),
+                ),
+            )
+            return False, "Không thể lưu cài đặt cá nhân cho staff."
+
+        return True, "Đã lưu thông tin cá nhân thành công."
+
+    @staticmethod
     def update_avatar(user_id, avatar_path):
         if not user_id:
             return False
@@ -152,13 +250,19 @@ class SettingsController:
         if not isinstance(user_settings, dict):
             return False, "Không thể tải cài đặt người dùng."
 
-        doctor_data = import_module("database.db").fetch_one(
-            "SELECT * FROM Doctors WHERE user_id=?",
+        patient_data = import_module("database.db").fetch_one(
+            """
+            SELECT patient_id, name, phone, email
+            FROM Patients
+            WHERE user_id=?
+            ORDER BY patient_id DESC
+            LIMIT 1
+            """,
             (user_id,),
         ) or {}
 
-        if not isinstance(doctor_data, dict):
-            doctor_data = {}
+        if not isinstance(patient_data, dict):
+            patient_data = {}
 
         now = datetime.now()
         timestamp = now.strftime("%Y%m%d_%H%M%S")
@@ -171,12 +275,11 @@ class SettingsController:
         backup_payload = {
             "generated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "user_id": user_id,
-            "doctor": {
-                "doctor_id": doctor_data.get("doctor_id"),
-                "name": doctor_data.get("name"),
-                "specialty": doctor_data.get("specialty"),
-                "phone": doctor_data.get("phone"),
-                "email": doctor_data.get("email"),
+            "staff_profile": {
+                "name": patient_data.get("name"),
+                "phone": patient_data.get("phone"),
+                "email": patient_data.get("email"),
+                "linked_patient_id": patient_data.get("patient_id"),
             },
             "settings": {
                 "gender": user_settings.get("gender"),
