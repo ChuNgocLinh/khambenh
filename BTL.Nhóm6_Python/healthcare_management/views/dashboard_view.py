@@ -415,7 +415,7 @@ class DashboardView(QtWidgets.QWidget):
         
         self.content_stack.addWidget(self.page_doctor_appts)   # 1: Lịch khám
         self.content_stack.addWidget(self.page_patient_list)    # 2: Danh sách bệnh nhân
-        self.content_stack.addWidget(self.page_medical_record)  # 3: Hồ sơ khám bệnh
+        self.content_stack.addWidget(self.page_medical_record)  # 3: Khám bệnh
         self.content_stack.addWidget(self.page_patient_record)  # 4: Hồ sơ bệnh nhân
         self.content_stack.addWidget(self.page_prescription)    # 5: Đơn thuốc
         self.content_stack.addWidget(self._build_persisted_notification_center_page())  # 6: Thông báo

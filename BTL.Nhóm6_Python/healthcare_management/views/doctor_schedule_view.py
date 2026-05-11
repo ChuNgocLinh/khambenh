@@ -10,15 +10,18 @@ class DoctorScheduleView(QtWidgets.QWidget):
         "done": ("Đã khám", "#16a34a", "#ecfdf5"),
         "in_progress": ("Đang khám", "#2563eb", "#eff6ff"),
         "confirmed": ("Đang chờ", "#f59e0b", "#fff7ed"),
-        "pending": ("Đã đặt lịch", "#94a3b8", "#f8fafc"),
+        "pending": ("Đã đặt lịch", "#64748b", "#f8fafc"),
         "cancelled": ("Đã hủy", "#ef4444", "#fef2f2"),
     }
+
+    STATUS_ORDER = ["done", "in_progress", "confirmed", "cancelled", "pending"]
 
     def __init__(self, doctor_id):
         super().__init__()
         self.doctor_id = doctor_id
         self.role = "doctor"
         self.selected_schedule = None
+        self._syncing_calendar = False
         self.all_rows = self._build_schedule_rows()
         self.filtered_rows = []
         self.setStyleSheet("background: #f8fbff; border: none;")
@@ -40,6 +43,8 @@ class DoctorScheduleView(QtWidgets.QWidget):
         right_widget.setLayout(right)
         body.addWidget(right_widget, 3)
         root.addLayout(body, 1)
+
+        self._select_initial_date_with_data()
         self._apply_filters()
 
     def _build_header(self):
@@ -70,16 +75,22 @@ class DoctorScheduleView(QtWidgets.QWidget):
         self.date_input.setMinimumWidth(148)
 
         self.status_filter = QtWidgets.QComboBox()
-        self.status_filter.addItems(["Tất cả trạng thái", "Đã khám", "Đang khám", "Đang chờ", "Đã hủy", "Đã đặt lịch"])
+        self.status_filter.addItem("Tất cả trạng thái", None)
+        for status in ["done", "in_progress", "confirmed", "pending", "cancelled"]:
+            self.status_filter.addItem(self.STATUS_META[status][0], status)
+
         self.service_filter = QtWidgets.QComboBox()
-        self.service_filter.addItems(["Tất cả dịch vụ"])
+        self.service_filter.addItem("Tất cả dịch vụ", None)
         self.room_filter = QtWidgets.QComboBox()
-        self.room_filter.addItems(["Tất cả phòng khám", "Phòng khám 1", "Phòng khám 2"])
+        self.room_filter.addItem("Tất cả phòng khám", None)
 
         for row in self.all_rows:
             service = str(row.get("service_name") or "").strip()
-            if service and self.service_filter.findText(service) < 0:
-                self.service_filter.addItem(service)
+            room = str(row.get("room") or "").strip()
+            if service and self.service_filter.findData(service) < 0:
+                self.service_filter.addItem(service, service)
+            if room and self.room_filter.findData(room) < 0:
+                self.room_filter.addItem(room, room)
 
         for widget in [self.date_input, self.status_filter, self.service_filter, self.room_filter]:
             widget.setStyleSheet(self._input_style())
@@ -87,7 +98,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
         for combo in [self.status_filter, self.service_filter, self.room_filter]:
             combo.setMinimumWidth(170)
 
-        self.date_input.dateChanged.connect(self._apply_filters)
+        self.date_input.dateChanged.connect(self._on_date_input_changed)
         self.status_filter.currentIndexChanged.connect(self._apply_filters)
         self.service_filter.currentIndexChanged.connect(self._apply_filters)
         self.room_filter.currentIndexChanged.connect(self._apply_filters)
@@ -119,7 +130,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
         self.timeline_title = QtWidgets.QLabel("")
         self.timeline_title.setStyleSheet("border: none; background: transparent; font-size: 18px; color: #0f172a; font-weight: 900;")
         top.addWidget(self.timeline_title, 1)
-        for status in ["done", "in_progress", "confirmed", "cancelled", "pending"]:
+        for status in self.STATUS_ORDER:
             label, color, _ = self.STATUS_META[status]
             top.addWidget(self._legend(label, color))
         layout.addLayout(top)
@@ -127,6 +138,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        scroll.setStyleSheet(self._scrollbar_style())
         timeline_body = QtWidgets.QWidget()
         self.timeline_list = QtWidgets.QVBoxLayout(timeline_body)
         self.timeline_list.setContentsMargins(0, 8, 0, 0)
@@ -144,52 +156,58 @@ class DoctorScheduleView(QtWidgets.QWidget):
         title = QtWidgets.QLabel("Thông tin lịch khám")
         title.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 17px; font-weight: 900;")
         self.detail_patient = QtWidgets.QLabel("Chưa chọn lịch khám")
-        self.detail_patient.setMinimumHeight(92)
+        self.detail_patient.setMinimumHeight(96)
         self.detail_patient.setWordWrap(True)
         self.detail_patient.setStyleSheet("background: #f8fafc; border: 1px solid #e7edf5; border-radius: 10px; padding: 12px; color: #0f172a; font-size: 13px; font-weight: 800;")
         self.detail_info = QtWidgets.QLabel("Chọn một lịch trong timeline để xem chi tiết.")
-        self.detail_info.setMinimumHeight(132)
+        self.detail_info.setMinimumHeight(150)
         self.detail_info.setWordWrap(True)
         self.detail_info.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 13px; font-weight: 800;")
         layout.addWidget(title)
         layout.addWidget(self.detail_patient)
         layout.addWidget(self.detail_info)
 
-        for text, style, callback in [
-            ("Bắt đầu khám", self._primary_style(), self._start_selected_exam),
-            ("Xem hồ sơ bệnh nhân", self._outline_style("#475569"), self._view_selected_patient),
-            ("Chỉnh sửa lịch", self._outline_style("#475569"), self._edit_selected_appointment),
-            ("Hủy lịch khám", self._outline_style("#ef4444"), self._cancel_selected_appointment),
-        ]:
-            btn = QtWidgets.QPushButton(text)
-            btn.setMinimumHeight(44)
-            btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-            btn.setStyleSheet(style)
-            btn.clicked.connect(callback)
+        self.start_btn = self._detail_button("Bắt đầu khám", self._primary_style(), self._start_selected_exam)
+        self.patient_btn = self._detail_button("Xem hồ sơ bệnh nhân", self._outline_style("#475569"), self._view_selected_patient)
+        self.edit_btn = self._detail_button("Chỉnh sửa lịch", self._outline_style("#475569"), self._edit_selected_appointment)
+        self.cancel_btn = self._detail_button("Hủy lịch khám", self._outline_style("#ef4444"), self._cancel_selected_appointment)
+
+        for btn in [self.start_btn, self.patient_btn, self.edit_btn, self.cancel_btn]:
             layout.addWidget(btn)
         return card
 
     def _build_month_card(self):
-        calendar = QtWidgets.QCalendarWidget()
-        calendar.setMaximumHeight(330)
-        calendar.setStyleSheet(
+        self.calendar = QtWidgets.QCalendarWidget()
+        self.calendar.setMaximumHeight(330)
+        self.calendar.setSelectedDate(self.date_input.date())
+        self.calendar.setStyleSheet(
             "QCalendarWidget { background: white; border: 1px solid #EAECF0; border-radius: 14px; color: #344054; }"
             "QCalendarWidget QWidget#qt_calendar_navigationbar { background: white; border: none; }"
             "QCalendarWidget QToolButton { color: #101828; background: white; border: none; font-weight: 800; padding: 6px; }"
             "QCalendarWidget QAbstractItemView { selection-background-color: #16B364; selection-color: white; "
             "outline: none; border: none; font-size: 13px; }"
         )
-        calendar.selectionChanged.connect(lambda: self.date_input.setDate(calendar.selectedDate()))
-        return calendar
+        self.calendar.selectionChanged.connect(self._on_calendar_changed)
+        return self.calendar
 
     def _input_style(self):
         return "background: #ffffff; border: 1px solid #dbe4ee; border-radius: 8px; padding: 9px 12px; color: #0f172a; font-weight: 800;"
 
     def _primary_style(self):
-        return "QPushButton { background: #13a66b; color: #ffffff; border: none; border-radius: 9px; padding: 11px 16px; font-weight: 900; }"
+        return "QPushButton { background: #13a66b; color: #ffffff; border: none; border-radius: 9px; padding: 11px 16px; font-weight: 900; } QPushButton:disabled { background: #cbd5e1; color: #ffffff; }"
 
     def _outline_style(self, color):
-        return f"QPushButton {{ background: #ffffff; color: {color}; border: 1px solid #dbe4ee; border-radius: 9px; padding: 11px 16px; font-weight: 900; }}"
+        return f"QPushButton {{ background: #ffffff; color: {color}; border: 1px solid #dbe4ee; border-radius: 9px; padding: 11px 16px; font-weight: 900; }} QPushButton:disabled {{ color: #94a3b8; border-color: #e2e8f0; }}"
+
+    def _scrollbar_style(self):
+        return (
+            "QScrollArea { border: none; background: transparent; }"
+            "QScrollBar:vertical { background: transparent; width: 8px; margin: 2px 0; }"
+            "QScrollBar::handle:vertical { background: #cbd5e1; border-radius: 4px; min-height: 36px; }"
+            "QScrollBar::handle:vertical:hover { background: #94a3b8; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
+        )
 
     def _small_button(self, text, width=46):
         btn = QtWidgets.QPushButton(text)
@@ -197,8 +215,16 @@ class DoctorScheduleView(QtWidgets.QWidget):
         btn.setStyleSheet(self._outline_style("#475569"))
         return btn
 
+    def _detail_button(self, text, style, callback):
+        btn = QtWidgets.QPushButton(text)
+        btn.setMinimumHeight(44)
+        btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn.setStyleSheet(style)
+        btn.clicked.connect(callback)
+        return btn
+
     def _legend(self, text, color):
-        label = QtWidgets.QLabel(f"* {text}")
+        label = QtWidgets.QLabel(f"● {text}")
         label.setStyleSheet(f"border: none; background: transparent; color: {color}; font-size: 12px; font-weight: 900;")
         return label
 
@@ -211,10 +237,13 @@ class DoctorScheduleView(QtWidgets.QWidget):
         catalog = []
         for idx, row in enumerate(rows):
             item = dict(row)
-            item.setdefault("room", "Phòng khám 1")
-            item.setdefault("service_name", self._extract_service(item.get("note")))
-            item.setdefault("gender", "Nam" if idx % 2 == 0 else "Nữ")
-            item.setdefault("age", 30 + idx)
+            item["room"] = item.get("room") or "Phòng khám 1"
+            item["service_name"] = item.get("service_name") or self._extract_service(item.get("note"))
+            item["gender"] = item.get("gender") or ("Nam" if idx % 2 == 0 else "Nữ")
+            item["age"] = item.get("age") or self._estimate_age(item.get("date_of_birth")) or ""
+            item["patient_phone"] = item.get("patient_phone") or item.get("phone") or "Chưa cập nhật"
+            item["patient_name"] = item.get("patient_name") or "Chưa có tên"
+            item["status"] = item.get("status") or "pending"
             catalog.append(item)
         return catalog
 
@@ -224,37 +253,84 @@ class DoctorScheduleView(QtWidgets.QWidget):
             return text.replace("Dịch vụ:", "", 1).split("|", 1)[0].strip() or "Khám tổng quát"
         return text or "Khám tổng quát"
 
+    def _estimate_age(self, date_of_birth):
+        if not date_of_birth:
+            return None
+        try:
+            born = datetime.fromisoformat(str(date_of_birth)).date()
+        except ValueError:
+            return None
+        today = datetime.now().date()
+        return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+
     def _to_datetime(self, value):
         if isinstance(value, datetime):
             return value
+        text = str(value or "").strip()
+        if not text:
+            return None
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            pass
         for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M"):
             try:
-                return datetime.strptime(str(value), fmt)
+                return datetime.strptime(text, fmt)
             except ValueError:
                 continue
         return None
 
+    def _select_initial_date_with_data(self):
+        today = QtCore.QDate.currentDate()
+        available_dates = []
+        for row in self.all_rows:
+            dt_value = self._to_datetime(row.get("appointment_date"))
+            if dt_value:
+                available_dates.append(dt_value.date())
+        if not available_dates or today.toPyDate() in available_dates:
+            return
+
+        selected = min(available_dates, key=lambda d: abs((d - today.toPyDate()).days))
+        self.date_input.setDate(QtCore.QDate(selected.year, selected.month, selected.day))
+
+    def _on_date_input_changed(self):
+        if self._syncing_calendar:
+            return
+        if hasattr(self, "calendar") and not self._syncing_calendar:
+            self._syncing_calendar = True
+            self.calendar.setSelectedDate(self.date_input.date())
+            self._syncing_calendar = False
+        self._apply_filters()
+
+    def _on_calendar_changed(self):
+        if self._syncing_calendar:
+            return
+        self._syncing_calendar = True
+        self.date_input.setDate(self.calendar.selectedDate())
+        self._syncing_calendar = False
+        self._apply_filters()
+
     def _apply_filters(self):
         selected_date = self.date_input.date().toPyDate()
-        status_text = self.status_filter.currentText()
-        service_text = self.service_filter.currentText()
-        room_text = self.room_filter.currentText()
+        status_key = self.status_filter.currentData()
+        service_key = self.service_filter.currentData()
+        room_key = self.room_filter.currentData()
         filtered = []
         for row in self.all_rows:
             dt_value = self._to_datetime(row.get("appointment_date"))
-            if dt_value and dt_value.date() != selected_date:
+            if not dt_value or dt_value.date() != selected_date:
                 continue
-            status_label = self.STATUS_META.get(str(row.get("status")), ("", "", ""))[0]
-            if status_text != "Tất cả trạng thái" and status_label != status_text:
+            if status_key and str(row.get("status") or "") != status_key:
                 continue
-            if service_text != "Tất cả dịch vụ" and str(row.get("service_name") or "") != service_text:
+            if service_key and str(row.get("service_name") or "") != service_key:
                 continue
-            if room_text != "Tất cả phòng khám" and str(row.get("room") or "") != room_text:
+            if room_key and str(row.get("room") or "") != room_key:
                 continue
             filtered.append(row)
-        filtered.sort(key=lambda r: str(r.get("appointment_date") or ""))
+        filtered.sort(key=lambda r: self._to_datetime(r.get("appointment_date")) or datetime.max)
         self.filtered_rows = filtered
-        self.timeline_title.setText(f"Lịch khám trong ngày - {self.date_input.date().toString('dd/MM/yyyy')}")
+        count_text = f"{len(filtered)} lịch" if filtered else "Không có lịch"
+        self.timeline_title.setText(f"Lịch khám trong ngày - {self.date_input.date().toString('dd/MM/yyyy')} ({count_text})")
         self._render_timeline()
 
     def _render_timeline(self):
@@ -264,19 +340,35 @@ class DoctorScheduleView(QtWidgets.QWidget):
             if widget:
                 widget.deleteLater()
 
-        hours = [f"{hour:02d}:00" for hour in range(7, 18)]
-        for hour in hours:
+        grouped = {hour: [] for hour in range(7, 18)}
+        for appt in self.filtered_rows:
+            dt_value = self._to_datetime(appt.get("appointment_date"))
+            if dt_value and dt_value.hour in grouped:
+                grouped[dt_value.hour].append(appt)
+
+        for hour in range(7, 18):
             row = QtWidgets.QHBoxLayout()
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(10)
-            hour_lbl = QtWidgets.QLabel(hour)
+            hour_lbl = QtWidgets.QLabel(f"{hour:02d}:00")
             hour_lbl.setFixedWidth(84)
             hour_lbl.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 15px; font-weight: 900;")
             row.addWidget(hour_lbl)
-            matches = [appt for appt in self.filtered_rows if str(appt.get("appointment_date", ""))[11:16].startswith(hour[:2])]
-            row.addWidget(self._appointment_block(matches[0]) if matches else self._empty_slot(), 1)
+
+            matches = grouped[hour]
+            slot = QtWidgets.QWidget()
+            slot_layout = QtWidgets.QVBoxLayout(slot)
+            slot_layout.setContentsMargins(0, 0, 0, 0)
+            slot_layout.setSpacing(6)
+            if matches:
+                for appt in matches:
+                    slot_layout.addWidget(self._appointment_block(appt))
+            else:
+                slot_layout.addWidget(self._empty_slot())
+
+            row.addWidget(slot, 1)
             holder = QtWidgets.QWidget()
-            holder.setMinimumHeight(74 if matches else 56)
+            holder.setMinimumHeight(max(56, len(matches) * 78 if matches else 56))
             holder.setLayout(row)
             self.timeline_list.addWidget(holder)
 
@@ -286,7 +378,8 @@ class DoctorScheduleView(QtWidgets.QWidget):
         else:
             self.selected_schedule = None
             self.detail_patient.setText("Chưa có lịch khám")
-            self.detail_info.setText("Không có lịch khám phù hợp với bộ lọc.")
+            self.detail_info.setText("Không có lịch khám phù hợp với ngày và bộ lọc đang chọn.")
+            self._update_action_buttons(None)
 
     def _empty_slot(self):
         empty = QtWidgets.QFrame()
@@ -298,7 +391,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
         status = str(appt.get("status") or "pending")
         label, color, bg = self.STATUS_META.get(status, self.STATUS_META["pending"])
         card = QtWidgets.QFrame()
-        card.setFixedHeight(70)
+        card.setFixedHeight(72)
         card.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         card.setStyleSheet(f"background: {bg}; border: 1px solid {color}55; border-left: 3px solid {color}; border-radius: 9px;")
         layout = QtWidgets.QHBoxLayout(card)
@@ -306,7 +399,12 @@ class DoctorScheduleView(QtWidgets.QWidget):
         dt_value = self._to_datetime(appt.get("appointment_date"))
         start = dt_value.strftime("%H:%M") if dt_value else "--:--"
         end = (dt_value + timedelta(minutes=30)).strftime("%H:%M") if dt_value else "--:--"
-        info = QtWidgets.QLabel(f"<b>{start} - {end}</b><br>{appt.get('patient_name', '')}<br>{appt.get('service_name', '')}")
+        gender_age = self._gender_age_text(appt)
+        info = QtWidgets.QLabel(
+            f"<b>{appt.get('patient_name', '')}</b> - {gender_age}<br>"
+            f"{appt.get('service_name', '')}<br>"
+            f"{start} - {end} · {appt.get('room', 'Phòng khám 1')}"
+        )
         info.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 13px;")
         badge = QtWidgets.QLabel(label)
         badge.setMinimumWidth(108)
@@ -319,33 +417,71 @@ class DoctorScheduleView(QtWidgets.QWidget):
 
     def _select_schedule(self, appt):
         self.selected_schedule = appt
-        label, _, _ = self.STATUS_META.get(str(appt.get("status") or "pending"), self.STATUS_META["pending"])
-        self.detail_patient.setText(
-            f"{appt.get('patient_name', '')}\n"
-            f"{appt.get('age', '')} tuổi - {appt.get('patient_phone', '')}\n"
-            f"Mã BN: BN{int(appt.get('patient_id') or 0):06d}"
-        )
+        label, color, bg = self.STATUS_META.get(str(appt.get("status") or "pending"), self.STATUS_META["pending"])
         dt_value = self._to_datetime(appt.get("appointment_date"))
-        time_text = dt_value.strftime("%H:%M") if dt_value else "--:--"
-        self.detail_info.setText(
-            f"Thời gian: {time_text}\n"
-            f"Dịch vụ: {appt.get('service_name')}\n"
-            f"Phòng khám: {appt.get('room', 'Phòng khám 1')}\n"
-            f"Trạng thái: {label}\n"
-            f"Ghi chú: {appt.get('note') or 'Không có'}"
+        start = dt_value.strftime("%H:%M") if dt_value else "--:--"
+        end = (dt_value + timedelta(minutes=30)).strftime("%H:%M") if dt_value else "--:--"
+        patient_id = int(appt.get("patient_id") or 0)
+        self.detail_patient.setText(
+            f"👤 {appt.get('patient_name', '')}\n"
+            f"{self._gender_age_text(appt)} · {appt.get('patient_phone', 'Chưa cập nhật')}\n"
+            f"Mã BN: BN{patient_id:06d}"
         )
+        self.detail_info.setText(
+            f"⏱ Thời gian: {start} - {end}\n"
+            f"🩺 Dịch vụ: {appt.get('service_name')}\n"
+            f"🏥 Phòng khám: {appt.get('room', 'Phòng khám 1')}\n"
+            f"● Trạng thái: {label}\n"
+            f"📝 Ghi chú: {appt.get('note') or 'Không có'}"
+        )
+        self.detail_info.setStyleSheet(f"border: none; background: transparent; color: #334155; font-size: 13px; font-weight: 800;")
+        self.detail_patient.setStyleSheet(f"background: {bg}; border: 1px solid {color}55; border-radius: 10px; padding: 12px; color: #0f172a; font-size: 13px; font-weight: 800;")
+        self._update_action_buttons(str(appt.get("status") or "pending"))
+
+    def _gender_age_text(self, appt):
+        gender = appt.get("gender") or "Chưa cập nhật"
+        age = appt.get("age")
+        age_text = f"{age} tuổi" if age not in (None, "") else "Chưa cập nhật tuổi"
+        return f"{gender}, {age_text}"
+
+    def _update_action_buttons(self, status):
+        has_selection = bool(self.selected_schedule)
+        can_start = has_selection and status not in {"done", "cancelled"}
+        can_cancel = has_selection and status != "done" and status != "cancelled"
+        self.start_btn.setEnabled(can_start)
+        self.cancel_btn.setEnabled(can_cancel)
+        self.patient_btn.setEnabled(has_selection)
+        self.edit_btn.setEnabled(has_selection)
+        self.start_btn.setText("Tiếp tục khám" if status == "in_progress" else "Bắt đầu khám")
+
+    def _controller_success(self, result):
+        if isinstance(result, dict):
+            return bool(result.get("status"))
+        return bool(result)
 
     def _start_selected_exam(self):
         if not self.selected_schedule:
             return
-        self.selected_schedule["status"] = "in_progress"
-        AppointmentController.update_status(self.selected_schedule.get("appointment_id"), "in_progress")
+        current_status = str(self.selected_schedule.get("status") or "")
+        if current_status in {"done", "cancelled"}:
+            QtWidgets.QMessageBox.warning(self, "Không thể bắt đầu khám", "Lịch khám đã hoàn tất hoặc đã hủy.")
+            return
+
+        appointment_id = self.selected_schedule.get("appointment_id")
+        if current_status != "in_progress":
+            result = AppointmentController.update_status(appointment_id, "in_progress")
+            if not self._controller_success(result):
+                QtWidgets.QMessageBox.warning(self, "Không thể bắt đầu khám", "Cập nhật trạng thái lịch khám thất bại.")
+                return
+            self.selected_schedule["status"] = "in_progress"
+
         dashboard = self._find_dashboard()
         if dashboard:
             exam_page = getattr(dashboard, "page_medical_record", None)
             if hasattr(exam_page, "set_appointment"):
-                exam_page.set_appointment(self.selected_schedule.get("appointment_id"))
+                exam_page.set_appointment(appointment_id)
             dashboard.switch_page(3)
+        self.all_rows = self._build_schedule_rows()
         self._apply_filters()
 
     def _view_selected_patient(self):
@@ -417,8 +553,18 @@ class DoctorScheduleView(QtWidgets.QWidget):
     def _cancel_selected_appointment(self):
         if not self.selected_schedule:
             return
+        current_status = str(self.selected_schedule.get("status") or "")
+        if current_status in {"done", "cancelled"}:
+            QtWidgets.QMessageBox.warning(self, "Không thể hủy lịch", "Lịch khám đã hoàn tất hoặc đã hủy.")
+            return
+
+        result = AppointmentController.update_status(self.selected_schedule.get("appointment_id"), "cancelled")
+        if not self._controller_success(result):
+            QtWidgets.QMessageBox.warning(self, "Không thể hủy lịch", "Cập nhật trạng thái lịch khám thất bại.")
+            return
+
         self.selected_schedule["status"] = "cancelled"
-        AppointmentController.update_status(self.selected_schedule.get("appointment_id"), "cancelled")
+        self.all_rows = self._build_schedule_rows()
         self._apply_filters()
 
     def _find_dashboard(self):
