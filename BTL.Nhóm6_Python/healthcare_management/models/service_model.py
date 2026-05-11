@@ -23,3 +23,10 @@ class ServiceModel:
     @staticmethod
     def delete(service_id):
         return execute("DELETE FROM Services WHERE service_id=?", (service_id,))
+
+    @staticmethod
+    def set_active(service_id, is_active):
+        return execute(
+            "UPDATE Services SET is_active=? WHERE service_id=?",
+            (1 if bool(is_active) else 0, service_id)
+        )

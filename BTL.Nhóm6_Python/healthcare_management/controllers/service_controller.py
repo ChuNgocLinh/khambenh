@@ -26,3 +26,7 @@ class ServiceController:
     @staticmethod
     def delete(service_id):
         return ServiceModel.delete(service_id)
+
+    @staticmethod
+    def set_active(service_id, is_active):
+        return ServiceModel.set_active(service_id, is_active)
