@@ -3001,8 +3001,14 @@ class DashboardView(QtWidgets.QWidget):
         if not user_id or not doctor_id:
             return
 
-        doctor_data = DoctorModel.get_by_id(doctor_id) or {}
-        settings_data = SettingsController.get_settings(user_id) or {}
+        try:
+            doctor_data = DoctorModel.get_by_id(doctor_id) or {}
+        except Exception:
+            doctor_data = {}
+        try:
+            settings_data = SettingsController.get_settings(user_id) or {}
+        except Exception:
+            settings_data = {}
 
         if not isinstance(doctor_data, dict):
             doctor_data = {}
@@ -3830,180 +3836,11 @@ class DashboardView(QtWidgets.QWidget):
 # =================================================================
 # 3. GIAO DIỆN ADMIN (Dashboard Admin)
 # =================================================================
-class AdminDashboardView(QtWidgets.QWidget):
-    def __init__(self, user_data=None):
-        super().__init__()
-        self.user_data = user_data or {"name": "Admin"}
-        self.username = self.user_data.get("name")
-        self.main_layout = QtWidgets.QHBoxLayout(self)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
+from views.admin_management_views import CarePlusAdminDashboard
 
-        # Sidebar Admin
-        self.sidebar = QtWidgets.QFrame()
-        self.sidebar.setFixedWidth(260)
-        self.sidebar.setStyleSheet("background-color: white; border-right: 1px solid #e2e8f0;")
-        sidebar_layout = QtWidgets.QVBoxLayout(self.sidebar)
-        sidebar_layout.setContentsMargins(15, 25, 15, 25)
-        sidebar_layout.setSpacing(5)
 
-        logo = QtWidgets.QLabel("⊕ CarePlus Admin")
-        logo.setStyleSheet("color: #69c0a5; font-size: 22px; font-weight: 900; margin-bottom: 20px;")
-        sidebar_layout.addWidget(logo)
-
-        menu_items = [
-            ("🏠", "Dashboard Admin", True), 
-            ("👥", "Quản lý bệnh nhân", False),
-            ("👨‍⚕️", "Quản lý bác sĩ", False), 
-            ("📅", "Quản lý lịch hẹn", False),
-            ("🩺", "Quản lý khám bệnh", False),
-            ("💊", "Quản lý thuốc", False), 
-            ("💳", "Quản lý doanh thu", False),
-            ("📊", "Báo cáo thống kê", False),
-            ("⚙️", "Cấu hình hệ thống", False)
-        ]
-
-        self.nav_buttons = []
-        for i, (icon, text, is_active) in enumerate(menu_items):
-            btn = QtWidgets.QPushButton(f"   {icon}     {text}")
-            style = "QPushButton { border: none; text-align: left; padding: 12px 15px; border-radius: 10px; font-size: 14px; color: #1e293b; font-weight: 600; }"
-            if is_active: style += "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
-            else: style += "QPushButton:hover { background-color: #f1f5f9; }"
-            btn.setStyleSheet(style)
-            btn.clicked.connect(lambda checked, idx=i: self.switch_page(idx))
-            self.nav_buttons.append(btn)
-            sidebar_layout.addWidget(btn)
-
-        sidebar_layout.addStretch()
-        self.btn_logout = QtWidgets.QPushButton("🚪    Đăng xuất")
-        self.btn_logout.setStyleSheet("QPushButton { border: none; text-align: left; padding: 12px 15px; color: #ef4444; font-weight: 800; font-size: 14px; } QPushButton:hover { background: #fee2e2; border-radius: 10px; }")
-        sidebar_layout.addWidget(self.btn_logout)
-        self.main_layout.addWidget(self.sidebar)
-
-        # Content Admin
-        self.content_container = QtWidgets.QWidget()
-        self.content_container.setStyleSheet("background-color: #f8fafc;")
-        content_layout = QtWidgets.QVBoxLayout(self.content_container)
-        content_layout.setContentsMargins(35, 25, 35, 35)
-        content_layout.setSpacing(25)
-        self.main_layout.addWidget(self.content_container)
-
-        # Header Admin
-        header = QtWidgets.QHBoxLayout()
-        header_title = QtWidgets.QLabel("HỆ THỐNG QUẢN TRỊ TOÀN DIỆN")
-        header_title.setStyleSheet("font-weight: 900; color: #1e293b; font-size: 14px; letter-spacing: 1px;")
-        header.addWidget(header_title)
-        header.addStretch()
-        name_lbl = QtWidgets.QLabel(f"👤 {self.username} (Quản trị viên) ▿")
-        name_lbl.setStyleSheet("font-weight: 700; color: #1e293b; font-size: 14px;")
-        header.addWidget(name_lbl)
-        content_layout.addLayout(header)
-
-        # QStackedWidget cho các trang
-        self.content_stack = QtWidgets.QStackedWidget()
-        content_layout.addWidget(self.content_stack)
-
-        # ==========================================
-        # TRANG 0: DASHBOARD
-        # ==========================================
-        self.page_dashboard = QtWidgets.QWidget()
-        page_dashboard_layout = QtWidgets.QVBoxLayout(self.page_dashboard)
-        page_dashboard_layout.setContentsMargins(0, 0, 0, 0)
-        page_dashboard_layout.setSpacing(25)
-
-        # Stats Admin
-        from database.db import fetch_one
-        total_patients = fetch_one("SELECT COUNT(*) as c FROM Patients")
-        tp = total_patients["c"] if isinstance(total_patients, dict) else (total_patients[0] if total_patients else 0)
-        
-        total_doctors = fetch_one("SELECT COUNT(*) as c FROM Doctors")
-        td = total_doctors["c"] if isinstance(total_doctors, dict) else (total_doctors[0] if total_doctors else 0)
-        
-        total_appts = fetch_one("SELECT COUNT(*) as c FROM Appointments")
-        ta = total_appts["c"] if isinstance(total_appts, dict) else (total_appts[0] if total_appts else 0)
-
-        stats_layout = QtWidgets.QHBoxLayout(); stats_layout.setSpacing(20)
-        stats_data = [("👥", "Tổng bệnh nhân", str(tp), "#eff6ff", "#2563eb"), ("🩺", "Tổng bác sĩ", str(td), "#f0fdf4", "#16a34a"), ("📅", "Tổng lịch hẹn", str(ta), "#fff7ed", "#ea580c")]
-        for icon, title, val, bg, color in stats_data:
-            card = self.create_stat_card(icon, title, val, bg, color)
-            stats_layout.addWidget(card)
-        page_dashboard_layout.addLayout(stats_layout)
-
-        # Biểu đồ Admin
-        chart_frame = QtWidgets.QFrame()
-        chart_frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
-        chart_layout = QtWidgets.QVBoxLayout(chart_frame)
-        chart_layout.setContentsMargins(25, 25, 25, 25)
-        
-        chart_title = QtWidgets.QLabel("Biểu đồ lượt khám bệnh hàng tuần")
-        chart_title.setStyleSheet("font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 10px;")
-        chart_layout.addWidget(chart_title)
-        chart_layout.addWidget(ChartWidget())
-        page_dashboard_layout.addWidget(chart_frame)
-        page_dashboard_layout.addStretch()
-
-        self.content_stack.addWidget(self.page_dashboard)
-
-        # Các trang placeholder khác
-        from views.admin_management_views import (
-            PatientManagementView, DoctorManagementView, 
-            AppointmentManagementView, ServiceManagementView, 
-            MedicineManagementView, PaymentManagementView,
-            ReportStatsView
-        )
-        self.page_patient_mgmt = PatientManagementView()
-        self.page_doctor_mgmt = DoctorManagementView()
-        self.page_appt_mgmt = AppointmentManagementView()
-        self.page_service_mgmt = ServiceManagementView()
-        self.page_med_mgmt = MedicineManagementView()
-        self.page_pay_mgmt = PaymentManagementView()
-        self.page_report = ReportStatsView()
-
-        role = str(self.user_data.get("role") or "admin").lower().strip()
-        self.page_patient_mgmt.role = role
-        self.page_doctor_mgmt.role = role
-        self.page_appt_mgmt.role = role
-        self.page_service_mgmt.role = role
-        self.page_med_mgmt.role = role
-        self.page_pay_mgmt.role = role
-        
-        self.content_stack.addWidget(self.page_patient_mgmt) # Index 1: Quản lý bệnh nhân
-        self.content_stack.addWidget(self.page_doctor_mgmt) # Index 2: Quản lý bác sĩ
-        self.content_stack.addWidget(self.page_appt_mgmt) # Index 3: Quản lý lịch hẹn
-        self.content_stack.addWidget(self.page_service_mgmt) # Index 4: Quản lý dịch vụ
-        self.content_stack.addWidget(self.page_med_mgmt) # Index 5: Quản lý thuốc
-        self.content_stack.addWidget(self.page_pay_mgmt) # Index 6: Quản lý doanh thu
-        self.content_stack.addWidget(self.page_report) # Index 7: Báo cáo thống kê
-        
-        # Các trang còn lại (Cấu hình)
-        for i in range(8, 9):
-            page = QtWidgets.QWidget()
-            layout = QtWidgets.QVBoxLayout(page)
-            lbl = QtWidgets.QLabel(f"Trang đang phát triển: {menu_items[i][1]}")
-            lbl.setStyleSheet("font-size: 24px; color: #888;")
-            lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(lbl)
-            self.content_stack.addWidget(page)
-            
-    def switch_page(self, index):
-        self.content_stack.setCurrentIndex(index)
-        for i, btn in enumerate(self.nav_buttons):
-            style = "QPushButton { border: none; text-align: left; padding: 12px 15px; border-radius: 10px; font-size: 14px; color: #1e293b; font-weight: 600; }"
-            if i == index:
-                style += "QPushButton { background-color: #e1f2ee; color: #69c0a5; font-weight: 800; }"
-            else:
-                style += "QPushButton:hover { background-color: #f1f5f9; }"
-            btn.setStyleSheet(style)
-
-    def create_stat_card(self, icon, title, value, bg, color):
-        card = QtWidgets.QFrame(); card.setStyleSheet(f"background-color: {bg}; border-radius: 15px; border: 1px solid #e2e8f0;")
-        l = QtWidgets.QHBoxLayout(card); l.setContentsMargins(20, 20, 20, 20)
-        ico = QtWidgets.QLabel(icon); ico.setStyleSheet(f"font-size: 30px; color: white; background: {color}; border-radius: 12px; padding: 8px;")
-        v_l = QtWidgets.QVBoxLayout(); 
-        t_lbl = QtWidgets.QLabel(title); t_lbl.setStyleSheet("color: #475569; font-weight: 700; font-size: 13px;")
-        v_val = QtWidgets.QLabel(value); v_val.setStyleSheet(f"font-size: 28px; font-weight: 900; color: {color};")
-        v_l.addWidget(t_lbl); v_l.addWidget(v_val); l.addWidget(ico); l.addLayout(v_l); l.addStretch()
-        return card
+class AdminDashboardView(CarePlusAdminDashboard):
+    pass
 
 # Để chạy thử nghiệm ứng dụng này:
 if __name__ == "__main__":
