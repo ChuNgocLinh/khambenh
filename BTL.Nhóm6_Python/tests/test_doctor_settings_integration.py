@@ -76,3 +76,38 @@ def test_change_password_validation(monkeypatch):
     mismatch, message = SettingsController.change_password(2, "old-password", "new-password", "other-password")
     assert mismatch is False
     assert "kh" in message.lower()
+
+
+def test_update_work_schedule_persists_rows(monkeypatch):
+    updated = {}
+
+    class FakeSettingsModel:
+        @staticmethod
+        def get_or_create_by_user_id(user_id):
+            return {"user_id": user_id}
+
+        @staticmethod
+        def update_fields(user_id, fields):
+            updated["user_id"] = user_id
+            updated["fields"] = fields
+            return True
+
+    def fake_import(name):
+        if name == "models.settings_model":
+            return type("Module", (), {"SettingsModel": FakeSettingsModel})
+        raise AssertionError(name)
+
+    monkeypatch.setattr("controllers.settings_controller.import_module", fake_import)
+
+    ok, message = SettingsController.update_work_schedule(
+        2,
+        [
+            {"day": "day_0", "start": "07:30", "end": "17:00", "working": True},
+            {"day": "day_1", "start": "-- : --", "end": "-- : --", "working": False},
+        ],
+    )
+
+    assert ok is True
+    assert "lưu lịch" in message.lower()
+    assert updated["user_id"] == 2
+    assert "work_schedule" in updated["fields"]

@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 
 from config import DB_TYPE
 from database.db import execute, fetch_one
@@ -20,6 +21,7 @@ class SettingsModel:
         "backup_mode": "cloud",
         "last_backup_at": None,
         "last_sync_at": None,
+        "work_schedule": "[]",
     }
 
     ALLOWED_UPDATE_FIELDS = {
@@ -37,6 +39,7 @@ class SettingsModel:
         "backup_mode",
         "last_backup_at",
         "last_sync_at",
+        "work_schedule",
     }
 
     @staticmethod
@@ -62,6 +65,7 @@ class SettingsModel:
                         backup_mode NVARCHAR(20) NULL DEFAULT N'cloud',
                         last_backup_at DATETIME2 NULL,
                         last_sync_at DATETIME2 NULL,
+                        work_schedule NVARCHAR(MAX) NULL DEFAULT N'[]',
                         updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
                         CONSTRAINT FK_UserSettings_Users FOREIGN KEY (user_id) REFERENCES dbo.Users(user_id)
                     )
@@ -87,6 +91,7 @@ class SettingsModel:
                 backup_mode VARCHAR(20) DEFAULT 'cloud',
                 last_backup_at DATETIME NULL,
                 last_sync_at DATETIME NULL,
+                work_schedule TEXT NULL,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES Users(user_id)
             )
@@ -102,8 +107,8 @@ class SettingsModel:
                 user_id, gender, dob, address, avatar_path,
                 notify_new_appointment, notify_reminder, notify_system,
                 theme_mode, font_size, display_density, language,
-                backup_mode, last_backup_at, last_sync_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                backup_mode, last_backup_at, last_sync_at, work_schedule
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -121,6 +126,7 @@ class SettingsModel:
                 defaults["backup_mode"],
                 defaults["last_backup_at"],
                 defaults["last_sync_at"],
+                defaults["work_schedule"],
             ),
         )
 
@@ -159,3 +165,16 @@ class SettingsModel:
             f"UPDATE UserSettings SET {set_clause} WHERE user_id=?",
             tuple(params),
         )
+
+    @staticmethod
+    def normalize_work_schedule(value):
+        if isinstance(value, str):
+            text = value.strip() or "[]"
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                return []
+            return parsed if isinstance(parsed, list) else []
+        if isinstance(value, list):
+            return value
+        return []

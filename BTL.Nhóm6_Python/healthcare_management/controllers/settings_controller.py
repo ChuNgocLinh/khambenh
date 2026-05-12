@@ -241,6 +241,40 @@ class SettingsController:
         return SettingsModel.update_fields(user_id, {"language": language})
 
     @staticmethod
+    def update_work_schedule(user_id, schedule_rows):
+        SettingsModel = import_module("models.settings_model").SettingsModel
+        if not user_id:
+            return False, "Không xác định được người dùng hiện tại."
+        if not isinstance(schedule_rows, list):
+            return False, "Dữ liệu lịch làm việc không hợp lệ."
+
+        normalized_rows = []
+        for row in schedule_rows:
+            if not isinstance(row, dict):
+                return False, "Dữ liệu lịch làm việc không hợp lệ."
+
+            start_value = str(row.get("start") or "-- : --")
+            end_value = str(row.get("end") or "-- : --")
+            working = bool(row.get("working"))
+            if working and (start_value == "-- : --" or end_value == "-- : --"):
+                return False, "Vui lòng chọn đầy đủ giờ bắt đầu và kết thúc cho ngày làm việc."
+
+            normalized_rows.append(
+                {
+                    "day": str(row.get("day") or ""),
+                    "start": start_value,
+                    "end": end_value,
+                    "working": working,
+                }
+            )
+
+        SettingsModel.get_or_create_by_user_id(user_id)
+        saved = SettingsModel.update_fields(user_id, {"work_schedule": json.dumps(normalized_rows, ensure_ascii=False)})
+        if not saved:
+            return False, "Không thể lưu lịch làm việc."
+        return True, "Đã lưu lịch làm việc thành công."
+
+    @staticmethod
     def backup_now(user_id, backup_mode):
         if backup_mode not in {"cloud", "local"}:
             return False, "Chế độ backup không hợp lệ."
