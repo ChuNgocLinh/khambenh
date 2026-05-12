@@ -26,7 +26,17 @@ class NotificationModel:
                 )
                 """
             )
-            execute("CREATE INDEX idx_notifications_user_read ON Notifications(user_id, is_read)")
+            index_exists = fetch_one(
+                """
+                SELECT COUNT(*) AS c
+                FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'Notifications'
+                  AND INDEX_NAME = 'idx_notifications_user_read'
+                """
+            )
+            if not index_exists or int(index_exists.get("c", 0)) == 0:
+                execute("CREATE INDEX idx_notifications_user_read ON Notifications(user_id, is_read)")
             return ok
 
         ok = execute(

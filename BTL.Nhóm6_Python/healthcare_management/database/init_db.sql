@@ -12,6 +12,15 @@ CREATE TABLE IF NOT EXISTS Users (
     CHECK (role IN ('admin','doctor','patient','staff'))
 );
 
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'is_active'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Users ADD COLUMN is_active BOOLEAN DEFAULT TRUE', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- ========================================
 -- 2. BẢNG PATIENTS (BỆNH NHÂN)
 -- ========================================
@@ -33,6 +42,60 @@ CREATE TABLE IF NOT EXISTS Patients (
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
 
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND COLUMN_NAME = 'cccd'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Patients ADD COLUMN cccd VARCHAR(20) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND COLUMN_NAME = 'email'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Patients ADD COLUMN email VARCHAR(100) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND COLUMN_NAME = 'patient_type'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Patients ADD COLUMN patient_type VARCHAR(30) DEFAULT ''general''', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND COLUMN_NAME = 'occupation'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Patients ADD COLUMN occupation VARCHAR(100) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND COLUMN_NAME = 'intake_notes'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Patients ADD COLUMN intake_notes VARCHAR(500) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND COLUMN_NAME = 'is_active'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Patients ADD COLUMN is_active BOOLEAN DEFAULT TRUE', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- ========================================
 -- 3. BẢNG DOCTORS (BÁC SĨ)
 -- ========================================
@@ -46,6 +109,15 @@ CREATE TABLE IF NOT EXISTS Doctors (
     is_active BOOLEAN DEFAULT TRUE,
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Doctors' AND COLUMN_NAME = 'is_active'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Doctors ADD COLUMN is_active BOOLEAN DEFAULT TRUE', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 3.1 BẢNG USER SETTINGS (CÀI ĐẶT CÁ NHÂN)
@@ -66,9 +138,19 @@ CREATE TABLE IF NOT EXISTS UserSettings (
     backup_mode VARCHAR(20) DEFAULT 'cloud',
     last_backup_at DATETIME NULL,
     last_sync_at DATETIME NULL,
+    work_schedule TEXT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'UserSettings' AND COLUMN_NAME = 'work_schedule'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE UserSettings ADD COLUMN work_schedule TEXT NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 4. BẢNG SERVICES (DỊCH VỤ KHÁM)
@@ -114,10 +196,42 @@ CREATE TABLE IF NOT EXISTS WaitingQueue (
     CHECK (status IN ('waiting','called','in_consultation','done','cancelled'))
 );
 
-CREATE UNIQUE INDEX UQ_Patients_CCCD ON Patients(cccd);
-CREATE UNIQUE INDEX UQ_Patients_Phone ON Patients(phone);
-CREATE UNIQUE INDEX UQ_WaitingQueue_QueueNo_Area ON WaitingQueue(queue_no, queue_area);
-CREATE INDEX IX_Patients_Phone ON Patients(phone);
+-- Create indexes through INFORMATION_SCHEMA checks so rerunning init_db.sql stays safe.
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND INDEX_NAME = 'UQ_Patients_CCCD'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE UNIQUE INDEX UQ_Patients_CCCD ON Patients(cccd)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND INDEX_NAME = 'UQ_Patients_Phone'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE UNIQUE INDEX UQ_Patients_Phone ON Patients(phone)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'WaitingQueue' AND INDEX_NAME = 'UQ_WaitingQueue_QueueNo_Area'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE UNIQUE INDEX UQ_WaitingQueue_QueueNo_Area ON WaitingQueue(queue_no, queue_area)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND INDEX_NAME = 'IX_Patients_Phone'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX IX_Patients_Phone ON Patients(phone)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 6. BẢNG MEDICAL RECORD (HỒ SƠ KHÁM)
@@ -150,6 +264,15 @@ CREATE TABLE IF NOT EXISTS Medicines (
     description VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE
 );
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Medicines' AND COLUMN_NAME = 'is_active'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Medicines ADD COLUMN is_active BOOLEAN DEFAULT TRUE', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 8. BẢNG PRESCRIPTIONS (ĐƠN THUỐC)
@@ -214,16 +337,95 @@ CREATE TABLE IF NOT EXISTS Invoices (
 -- ========================================
 -- ⚡ INDEX (TỐI ƯU)
 -- ========================================
-CREATE INDEX idx_patient_name ON Patients(name);
-CREATE INDEX idx_appointment_date ON Appointments(appointment_date);
-CREATE INDEX idx_appt_patient_id ON Appointments(patient_id);
-CREATE INDEX idx_appt_doctor_id ON Appointments(doctor_id);
-CREATE INDEX idx_record_appointment_id ON MedicalRecords(appointment_id);
-CREATE INDEX idx_prescription_record_id ON Prescriptions(record_id);
-CREATE INDEX idx_notifications_user_read ON Notifications(user_id, is_read);
-CREATE INDEX idx_payment_patient_id ON Payments(patient_id);
-CREATE INDEX idx_payment_appointment_id ON Payments(appointment_id);
-CREATE INDEX idx_invoice_payment_id ON Invoices(payment_id);
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Patients' AND INDEX_NAME = 'idx_patient_name'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_patient_name ON Patients(name)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Appointments' AND INDEX_NAME = 'idx_appointment_date'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_appointment_date ON Appointments(appointment_date)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Appointments' AND INDEX_NAME = 'idx_appt_patient_id'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_appt_patient_id ON Appointments(patient_id)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Appointments' AND INDEX_NAME = 'idx_appt_doctor_id'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_appt_doctor_id ON Appointments(doctor_id)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'MedicalRecords' AND INDEX_NAME = 'idx_record_appointment_id'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_record_appointment_id ON MedicalRecords(appointment_id)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Prescriptions' AND INDEX_NAME = 'idx_prescription_record_id'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_prescription_record_id ON Prescriptions(record_id)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Notifications' AND INDEX_NAME = 'idx_notifications_user_read'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_notifications_user_read ON Notifications(user_id, is_read)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Payments' AND INDEX_NAME = 'idx_payment_patient_id'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_payment_patient_id ON Payments(patient_id)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Payments' AND INDEX_NAME = 'idx_payment_appointment_id'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_payment_appointment_id ON Payments(appointment_id)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Invoices' AND INDEX_NAME = 'idx_invoice_payment_id'
+);
+SET @idx_sql = IF(@idx_exists = 0, 'CREATE INDEX idx_invoice_payment_id ON Invoices(payment_id)', 'SELECT 1');
+PREPARE stmt FROM @idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 11. INSERT DỮ LIỆU MẪU
@@ -233,30 +435,186 @@ INSERT IGNORE INTO Users (username, password, role) VALUES
 ('doctor1','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','doctor'),
 ('staff1','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','patient');
 
-INSERT IGNORE INTO Patients (name, dob, gender, phone, address, user_id) VALUES
-('Nguyễn Văn A','2000-01-01','Nam','0123456789','Hà Nội', 3),
-('Trần Thị B','1995-05-10','Nữ','0987654321','HCM', NULL);
+INSERT INTO Patients (name, dob, gender, phone, address, user_id)
+SELECT 'Nguyễn Văn A','2000-01-01','Nam','0123456789','Hà Nội',
+       (SELECT user_id FROM Users WHERE username='staff1' LIMIT 1)
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0123456789'
+);
 
-INSERT IGNORE INTO Doctors (name, specialty, phone, email, user_id) VALUES
-('Bác sĩ Minh','Nội khoa','0900000001','minh@gmail.com', 2),
-('Bác sĩ Hùng','Ngoại khoa','0900000002','hung@gmail.com', NULL);
+INSERT INTO Patients (name, dob, gender, phone, address, user_id)
+SELECT 'Trần Thị B','1995-05-10','Nữ','0987654321','HCM', NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0987654321'
+);
 
-INSERT IGNORE INTO Services (service_name, price) VALUES
-('Khám tổng quát',200000),
-('Xét nghiệm máu',150000);
+INSERT INTO Doctors (name, specialty, phone, email, user_id)
+SELECT 'Bác sĩ Minh','Nội khoa','0900000001','minh@gmail.com',
+       (SELECT user_id FROM Users WHERE username='doctor1' LIMIT 1)
+WHERE NOT EXISTS (
+    SELECT 1 FROM Doctors WHERE phone='0900000001'
+);
 
-INSERT IGNORE INTO Medicines (name, quantity, price) VALUES
-('Paracetamol',100,5000),
-('Amoxicillin',50,10000);
+INSERT INTO Doctors (name, specialty, phone, email, user_id)
+SELECT 'Bác sĩ Hùng','Ngoại khoa','0900000002','hung@gmail.com', NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM Doctors WHERE phone='0900000002'
+);
 
-INSERT IGNORE INTO Appointments (patient_id, doctor_id, appointment_date, status) VALUES
-(1,1,CURRENT_TIMESTAMP,'pending'),
-(2,2,CURRENT_TIMESTAMP,'pending');
+INSERT INTO Services (service_name, price)
+SELECT 'Khám tổng quát', 200000
+WHERE NOT EXISTS (
+    SELECT 1 FROM Services WHERE price=200000
+);
 
-INSERT IGNORE INTO MedicalRecords (patient_id, doctor_id, diagnosis, treatment) VALUES
-(1,1,'Sốt','Uống thuốc'),
-(2,2,'Đau bụng','Nghỉ ngơi');
+INSERT INTO Services (service_name, price)
+SELECT 'Xét nghiệm máu', 150000
+WHERE NOT EXISTS (
+    SELECT 1 FROM Services WHERE price=150000
+);
 
-INSERT IGNORE INTO Payments (patient_id, appointment_id, total_amount, status) VALUES
-(1, 1, 200000,'paid'),
-(2, 2, 150000,'unpaid');
+INSERT INTO Medicines (name, quantity, price)
+SELECT 'Paracetamol', 100, 5000
+WHERE NOT EXISTS (
+    SELECT 1 FROM Medicines WHERE name='Paracetamol' AND price=5000
+);
+
+INSERT INTO Medicines (name, quantity, price)
+SELECT 'Amoxicillin', 50, 10000
+WHERE NOT EXISTS (
+    SELECT 1 FROM Medicines WHERE name='Amoxicillin' AND price=10000
+);
+
+INSERT INTO Appointments (patient_id, doctor_id, appointment_date, status)
+SELECT p.patient_id,
+       (
+           SELECT doctor_id
+           FROM Doctors
+           WHERE phone='0900000001'
+           ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
+           LIMIT 1
+       ),
+       CURRENT_TIMESTAMP,
+       'pending'
+FROM Patients p
+WHERE p.phone='0123456789'
+  AND NOT EXISTS (
+      SELECT 1 FROM Appointments a
+      WHERE a.patient_id = p.patient_id
+        AND a.doctor_id = (
+            SELECT doctor_id
+            FROM Doctors
+            WHERE phone='0900000001'
+            ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
+            LIMIT 1
+        )
+        AND a.status='pending'
+  )
+LIMIT 1;
+
+INSERT INTO Appointments (patient_id, doctor_id, appointment_date, status)
+SELECT p.patient_id,
+       (
+           SELECT doctor_id
+           FROM Doctors
+           WHERE phone='0900000002'
+           ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
+           LIMIT 1
+       ),
+       CURRENT_TIMESTAMP,
+       'pending'
+FROM Patients p
+WHERE p.phone='0987654321'
+  AND NOT EXISTS (
+      SELECT 1 FROM Appointments a
+      WHERE a.patient_id = p.patient_id
+        AND a.doctor_id = (
+            SELECT doctor_id
+            FROM Doctors
+            WHERE phone='0900000002'
+            ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
+            LIMIT 1
+        )
+        AND a.status='pending'
+  )
+LIMIT 1;
+
+INSERT INTO MedicalRecords (patient_id, doctor_id, diagnosis, treatment)
+SELECT p.patient_id,
+       (
+           SELECT doctor_id
+           FROM Doctors
+           WHERE phone='0900000001'
+           ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
+           LIMIT 1
+       ),
+       'Sốt',
+       'Uống thuốc'
+FROM Patients p
+WHERE p.phone='0123456789'
+  AND NOT EXISTS (
+      SELECT 1 FROM MedicalRecords mr
+      WHERE mr.patient_id = p.patient_id
+        AND mr.doctor_id = (
+            SELECT doctor_id
+            FROM Doctors
+            WHERE phone='0900000001'
+            ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
+            LIMIT 1
+        )
+  )
+LIMIT 1;
+
+INSERT INTO MedicalRecords (patient_id, doctor_id, diagnosis, treatment)
+SELECT p.patient_id,
+       (
+           SELECT doctor_id
+           FROM Doctors
+           WHERE phone='0900000002'
+           ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
+           LIMIT 1
+       ),
+       'Đau bụng',
+       'Nghỉ ngơi'
+FROM Patients p
+WHERE p.phone='0987654321'
+  AND NOT EXISTS (
+      SELECT 1 FROM MedicalRecords mr
+      WHERE mr.patient_id = p.patient_id
+        AND mr.doctor_id = (
+            SELECT doctor_id
+            FROM Doctors
+            WHERE phone='0900000002'
+            ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
+            LIMIT 1
+        )
+  )
+LIMIT 1;
+
+INSERT INTO Payments (patient_id, appointment_id, total_amount, status)
+SELECT p.patient_id, a.appointment_id, 200000, 'paid'
+FROM Patients p
+LEFT JOIN Appointments a ON a.patient_id = p.patient_id
+LEFT JOIN Doctors d ON d.doctor_id = a.doctor_id
+WHERE p.phone='0123456789'
+  AND (d.phone='0900000001' OR d.phone IS NULL)
+  AND NOT EXISTS (
+      SELECT 1 FROM Payments pay
+      WHERE pay.patient_id = p.patient_id AND pay.total_amount=200000 AND pay.status='paid'
+  )
+ORDER BY a.appointment_id ASC
+LIMIT 1;
+
+INSERT INTO Payments (patient_id, appointment_id, total_amount, status)
+SELECT p.patient_id, a.appointment_id, 150000, 'unpaid'
+FROM Patients p
+LEFT JOIN Appointments a ON a.patient_id = p.patient_id
+LEFT JOIN Doctors d ON d.doctor_id = a.doctor_id
+WHERE p.phone='0987654321'
+  AND (d.phone='0900000002' OR d.phone IS NULL)
+  AND NOT EXISTS (
+      SELECT 1 FROM Payments pay
+      WHERE pay.patient_id = p.patient_id AND pay.total_amount=150000 AND pay.status='unpaid'
+  )
+ORDER BY a.appointment_id ASC
+LIMIT 1;
