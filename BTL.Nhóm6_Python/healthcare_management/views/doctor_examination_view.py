@@ -143,15 +143,16 @@ class DoctorExaminationView(QtWidgets.QWidget):
         wrapper = card()
         layout = QtWidgets.QHBoxLayout(wrapper)
         layout.setContentsMargins(16, 12, 16, 12)
-        cancel_btn = button("Hủy khám", "danger")
+        self.cancel_btn = button("Hủy khám", "danger")
         self.save_draft_btn = button("Lưu tạm", "outline")
         self.finalize_btn = button("Hoàn tất khám")
         self.prescription_btn = button("Tạo đơn thuốc", "outline")
+        self.cancel_btn.clicked.connect(self.cancel_exam)
         self.save_draft_btn.clicked.connect(self.save_draft)
         self.finalize_btn.clicked.connect(self.finalize_exam)
         self.prescription_btn.clicked.connect(self.open_prescription_page)
         layout.addStretch()
-        for btn in [cancel_btn, self.save_draft_btn, self.finalize_btn, self.prescription_btn]:
+        for btn in [self.cancel_btn, self.save_draft_btn, self.finalize_btn, self.prescription_btn]:
             layout.addWidget(btn)
         return wrapper
 
@@ -216,10 +217,7 @@ class DoctorExaminationView(QtWidgets.QWidget):
     def _load_selected_context(self):
         self.current_appointment = self.appointment_combo.currentData()
         self.current_record = None
-        for widget in [self.reason_input, self.symptoms_input, self.history_input, self.clinical_input, self.diagnosis_input, self.treatment_input, self.notes_input]:
-            widget.clear()
-        for widget in [self.pulse_input, self.bp_input, self.temp_input, self.breath_input, self.weight_input, self.height_input]:
-            widget.clear()
+        self._clear_form_inputs()
 
         if not self.current_appointment:
             self.patient_name_label.setText("Không có lịch hẹn phù hợp để khám.")
@@ -291,3 +289,30 @@ class DoctorExaminationView(QtWidgets.QWidget):
             parent = parent.parent()
         if parent:
             parent.switch_page(5)
+
+    def cancel_exam(self):
+        self._clear_form_inputs()
+        self.current_record = None
+        self.current_appointment = None
+        self.appointment_combo.blockSignals(True)
+        self.appointment_combo.setCurrentIndex(-1)
+        self.appointment_combo.blockSignals(False)
+        while self.patient_avatar_layout.count():
+            item = self.patient_avatar_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.patient_name_label.setText("Chọn lịch hẹn để bắt đầu khám")
+        self.patient_meta_label.setText("")
+        self.status_label.setText("Đã hủy thao tác khám hiện tại.")
+        parent = self.parent()
+        while parent and not hasattr(parent, "switch_page"):
+            parent = parent.parent()
+        if parent:
+            parent.switch_page(1)
+        return {"status": True, "message": "Đã hủy thao tác khám hiện tại."}
+
+    def _clear_form_inputs(self):
+        for widget in [self.reason_input, self.symptoms_input, self.history_input, self.clinical_input, self.diagnosis_input, self.treatment_input, self.notes_input]:
+            widget.clear()
+        for widget in [self.pulse_input, self.bp_input, self.temp_input, self.breath_input, self.weight_input, self.height_input]:
+            widget.clear()

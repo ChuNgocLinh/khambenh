@@ -81,3 +81,47 @@ def test_examination_finalize_validation_message(monkeypatch):
 
     assert result["status"] is False
     assert "Không có" in result["message"]
+
+
+def test_examination_cancel_action_returns_to_schedule(monkeypatch):
+    _app()
+
+    appointment_rows = [
+        {
+            "appointment_id": 5,
+            "patient_id": 3,
+            "doctor_id": 1,
+            "appointment_date": "2026-05-11 09:00:00",
+            "status": "in_progress",
+            "patient_name": "Tran Thi B",
+        }
+    ]
+
+    class Host(QtWidgets.QWidget):
+        def __init__(self):
+            super().__init__()
+            self.switched_page = None
+
+        def switch_page(self, index):
+            self.switched_page = index
+
+    monkeypatch.setattr(
+        "views.doctor_examination_view.AppointmentController.get_by_doctor",
+        lambda doctor_id: appointment_rows,
+    )
+    monkeypatch.setattr(
+        "views.doctor_examination_view.MedicalRecordController.get_by_appointment",
+        lambda appointment_id: None,
+    )
+
+    host = Host()
+    view = DoctorExaminationView(1, parent=host)
+    view.diagnosis_input.setPlainText("Draft data")
+    view.treatment_input.setPlainText("More draft data")
+    result = view.cancel_exam()
+
+    assert result["status"] is True
+    assert host.switched_page == 1
+    assert "hủy" in result["message"].lower()
+    assert view.diagnosis_input.toPlainText() == ""
+    assert view.treatment_input.toPlainText() == ""
