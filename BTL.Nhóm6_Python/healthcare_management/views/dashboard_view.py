@@ -739,14 +739,14 @@ class DashboardView(QtWidgets.QWidget):
         """)
         
         rows_data = [
-            ("08:00", "Trần Văn Nam", "Nam - 35 tuổi", "Khám tổng quát", "Đã khám", "#10b981", "#ecfdf5", "👁"),
-            ("09:00", "Lê Thị Hoa", "Nữ - 29 tuổi", "Tư vấn sức khỏe", "Đang khám", "#3b82f6", "#eff6ff", "🩺"),
-            ("10:00", "Nguyễn Hoàng Anh", "Nam - 42 tuổi", "Đau đầu, chóng mặt", "Đang chờ", "#f97316", "#fff7ed", "👁"),
-            ("10:30", "Phạm Minh Đức", "Nam - 31 tuổi", "Khám nhi", "Đang chờ", "#f97316", "#fff7ed", "👁"),
-            ("11:00", "Vũ Thị Mai", "Nữ - 28 tuổi", "Khám tổng quát", "Đã đặt lịch", "#64748b", "#f1f5f9", "👁"),
+            ("08:00", "Trần Văn Nam", "Nam - 35 tuổi", "Khám tổng quát", "Đã khám", "#10b981", "#ecfdf5", "👁", 1),
+            ("09:00", "Lê Thị Hoa", "Nữ - 29 tuổi", "Tư vấn sức khỏe", "Đang khám", "#3b82f6", "#eff6ff", "🩺", 3),
+            ("10:00", "Nguyễn Hoàng Anh", "Nam - 42 tuổi", "Đau đầu, chóng mặt", "Đang chờ", "#f97316", "#fff7ed", "👁", 1),
+            ("10:30", "Phạm Minh Đức", "Nam - 31 tuổi", "Khám nhi", "Đang chờ", "#f97316", "#fff7ed", "👁", 1),
+            ("11:00", "Vũ Thị Mai", "Nữ - 28 tuổi", "Khám tổng quát", "Đã đặt lịch", "#64748b", "#f1f5f9", "👁", 1),
         ]
-        
-        for r, (time_val, name_val, detail_val, reason, status, status_color, status_bg, action_icon) in enumerate(rows_data):
+
+        for r, (time_val, name_val, detail_val, reason, status, status_color, status_bg, action_icon, target_page) in enumerate(rows_data):
             # Time
             time_item = QtWidgets.QTableWidgetItem(time_val)
             time_item.setFont(QtGui.QFont("Arial", 10, QtGui.QFont.Weight.Bold))
@@ -805,6 +805,7 @@ class DashboardView(QtWidgets.QWidget):
             action_btn.setFixedSize(32, 32)
             action_btn.setStyleSheet("background-color: #eff6ff; color: #3b82f6; border-radius: 16px; font-size: 14px; border: none;")
             action_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            action_btn.clicked.connect(lambda checked=False, page=target_page: self.switch_page(page))
             action_l.addWidget(action_btn)
             table.setCellWidget(r, 4, action_w)
             
@@ -816,6 +817,7 @@ class DashboardView(QtWidgets.QWidget):
         btn_view_all_appts = QtWidgets.QPushButton("Xem tất cả lịch hẹn >")
         btn_view_all_appts.setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;")
         btn_view_all_appts.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn_view_all_appts.clicked.connect(lambda: self.switch_page(1))
         table_l.addWidget(btn_view_all_appts)
         
         left_v_layout.addWidget(table_card)
@@ -837,6 +839,7 @@ class DashboardView(QtWidgets.QWidget):
         recent_view_all = QtWidgets.QPushButton("Xem tất cả")
         recent_view_all.setStyleSheet("color: #3b82f6; font-size: 13px; font-weight: bold; border: none; background: transparent;")
         recent_view_all.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        recent_view_all.clicked.connect(lambda: self.switch_page(2))
         recent_header.addWidget(recent_title)
         recent_header.addStretch()
         recent_header.addWidget(recent_view_all)
@@ -943,6 +946,7 @@ class DashboardView(QtWidgets.QWidget):
         btn_view_all_todo = QtWidgets.QPushButton("Xem tất cả công việc >")
         btn_view_all_todo.setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px; border: none; background: transparent;")
         btn_view_all_todo.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn_view_all_todo.clicked.connect(lambda: self.switch_page(6))
         todo_l.addWidget(btn_view_all_todo)
         
         bottom_h_layout.addWidget(todo_card)
@@ -1072,6 +1076,7 @@ class DashboardView(QtWidgets.QWidget):
         btn_view_full = QtWidgets.QPushButton("📅 Xem lịch đầy đủ")
         btn_view_full.setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;")
         btn_view_full.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        btn_view_full.clicked.connect(lambda: self.switch_page(1))
         timeline_l.addWidget(btn_view_full)
         
         right_v_layout.addWidget(timeline_card)
@@ -2714,7 +2719,9 @@ class DashboardView(QtWidgets.QWidget):
         self._settings_schedule_start_inputs = []
         self._settings_schedule_end_inputs = []
         self._settings_schedule_checkboxes = []
+        self._settings_schedule_defaults = []
         for row_index, (day_label, start_value, end_value, working) in enumerate(schedule_rows):
+            self._settings_schedule_defaults.append((start_value, end_value, working))
             day_lbl = QtWidgets.QLabel(day_label)
             day_lbl.setStyleSheet("font-size: 13px; color: #334155; border: none;")
             schedule_grid.addWidget(day_lbl, row_index, 0)
@@ -2743,6 +2750,14 @@ class DashboardView(QtWidgets.QWidget):
             status_checkbox = QtWidgets.QCheckBox("Làm việc" if working else "Nghỉ")
             status_checkbox.setChecked(working)
             status_checkbox.setStyleSheet(self._doctor_settings_day_checkbox_style())
+            status_checkbox.toggled.connect(
+                lambda checked, start_widget=start_combo, end_widget=end_combo, checkbox=status_checkbox: self._toggle_schedule_row_inputs(
+                    checked,
+                    start_widget,
+                    end_widget,
+                    checkbox,
+                )
+            )
             schedule_grid.addWidget(status_checkbox, row_index, 4)
             self._settings_schedule_checkboxes.append(status_checkbox)
 
@@ -2756,6 +2771,7 @@ class DashboardView(QtWidgets.QWidget):
             "font-size: 13px; font-weight: 800; border: none; }"
             "QPushButton:hover { background: #15803d; }"
         )
+        schedule_save_btn.clicked.connect(self._save_settings_schedule)
         schedule_layout.addWidget(schedule_save_btn, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
         bottom_row.addWidget(schedule_card, 7)
 
@@ -2787,6 +2803,7 @@ class DashboardView(QtWidgets.QWidget):
         for opt_key, icon_text, opt_title, opt_desc in display_options:
             opt_row = QtWidgets.QFrame()
             opt_row.setStyleSheet("background: transparent; border: none;")
+            opt_row.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
             opt_row_layout = QtWidgets.QHBoxLayout(opt_row)
             opt_row_layout.setContentsMargins(0, 2, 0, 2)
             opt_row_layout.setSpacing(12)
@@ -2811,6 +2828,7 @@ class DashboardView(QtWidgets.QWidget):
             arrow_display = QtWidgets.QLabel("›")
             arrow_display.setStyleSheet("font-size: 18px; color: #94a3b8; border: none;")
             opt_row_layout.addWidget(arrow_display)
+            opt_row.mousePressEvent = lambda event, selected_key=opt_key: self._handle_settings_option_click(selected_key)
             options_layout.addWidget(opt_row)
 
             value_label = QtWidgets.QLabel("")
@@ -2827,6 +2845,7 @@ class DashboardView(QtWidgets.QWidget):
             "font-size: 13px; font-weight: 800; }"
             "QPushButton:hover { background: #fff5f5; }"
         )
+        reset_btn.clicked.connect(self._reset_settings_view)
         options_layout.addWidget(reset_btn)
         bottom_row.addWidget(options_card, 6)
         right_layout.addLayout(bottom_row)
@@ -3023,6 +3042,7 @@ class DashboardView(QtWidgets.QWidget):
             "last_backup_at": settings_data.get("last_backup_at"),
             "last_sync_at": settings_data.get("last_sync_at"),
             "dob": settings_data.get("dob"),
+            "work_schedule": settings_data.get("work_schedule") or "[]",
         }
 
         toggle_mapping = {
@@ -3040,6 +3060,37 @@ class DashboardView(QtWidgets.QWidget):
         for field, label in self._settings_display_value_labels.items():
             value = str(settings_data.get(field) or label.text())
             label.setText(value)
+
+        schedule_rows = import_module("models.settings_model").SettingsModel.normalize_work_schedule(
+            settings_data.get("work_schedule") or "[]"
+        )
+        if schedule_rows:
+            for index, row in enumerate(schedule_rows[: len(self._settings_schedule_checkboxes)]):
+                self._settings_schedule_start_inputs[index].setCurrentText(str(row.get("start") or "-- : --"))
+                self._settings_schedule_end_inputs[index].setCurrentText(str(row.get("end") or "-- : --"))
+                self._settings_schedule_checkboxes[index].setChecked(bool(row.get("working")))
+                self._toggle_schedule_row_inputs(
+                    bool(row.get("working")),
+                    self._settings_schedule_start_inputs[index],
+                    self._settings_schedule_end_inputs[index],
+                    self._settings_schedule_checkboxes[index],
+                )
+            self._settings_schedule_defaults = [
+                (
+                    str(row.get("start") or "-- : --"),
+                    str(row.get("end") or "-- : --"),
+                    bool(row.get("working")),
+                )
+                for row in schedule_rows[: len(self._settings_schedule_checkboxes)]
+            ]
+        else:
+            for index, checkbox in enumerate(self._settings_schedule_checkboxes):
+                self._toggle_schedule_row_inputs(
+                    checkbox.isChecked(),
+                    self._settings_schedule_start_inputs[index],
+                    self._settings_schedule_end_inputs[index],
+                    checkbox,
+                )
 
         self._apply_settings_avatar(str(settings_data.get("avatar_path") or "").strip())
 
@@ -3123,6 +3174,67 @@ class DashboardView(QtWidgets.QWidget):
             return
 
         value_label.setText(next_value)
+
+    def _save_settings_schedule(self):
+        SettingsController = import_module("controllers.settings_controller").SettingsController
+        user_id = self.user_data.get("user_id")
+        schedule_rows = []
+        for index, checkbox in enumerate(self._settings_schedule_checkboxes):
+            start_value = self._settings_schedule_start_inputs[index].currentText()
+            end_value = self._settings_schedule_end_inputs[index].currentText()
+            working = checkbox.isChecked()
+            schedule_rows.append(
+                {
+                    "day": f"day_{index}",
+                    "start": start_value,
+                    "end": end_value,
+                    "working": working,
+                }
+            )
+
+        ok, message = SettingsController.update_work_schedule(user_id, schedule_rows)
+        if not ok:
+            QtWidgets.QMessageBox.warning(self, "Lịch làm việc", message)
+            return False
+
+        self._settings_cached_values["work_schedule"] = schedule_rows
+        QtWidgets.QMessageBox.information(self, "Lịch làm việc", message)
+        return True
+
+    def _reset_settings_view(self):
+        self._load_settings_data()
+        for index, (start_value, end_value, working) in enumerate(getattr(self, "_settings_schedule_defaults", [])):
+            self._settings_schedule_start_inputs[index].setCurrentText(start_value)
+            self._settings_schedule_end_inputs[index].setCurrentText(end_value)
+            self._settings_schedule_checkboxes[index].setChecked(working)
+            self._toggle_schedule_row_inputs(
+                working,
+                self._settings_schedule_start_inputs[index],
+                self._settings_schedule_end_inputs[index],
+                self._settings_schedule_checkboxes[index],
+            )
+        QtWidgets.QMessageBox.information(self, "Cài đặt", "Đã khôi phục giao diện cài đặt về trạng thái đã lưu gần nhất.")
+
+    def _handle_settings_option_click(self, key):
+        if key == "backup_option":
+            self._open_backup_sync_dialog()
+            return
+        if key == "theme_mode":
+            self.switch_page(5)
+            return
+        if key == "font_size":
+            self.switch_page(3)
+            return
+        QtWidgets.QMessageBox.information(self, "Tùy chọn", "Mục này đã được ghi nhận và sẽ mở rộng thêm trong workflow bác sĩ hiện tại.")
+
+    @staticmethod
+    def _toggle_schedule_row_inputs(working, start_widget, end_widget, checkbox):
+        start_widget.setEnabled(bool(working))
+        end_widget.setEnabled(bool(working))
+        checkbox.setText("Làm việc" if working else "Nghỉ")
+        if not working:
+            start_widget.setCurrentText("-- : --")
+            end_widget.setCurrentText("-- : --")
 
     def _open_change_password_dialog(self):
         SettingsController = import_module("controllers.settings_controller").SettingsController
