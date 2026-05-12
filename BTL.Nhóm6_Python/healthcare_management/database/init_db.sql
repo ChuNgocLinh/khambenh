@@ -158,8 +158,12 @@ DEALLOCATE PREPARE stmt;
 CREATE TABLE IF NOT EXISTS Services (
     service_id INT AUTO_INCREMENT PRIMARY KEY,
     service_name VARCHAR(100),
+    service_code VARCHAR(30),
+    category VARCHAR(100),
+    duration INT DEFAULT 30,
     price DECIMAL(10,2),
     description VARCHAR(255),
+    is_visible BOOLEAN DEFAULT TRUE,
     is_active BOOLEAN DEFAULT TRUE
 );
 
@@ -258,8 +262,14 @@ CREATE TABLE IF NOT EXISTS MedicalRecords (
 -- ========================================
 CREATE TABLE IF NOT EXISTS Medicines (
     medicine_id INT AUTO_INCREMENT PRIMARY KEY,
+    medicine_code VARCHAR(30),
     name VARCHAR(100),
+    active_ingredient VARCHAR(100),
+    category VARCHAR(100),
+    unit VARCHAR(30),
+    supplier VARCHAR(100),
     quantity INT,
+    import_price DECIMAL(10,2) DEFAULT 0,
     price DECIMAL(10,2),
     description VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE
@@ -270,6 +280,96 @@ SET @col_exists = (
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Medicines' AND COLUMN_NAME = 'is_active'
 );
 SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Medicines ADD COLUMN is_active BOOLEAN DEFAULT TRUE', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Medicines' AND COLUMN_NAME = 'medicine_code'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Medicines ADD COLUMN medicine_code VARCHAR(30) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Medicines' AND COLUMN_NAME = 'active_ingredient'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Medicines ADD COLUMN active_ingredient VARCHAR(100) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Medicines' AND COLUMN_NAME = 'category'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Medicines ADD COLUMN category VARCHAR(100) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Medicines' AND COLUMN_NAME = 'unit'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Medicines ADD COLUMN unit VARCHAR(30) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Medicines' AND COLUMN_NAME = 'supplier'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Medicines ADD COLUMN supplier VARCHAR(100) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Medicines' AND COLUMN_NAME = 'import_price'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Medicines ADD COLUMN import_price DECIMAL(10,2) DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Services' AND COLUMN_NAME = 'service_code'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Services ADD COLUMN service_code VARCHAR(30) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Services' AND COLUMN_NAME = 'category'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Services ADD COLUMN category VARCHAR(100) NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Services' AND COLUMN_NAME = 'duration'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Services ADD COLUMN duration INT DEFAULT 30', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Services' AND COLUMN_NAME = 'is_visible'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Services ADD COLUMN is_visible BOOLEAN DEFAULT TRUE', 'SELECT 1');
 PREPARE stmt FROM @col_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -313,12 +413,22 @@ CREATE TABLE IF NOT EXISTS Payments (
     patient_id INT,
     appointment_id INT,
     total_amount DECIMAL(10,2),
+    method VARCHAR(50) DEFAULT 'Tiền mặt',
     status VARCHAR(20) DEFAULT 'unpaid',
     payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patient_id) REFERENCES Patients(patient_id),
     FOREIGN KEY (appointment_id) REFERENCES Appointments(appointment_id),
-    CHECK (status IN ('paid','unpaid'))
+    CHECK (status IN ('paid','unpaid','failed','refunded','cancelled'))
 );
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Payments' AND COLUMN_NAME = 'method'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Payments ADD COLUMN method VARCHAR(50) DEFAULT ''Tiền mặt''', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 10. BẢNG INVOICES (HÓA ĐƠN)
@@ -461,28 +571,28 @@ WHERE NOT EXISTS (
     SELECT 1 FROM Doctors WHERE phone='0900000002'
 );
 
-INSERT INTO Services (service_name, price)
-SELECT 'Khám tổng quát', 200000
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV001', 'Khám tổng quát', 'Khám bệnh', 30, 200000, 'Khám sức khỏe tổng quát', 1, 1
 WHERE NOT EXISTS (
-    SELECT 1 FROM Services WHERE price=200000
+    SELECT 1 FROM Services WHERE service_code='DV001'
 );
 
-INSERT INTO Services (service_name, price)
-SELECT 'Xét nghiệm máu', 150000
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV002', 'Xét nghiệm máu', 'Xét nghiệm', 20, 150000, 'Xét nghiệm máu tổng quát', 1, 1
 WHERE NOT EXISTS (
-    SELECT 1 FROM Services WHERE price=150000
+    SELECT 1 FROM Services WHERE service_code='DV002'
 );
 
-INSERT INTO Medicines (name, quantity, price)
-SELECT 'Paracetamol', 100, 5000
+INSERT INTO Medicines (medicine_code, name, active_ingredient, category, unit, supplier, quantity, import_price, price, description, is_active)
+SELECT 'TH001', 'Paracetamol', 'Paracetamol', 'Giảm đau - Hạ sốt', 'Viên', 'Dược Hậu Giang', 100, 3500, 5000, 'Thuốc giảm đau hạ sốt', 1
 WHERE NOT EXISTS (
-    SELECT 1 FROM Medicines WHERE name='Paracetamol' AND price=5000
+    SELECT 1 FROM Medicines WHERE medicine_code='TH001'
 );
 
-INSERT INTO Medicines (name, quantity, price)
-SELECT 'Amoxicillin', 50, 10000
+INSERT INTO Medicines (medicine_code, name, active_ingredient, category, unit, supplier, quantity, import_price, price, description, is_active)
+SELECT 'TH002', 'Amoxicillin', 'Amoxicillin', 'Kháng sinh', 'Viên', 'Traphaco', 50, 7000, 10000, 'Kháng sinh phổ rộng', 1
 WHERE NOT EXISTS (
-    SELECT 1 FROM Medicines WHERE name='Amoxicillin' AND price=10000
+    SELECT 1 FROM Medicines WHERE medicine_code='TH002'
 );
 
 INSERT INTO Appointments (patient_id, doctor_id, appointment_date, status)
@@ -591,8 +701,8 @@ WHERE p.phone='0987654321'
   )
 LIMIT 1;
 
-INSERT INTO Payments (patient_id, appointment_id, total_amount, status)
-SELECT p.patient_id, a.appointment_id, 200000, 'paid'
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status)
+SELECT p.patient_id, a.appointment_id, 200000, 'Chuyển khoản', 'paid'
 FROM Patients p
 LEFT JOIN Appointments a ON a.patient_id = p.patient_id
 LEFT JOIN Doctors d ON d.doctor_id = a.doctor_id
@@ -605,8 +715,8 @@ WHERE p.phone='0123456789'
 ORDER BY a.appointment_id ASC
 LIMIT 1;
 
-INSERT INTO Payments (patient_id, appointment_id, total_amount, status)
-SELECT p.patient_id, a.appointment_id, 150000, 'unpaid'
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status)
+SELECT p.patient_id, a.appointment_id, 150000, 'Tiền mặt', 'unpaid'
 FROM Patients p
 LEFT JOIN Appointments a ON a.patient_id = p.patient_id
 LEFT JOIN Doctors d ON d.doctor_id = a.doctor_id
@@ -617,4 +727,62 @@ WHERE p.phone='0987654321'
       WHERE pay.patient_id = p.patient_id AND pay.total_amount=150000 AND pay.status='unpaid'
   )
 ORDER BY a.appointment_id ASC
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT p.payment_id,
+       (
+           SELECT s.service_id
+           FROM Services s
+           WHERE s.service_code = 'DV001'
+           ORDER BY s.service_id ASC
+           LIMIT 1
+       ),
+       1,
+       p.total_amount
+FROM Payments p
+WHERE p.status = 'paid'
+  AND NOT EXISTS (
+      SELECT 1 FROM Invoices i
+      WHERE i.payment_id = p.payment_id
+  )
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT p.payment_id,
+       (
+           SELECT s.service_id
+           FROM Services s
+           WHERE s.service_code = 'DV002'
+           ORDER BY s.service_id ASC
+           LIMIT 1
+       ),
+       1,
+       p.total_amount
+FROM Payments p
+WHERE p.status = 'unpaid'
+  AND NOT EXISTS (
+      SELECT 1 FROM Invoices i
+      WHERE i.payment_id = p.payment_id
+  )
+LIMIT 1;
+
+INSERT INTO Notifications (user_id, title, content, type, target_page)
+SELECT u.user_id, 'Sao lưu dữ liệu thành công', 'Dữ liệu hệ thống đã được sao lưu lúc 02:00 AM', 'backup', 'settings'
+FROM Users u
+WHERE u.role = 'admin'
+  AND NOT EXISTS (
+      SELECT 1 FROM Notifications n
+      WHERE n.user_id = u.user_id AND n.title = 'Sao lưu dữ liệu thành công'
+  )
+LIMIT 1;
+
+INSERT INTO Notifications (user_id, title, content, type, target_page)
+SELECT u.user_id, 'Cảnh báo tồn kho thuốc', 'Một số thuốc đang ở ngưỡng sắp hết hàng', 'inventory', 'dashboard'
+FROM Users u
+WHERE u.role = 'admin'
+  AND NOT EXISTS (
+      SELECT 1 FROM Notifications n
+      WHERE n.user_id = u.user_id AND n.title = 'Cảnh báo tồn kho thuốc'
+  )
 LIMIT 1;
