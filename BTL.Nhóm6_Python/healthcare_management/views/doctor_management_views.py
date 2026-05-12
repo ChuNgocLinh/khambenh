@@ -3272,7 +3272,9 @@ class PrescriptionView(QtWidgets.QWidget):
         row.addWidget(self.to_date, 1)
         row.addWidget(self.status_filter, 1)
         row.addWidget(self.type_filter, 1)
-        row.addWidget(button("+ Tạo đơn thuốc"))
+        self.create_prescription_btn = button("+ Tạo đơn thuốc")
+        self.create_prescription_btn.clicked.connect(self.create_prescription)
+        row.addWidget(self.create_prescription_btn)
         layout.addLayout(row)
         self.tab_row = QtWidgets.QHBoxLayout()
         self.tab_row.setSpacing(8)
@@ -3324,8 +3326,17 @@ class PrescriptionView(QtWidgets.QWidget):
         quick = QtWidgets.QLabel("Thao tác nhanh")
         quick.setStyleSheet("font-size: 16px; font-weight: 800; color: #101828;")
         layout.addWidget(quick)
-        for text in ["Tạo đơn thuốc mới", "Đơn thuốc chờ duyệt", "Đơn thuốc hôm nay", "In đơn hàng loạt", "Xuất excel"]:
-            layout.addWidget(button(text, "outline"))
+        quick_actions = [
+            ("Tạo đơn thuốc mới", self.create_prescription),
+            ("Đơn thuốc chờ duyệt", lambda: self._activate_quick_filter("draft")),
+            ("Đơn thuốc hôm nay", self._show_today_prescriptions),
+            ("In đơn hàng loạt", self._show_bulk_print_message),
+            ("Xuất excel", self._export_prescriptions),
+        ]
+        for text, callback in quick_actions:
+            btn = button(text, "outline")
+            btn.clicked.connect(callback)
+            layout.addWidget(btn)
         layout.addStretch()
         return wrapper
 
@@ -3390,6 +3401,19 @@ class PrescriptionView(QtWidgets.QWidget):
         if keyword:
             haystack = f"{row.get('prescription_id', '')} {row.get('patient_name', '')} {row.get('medicine_name', '')} {row.get('name', '')} {row.get('diagnosis', '')}".lower()
             if keyword not in haystack:
+                return False
+        prescribed_at = str(row.get("prescribed_at") or "")
+        prescribed_dt = None
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                prescribed_dt = datetime.strptime(prescribed_at, fmt)
+                break
+            except ValueError:
+                continue
+        if prescribed_dt is not None:
+            from_date = self.from_date.date().toPyDate()
+            to_date = self.to_date.date().toPyDate()
+            if prescribed_dt.date() < from_date or prescribed_dt.date() > to_date:
                 return False
         status_key = self._status_key(row)
         if self.active_tab != "all" and status_key != self.active_tab:
@@ -3460,7 +3484,11 @@ class PrescriptionView(QtWidgets.QWidget):
         wrapper = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
-        for text, cb in [("Xem", lambda: None), ("Sua", lambda checked=False, r=row: self.edit_prescription(r)), ("Huy", lambda checked=False, r=row: self.cancel_prescription(r))]:
+        for text, cb in [
+            ("Xem", lambda checked=False, r=row: self.view_prescription(r)),
+            ("Sua", lambda checked=False, r=row: self.edit_prescription(r)),
+            ("Huy", lambda checked=False, r=row: self.cancel_prescription(r)),
+        ]:
             btn = icon_button(text)
             btn.clicked.connect(cb)
             layout.addWidget(btn)
@@ -3503,6 +3531,17 @@ class PrescriptionView(QtWidgets.QWidget):
         self._set_message("Đơn thuốc có thể chỉnh sửa.")
         return {"status": True, "message": self.last_message}
 
+    def view_prescription(self, row):
+        summary = (
+            f"Bệnh nhân: {row.get('patient_name', 'Chưa cập nhật')}\n"
+            f"Ngày kê: {row.get('prescribed_at', 'Chưa cập nhật')}\n"
+            f"Chẩn đoán: {row.get('diagnosis', 'Chưa cập nhật')}\n"
+            f"Thuốc: {row.get('medicine_name', 'Chưa cập nhật')}\n"
+            f"Số lượng: {row.get('quantity', 'Chưa cập nhật')}"
+        )
+        QtWidgets.QMessageBox.information(self, "Chi tiết đơn thuốc", summary)
+        return {"status": True, "message": "Đã mở chi tiết đơn thuốc."}
+
     def cancel_prescription(self, row):
         result = PrescriptionController.cancel(row.get("prescription_id"))
         self._set_message(result.get("message", ""))
@@ -3515,3 +3554,67 @@ class PrescriptionView(QtWidgets.QWidget):
     def _set_message(self, message):
         self.last_message = message
         self.message_label.setText(message)
+
+    def create_prescription(self):
+        self._set_message("Mở màn khám bệnh để tạo đơn thuốc mới từ hồ sơ khám.")
+        dashboard = self._find_dashboard()
+        if dashboard:
+            dashboard.switch_page(3)
+        return {"status": True, "message": self.last_message}
+
+    def _activate_quick_filter(self, tab):
+        self.active_tab = tab
+        self._render_tabs()
+        self._apply_filters()
+        self._set_message("Đã lọc nhanh danh sách đơn thuốc.")
+
+    def _show_today_prescriptions(self):
+        today = QtCore.QDate.currentDate()
+        self.from_date.setDate(today)
+        self.to_date.setDate(today)
+        self._apply_filters()
+        self._set_message("Đã lọc các đơn thuốc trong hôm nay.")
+
+    def _show_bulk_print_message(self):
+        self._set_message("Tính năng in hàng loạt sẽ dùng dữ liệu hiện có trong danh sách đơn thuốc.")
+
+    def _export_prescriptions(self):
+        if not self.filtered_rows:
+            self._set_message("Không có đơn thuốc để xuất.")
+            return {"status": False, "message": self.last_message}
+
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "Xuất đơn thuốc",
+            "danh_sach_don_thuoc.csv",
+            "CSV Files (*.csv)",
+        )
+        if not path:
+            self._set_message("Đã hủy xuất đơn thuốc.")
+            return {"status": False, "message": self.last_message}
+
+        headers = ["Số đơn", "Bệnh nhân", "Ngày kê", "Chẩn đoán", "Thuốc", "Số lượng", "Trạng thái"]
+        with open(path, "w", newline="", encoding="utf-8-sig") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(headers)
+            for row in self.filtered_rows:
+                status_key = self._status_key(row)
+                writer.writerow(
+                    [
+                        row.get("prescription_id"),
+                        row.get("patient_name"),
+                        row.get("prescribed_at"),
+                        row.get("diagnosis"),
+                        row.get("medicine_name"),
+                        row.get("quantity"),
+                        self.STATUS_META[status_key][0],
+                    ]
+                )
+        self._set_message(f"Đã xuất {len(self.filtered_rows)} đơn thuốc.")
+        return {"status": True, "message": self.last_message}
+
+    def _find_dashboard(self):
+        parent = self.parent()
+        while parent and not hasattr(parent, "content_stack"):
+            parent = parent.parent()
+        return parent

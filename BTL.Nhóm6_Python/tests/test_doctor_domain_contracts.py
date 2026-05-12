@@ -71,6 +71,7 @@ def test_prescription_lifecycle_blocks_dispensed_edit(monkeypatch):
     assert PrescriptionController.can_edit("draft") is True
     assert PrescriptionController.can_edit("issued") is True
     assert PrescriptionController.can_edit("dispensed") is False
+    assert PrescriptionController.can_edit("cancelled") is False
 
 
 def test_notification_contract_and_target_mapping(monkeypatch):

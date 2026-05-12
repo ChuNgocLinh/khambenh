@@ -13,7 +13,7 @@ class PrescriptionController:
 
     @staticmethod
     def can_edit(status):
-        return str(status or "draft") != "dispensed"
+        return str(status or "draft") not in {"dispensed", "cancelled"}
 
     @staticmethod
     def _medicine_quantity_valid(medicine_id, quantity):
