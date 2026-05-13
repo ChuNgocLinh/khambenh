@@ -1,8 +1,10 @@
 import csv
 import hashlib
+import os
 import shutil
 from datetime import date, datetime, timedelta
 from pathlib import Path
+import tempfile
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -151,9 +153,49 @@ def _status_colors(kind):
 ROLE_LABELS = {
     "admin": "Quản trị viên",
     "doctor": "Bác sĩ",
-    "patient": "Bệnh nhân",
+    "patient": "Khách hàng",
     "staff": "Nhân viên",
+    "receptionist": "Lễ tân",
+    "accountant": "Kế toán",
+    "nurse": "Điều dưỡng",
 }
+
+
+ROLE_KIND = {
+    "admin": "success",
+    "doctor": "info",
+    "receptionist": "warning",
+    "accountant": "neutral",
+    "nurse": "info",
+    "staff": "neutral",
+    "patient": "warning",
+}
+
+
+ACCOUNT_ROLE_OPTIONS = [
+    ("Quản trị viên", "admin"),
+    ("Bác sĩ", "doctor"),
+    ("Lễ tân", "receptionist"),
+    ("Kế toán", "accountant"),
+    ("Điều dưỡng", "nurse"),
+    ("Nhân viên", "staff"),
+    ("Khách hàng", "patient"),
+]
+
+
+ROLE_DB_MAP = {
+    "admin": "admin",
+    "doctor": "doctor",
+    "receptionist": "staff",
+    "accountant": "staff",
+    "nurse": "staff",
+    "staff": "staff",
+    "patient": "patient",
+}
+
+
+def _db_role(role):
+    return ROLE_DB_MAP.get(_as_text(role).lower().strip(), _as_text(role).lower().strip())
 
 
 def _role_label(role):
@@ -1030,9 +1072,29 @@ class AccountManagementPage(AdminListPage):
     column_widths = [0.35, 0.45, 1.55, 2.0, 1.25, 1.25, 1.25, 1.35, 0.95]
     search_placeholder = "Tìm kiếm tài khoản (Tên, Email, SĐT...)"
 
+    def __init__(self, user_data=None, parent=None):
+        self.selected_user_ids = set()
+        self._header_checkbox = None
+        self.load_error = ""
+        self._is_loading = False
+        self._suspend_checkbox_sync = False
+        self.empty_card = None
+        self.empty_label = None
+        self.clear_filter_btn = None
+        self.retry_btn = None
+        self.table_card = None
+        self._current_page_rows = []
+        self._search_debounce_timer = None
+        super().__init__(user_data, parent)
+
     def _add_filters(self, layout):
-        self.role_filter = self._combo([("Tất cả vai trò", "all"), ("Admin", "admin"), ("Staff", "staff"), ("Doctor", "doctor"), ("Patient", "patient")])
-        self.status_filter = self._combo([("Tất cả trạng thái", "all"), ("Hoạt động", "active"), ("Bị khóa", "locked")])
+        self.role_filter = self._combo([("Tất cả vai trò", "all")] + ACCOUNT_ROLE_OPTIONS)
+        self.status_filter = self._combo([
+            ("Tất cả trạng thái", "all"),
+            ("Hoạt động", "active"),
+            ("Bị khóa", "locked"),
+            ("Đã xóa mềm", "deleted"),
+        ])
         layout.addWidget(self.role_filter)
         layout.addWidget(self.status_filter)
 
@@ -1041,37 +1103,147 @@ class AccountManagementPage(AdminListPage):
         add_btn.setFixedWidth(132)
         add_btn.clicked.connect(self.add_account)
         layout.addWidget(add_btn)
-        super()._add_toolbar_buttons(layout)
+        export_btn = self._button("Xuất Excel")
+        export_btn.setFixedWidth(106)
+        export_btn.clicked.connect(self.export_excel)
+        layout.addWidget(export_btn)
+
+    def _build_list_page(self):
+        super()._build_list_page()
+        self.search_input.textChanged.disconnect()
+        self._search_debounce_timer = QtCore.QTimer(self)
+        self._search_debounce_timer.setSingleShot(True)
+        self._search_debounce_timer.timeout.connect(self._reset_and_refresh)
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+        self.table_card = self.table.parentWidget().parentWidget()
+        self.bulk_row = QtWidgets.QHBoxLayout()
+        self.bulk_row.setSpacing(8)
+        self.bulk_label = QtWidgets.QLabel("Chưa chọn tài khoản")
+        self.bulk_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 800;")
+        self.bulk_row.addWidget(self.bulk_label)
+        self.bulk_row.addStretch()
+
+        self.bulk_lock_btn = self._button("Khóa", danger=True)
+        self.bulk_unlock_btn = self._button("Mở khóa", primary=True)
+        self.bulk_delete_btn = self._button("Xóa", danger=True)
+        self.bulk_export_btn = self._button("Xuất Excel")
+        self.bulk_assign_btn = self._button("Gán vai trò")
+        for btn in [self.bulk_lock_btn, self.bulk_unlock_btn, self.bulk_delete_btn, self.bulk_assign_btn, self.bulk_export_btn]:
+            btn.setVisible(False)
+            self.bulk_row.addWidget(btn)
+
+        self.bulk_lock_btn.clicked.connect(lambda: self._apply_bulk_status(0))
+        self.bulk_unlock_btn.clicked.connect(lambda: self._apply_bulk_status(1))
+        self.bulk_delete_btn.clicked.connect(self._bulk_soft_delete)
+        self.bulk_assign_btn.clicked.connect(self._bulk_assign_role)
+        self.bulk_export_btn.clicked.connect(self._export_selected_excel)
+
+        self.table_card.layout().insertLayout(1, self.bulk_row)
+
+        self.empty_card = self._card()
+        empty_layout = QtWidgets.QVBoxLayout(self.empty_card)
+        empty_layout.setContentsMargins(24, 24, 24, 24)
+        empty_layout.setSpacing(10)
+        empty_icon = QtWidgets.QLabel("📭")
+        empty_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        empty_icon.setStyleSheet("font-size: 34px;")
+        self.empty_label = QtWidgets.QLabel("Không tìm thấy tài khoản phù hợp.")
+        self.empty_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet("font-size: 14px; font-weight: 800; color: #475569;")
+        action_row = QtWidgets.QHBoxLayout()
+        action_row.addStretch()
+        self.clear_filter_btn = self._button("Xóa bộ lọc")
+        self.clear_filter_btn.clicked.connect(self._clear_filters)
+        self.retry_btn = self._button("Thử lại", primary=True)
+        self.retry_btn.clicked.connect(self.refresh)
+        action_row.addWidget(self.clear_filter_btn)
+        action_row.addWidget(self.retry_btn)
+        action_row.addStretch()
+        empty_layout.addWidget(empty_icon)
+        empty_layout.addWidget(self.empty_label)
+        empty_layout.addLayout(action_row)
+        self.content_layout.insertWidget(2, self.empty_card)
+        self.empty_card.hide()
+
+    def _clear_filters(self):
+        self.search_input.clear()
+        self.role_filter.setCurrentIndex(0)
+        self.status_filter.setCurrentIndex(0)
+        self._reset_and_refresh()
+
+    def _on_search_text_changed(self):
+        if self._search_debounce_timer is not None:
+            self._search_debounce_timer.start(350)
+
+    def _set_loading(self, loading):
+        self._is_loading = loading
+        if hasattr(self, "search_input"):
+            self.search_input.setEnabled(not loading)
+        if hasattr(self, "role_filter"):
+            self.role_filter.setEnabled(not loading)
+        if hasattr(self, "status_filter"):
+            self.status_filter.setEnabled(not loading)
+        if hasattr(self, "page_size_combo"):
+            self.page_size_combo.setEnabled(not loading)
+        if loading:
+            self.table.setRowCount(4)
+            for row in range(4):
+                for col in range(self.table.columnCount()):
+                    self.table.setItem(row, col, QtWidgets.QTableWidgetItem("Đang tải..."))
+
+    def _sync_bulk_ui(self):
+        selected_count = len(self.selected_user_ids)
+        has_selected = selected_count > 0
+        self.bulk_label.setText(f"Đã chọn {selected_count} tài khoản" if has_selected else "Chưa chọn tài khoản")
+        for btn in [self.bulk_lock_btn, self.bulk_unlock_btn, self.bulk_delete_btn, self.bulk_assign_btn, self.bulk_export_btn]:
+            btn.setVisible(has_selected)
 
     def load_rows(self):
-        rows = _safe_fetch_all(
-            """
-            SELECT
-                u.user_id,
-                u.username,
-                u.role,
-                u.is_active,
-                u.created_at,
-                COALESCE(d.name, p.name, u.username) AS full_name,
-                COALESCE(d.email, p.email, '') AS email,
-                COALESCE(d.phone, p.phone, '') AS phone
-            FROM Users u
-            LEFT JOIN Doctors d ON d.user_id = u.user_id
-            LEFT JOIN Patients p ON p.user_id = u.user_id
-            ORDER BY u.user_id DESC
-            """
-        )
-        return rows
+        self._set_loading(True)
+        self.load_error = ""
+        _safe_execute("ALTER TABLE Users ADD COLUMN deleted_at DATETIME NULL")
+        try:
+            if fetch_all is None:
+                return []
+            rows = fetch_all(
+                """
+                SELECT
+                    u.user_id,
+                    u.username,
+                    u.role,
+                    u.is_active,
+                    u.created_at,
+                    u.deleted_at,
+                    COALESCE(d.name, p.name, u.username) AS full_name,
+                    COALESCE(d.email, p.email, '') AS email,
+                    COALESCE(d.phone, p.phone, '') AS phone,
+                    COALESCE(us.avatar_path, '') AS avatar_path,
+                    us.updated_at AS profile_updated_at
+                FROM Users u
+                LEFT JOIN Doctors d ON d.user_id = u.user_id
+                LEFT JOIN Patients p ON p.user_id = u.user_id
+                LEFT JOIN UserSettings us ON us.user_id = u.user_id
+                ORDER BY u.user_id DESC
+                """
+            ) or []
+            return rows
+        except Exception as exc:
+            self.load_error = f"Lỗi tải dữ liệu: {exc}"
+            return []
+        finally:
+            self._set_loading(False)
 
     def accept_row(self, row):
-        role_ok = self.role_filter.currentData() == "all" or row.get("role") == self.role_filter.currentData()
-        status = "active" if _is_active(row) else "locked"
+        selected_role = self.role_filter.currentData()
+        role_ok = selected_role == "all" or _db_role(row.get("role")) == _db_role(selected_role)
+        deleted = bool(row.get("deleted_at"))
+        status = "deleted" if deleted else ("active" if _is_active(row) else "locked")
         status_ok = self.status_filter.currentData() == "all" or status == self.status_filter.currentData()
         return role_ok and status_ok and _contains(row, ["username", "full_name", "email", "phone", "role"], self.search_input.text())
 
     def stat_cards(self):
-        active = sum(1 for row in self.rows if _is_active(row))
-        locked = len(self.rows) - active
+        active = sum(1 for row in self.rows if _is_active(row) and not row.get("deleted_at"))
+        locked = sum(1 for row in self.rows if not _is_active(row) and not row.get("deleted_at"))
         roles = len({row.get("role") for row in self.rows if row.get("role")})
         return [
             self._stat_card("👥", "Tổng tài khoản", len(self.rows), "Dữ liệu theo DB hiện tại", "#2563eb"),
@@ -1081,28 +1253,184 @@ class AccountManagementPage(AdminListPage):
         ]
 
     def render_row(self, row, data):
-        self._set_item(row, 0, "☐")
+        checkbox = QtWidgets.QCheckBox()
+        checkbox.setChecked(data.get("user_id") in self.selected_user_ids)
+        checkbox.stateChanged.connect(lambda state, user_id=data.get("user_id"): self._toggle_selected(user_id, state))
+        check_wrap = QtWidgets.QWidget()
+        check_layout = QtWidgets.QHBoxLayout(check_wrap)
+        check_layout.setContentsMargins(0, 0, 0, 0)
+        check_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        check_layout.addWidget(checkbox)
+        self.table.setCellWidget(row, 0, check_wrap)
         self._set_item(row, 1, row + 1)
-        self._set_item(row, 2, f"👤 {data.get('full_name') or data.get('username')}")
+        avatar_text = "👨" if row % 2 == 0 else "👩"
+        self._set_item(row, 2, f"{avatar_text} {data.get('full_name') or data.get('username')}")
         self._set_item(row, 3, data.get("email"))
         self._set_item(row, 4, data.get("phone"))
-        self.table.setCellWidget(row, 5, self._badge(_role_label(data.get("role")), "info"))
-        self.table.setCellWidget(row, 6, self._badge("Hoạt động" if _is_active(data) else "Bị khóa"))
+        role_key = _as_text(data.get("role")).lower().strip()
+        self.table.setCellWidget(row, 5, self._badge(_role_label(role_key), ROLE_KIND.get(role_key, "info")))
+        if data.get("deleted_at"):
+            status_text = "Đã xóa mềm"
+            status_kind = "neutral"
+        else:
+            status_text = "Hoạt động" if _is_active(data) else "Bị khóa"
+            status_kind = "success" if _is_active(data) else "danger"
+        self.table.setCellWidget(row, 6, self._badge(status_text, status_kind))
         self._set_item(row, 7, _format_datetime(data.get("created_at")))
         lock_text = "Khóa" if _is_active(data) else "Mở"
         view_btn = self._icon_button("Xem", "info")
         edit_btn = self._icon_button("Sửa", "info")
         lock_btn = self._icon_button(lock_text, "danger" if _is_active(data) else "success")
-        view_btn.clicked.connect(lambda _, item=data: self._show_info("Chi tiết tài khoản", f"{item.get('full_name') or item.get('username')}\n{item.get('email', '')}\nVai trò: {_role_label(item.get('role'))}"))
+        delete_btn = self._icon_button("Xóa", "danger")
+        reset_btn = self._icon_button("Đổi", "success")
+        view_btn.clicked.connect(lambda _, item=data: self.view_account(item))
         edit_btn.clicked.connect(lambda _, item=data: self.edit_account(item))
         lock_btn.clicked.connect(lambda _, item=data: self.toggle_account(item))
-        self.table.setCellWidget(row, 8, self._action_cell([view_btn, edit_btn, lock_btn]))
+        delete_btn.clicked.connect(lambda _, item=data: self.soft_delete_account(item))
+        reset_btn.clicked.connect(lambda _, item=data: self.reset_password(item))
+        self.table.setCellWidget(row, 8, self._action_cell([view_btn, edit_btn, lock_btn, reset_btn, delete_btn]))
+
+    def _toggle_selected(self, user_id, state):
+        if self._suspend_checkbox_sync:
+            return
+        if not user_id:
+            return
+        if state == int(QtCore.Qt.CheckState.Checked):
+            self.selected_user_ids.add(user_id)
+        else:
+            self.selected_user_ids.discard(user_id)
+        self._sync_bulk_ui()
+        self._sync_header_checkbox()
+
+    def _sync_header_checkbox(self):
+        if not self._header_checkbox:
+            return
+        page_ids = [row.get("user_id") for row in self._current_page_rows if row.get("user_id")]
+        if not page_ids:
+            self._header_checkbox.setCheckState(QtCore.Qt.CheckState.Unchecked)
+            return
+        selected_in_page = sum(1 for user_id in page_ids if user_id in self.selected_user_ids)
+        self._header_checkbox.blockSignals(True)
+        if selected_in_page == 0:
+            self._header_checkbox.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        elif selected_in_page == len(page_ids):
+            self._header_checkbox.setCheckState(QtCore.Qt.CheckState.Checked)
+        else:
+            self._header_checkbox.setCheckState(QtCore.Qt.CheckState.PartiallyChecked)
+        self._header_checkbox.blockSignals(False)
+
+    def _toggle_select_page(self, state):
+        page_ids = [row.get("user_id") for row in self._current_page_rows if row.get("user_id")]
+        if state == int(QtCore.Qt.CheckState.Checked):
+            for user_id in page_ids:
+                self.selected_user_ids.add(user_id)
+        elif state == int(QtCore.Qt.CheckState.Unchecked):
+            for user_id in page_ids:
+                self.selected_user_ids.discard(user_id)
+        self._render_table()
+        self._sync_bulk_ui()
+
+    def _render_table(self):
+        total_pages = max(1, (len(self.filtered_rows) + self.page_size - 1) // self.page_size)
+        self.current_page = min(max(1, self.current_page), total_pages)
+        start = (self.current_page - 1) * self.page_size
+        visible = self.filtered_rows[start:start + self.page_size]
+        self._current_page_rows = visible
+        self.table.setRowCount(len(visible))
+        for row_index, row_data in enumerate(visible):
+            self.render_row(row_index, row_data)
+        self.total_label.setText(f"{len(self.filtered_rows)} bản ghi")
+        self.page_label.setText(f"Trang {self.current_page}/{total_pages}")
+        self.prev_btn.setEnabled(self.current_page > 1)
+        self.next_btn.setEnabled(self.current_page < total_pages)
+        self.table.resizeRowsToContents()
+        for row in range(self.table.rowCount()):
+            self.table.setRowHeight(row, max(self.table.rowHeight(row), 44))
+        self._apply_column_widths()
+        target_rows = max(len(visible), min(self.page_size, 10))
+        self.table.setFixedHeight(42 + target_rows * 44 + 4)
+
+        self._setup_header_checkbox()
+        self._sync_header_checkbox()
+        self._sync_bulk_ui()
+        self._update_empty_state()
+
+    def _setup_header_checkbox(self):
+        header = self.table.horizontalHeader()
+        if self._header_checkbox is not None:
+            self._header_checkbox.deleteLater()
+            self._header_checkbox = None
+        box = QtWidgets.QCheckBox(header)
+        box.setTristate(True)
+        box.stateChanged.connect(self._toggle_select_page)
+        box.show()
+        self._header_checkbox = box
+        self._position_header_checkbox()
+
+    def _position_header_checkbox(self):
+        if not self._header_checkbox:
+            return
+        header = self.table.horizontalHeader()
+        geo = header.sectionPosition(0)
+        self._header_checkbox.move(geo + max(0, int(header.sectionSize(0) / 2) - 7), 6)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_header_checkbox()
+
+    def _update_empty_state(self):
+        if not self.empty_label or not self.clear_filter_btn or not self.retry_btn or not self.empty_card or not self.table_card:
+            return
+        has_rows = len(self.filtered_rows) > 0
+        has_error = bool(self.load_error)
+        if has_error:
+            self.empty_label.setText(self.load_error)
+            self.clear_filter_btn.hide()
+            self.retry_btn.show()
+            self.empty_card.show()
+            self.table_card.hide()
+            return
+        if not has_rows:
+            self.empty_label.setText("Không tìm thấy tài khoản phù hợp.")
+            self.clear_filter_btn.show()
+            self.retry_btn.hide()
+            self.empty_card.show()
+            self.table_card.hide()
+            return
+        self.empty_card.hide()
+        self.table_card.show()
+
+    def refresh(self):
+        self.rows = self.load_rows()
+        self.filtered_rows = [row for row in self.rows if self.accept_row(row)]
+        valid_ids = {row.get("user_id") for row in self.rows}
+        self.selected_user_ids = {user_id for user_id in self.selected_user_ids if user_id in valid_ids}
+        self._render_stats()
+        self._render_table()
+        self._position_header_checkbox()
+
+    def view_account(self, item):
+        status_text = "Đã xóa mềm" if item.get("deleted_at") else ("Hoạt động" if _is_active(item) else "Bị khóa")
+        self._show_info(
+            "Chi tiết tài khoản",
+            f"Tên: {item.get('full_name') or item.get('username')}\n"
+            f"Email: {item.get('email') or 'Chưa có'}\n"
+            f"SĐT: {item.get('phone') or 'Chưa có'}\n"
+            f"Vai trò: {_role_label(item.get('role'))}\n"
+            f"Trạng thái: {status_text}\n"
+            f"Ngày tạo: {_format_datetime(item.get('created_at'))}\n"
+            f"Lần cập nhật hồ sơ: {_format_datetime(item.get('profile_updated_at'))}",
+        )
 
     def add_account(self):
         fields = [
             {"key": "username", "label": "Tên đăng nhập"},
+            {"key": "full_name", "label": "Họ và tên"},
+            {"key": "email", "label": "Email"},
+            {"key": "phone", "label": "Số điện thoại"},
             {"key": "password", "label": "Mật khẩu", "type": "password"},
-            {"key": "role", "label": "Vai trò", "type": "combo", "options": [("Admin", "admin"), ("Staff", "staff"), ("Doctor", "doctor"), ("Patient", "patient")]},
+            {"key": "confirm_password", "label": "Xác nhận mật khẩu", "type": "password"},
+            {"key": "role", "label": "Vai trò", "type": "combo", "options": ACCOUNT_ROLE_OPTIONS},
             {"key": "is_active", "label": "Trạng thái", "type": "combo", "options": [("Hoạt động", 1), ("Bị khóa", 0)]},
         ]
         dialog = FormDialog("Thêm tài khoản", fields, parent=self)
@@ -1112,17 +1440,47 @@ class AccountManagementPage(AdminListPage):
         if not data.get("username") or not data.get("password"):
             self._show_info("Thiếu dữ liệu", "Vui lòng nhập tên đăng nhập và mật khẩu.")
             return
+        if data.get("password") != data.get("confirm_password"):
+            self._show_info("Mật khẩu", "Mật khẩu xác nhận không khớp.")
+            return
+        if len(_as_text(data.get("password"))) < 6:
+            self._show_info("Mật khẩu", "Mật khẩu tối thiểu 6 ký tự.")
+            return
+        if "@" not in _as_text(data.get("email")):
+            self._show_info("Email", "Email không đúng định dạng.")
+            return
+        exists = _safe_fetch_all("SELECT user_id FROM Users WHERE username=?", (data.get("username"),))
+        if exists:
+            self._show_info("Trùng dữ liệu", "Tên đăng nhập đã tồn tại.")
+            return
         ok = _safe_execute(
             "INSERT INTO Users (username, password, role, is_active) VALUES (?, ?, ?, ?)",
-            (data["username"], _hash_password(data["password"]), data["role"], data["is_active"]),
+            (data["username"], _hash_password(data["password"]), _db_role(data["role"]), data["is_active"]),
         )
-        self._show_info("Tài khoản", "Đã tạo tài khoản." if ok else "Không thể tạo tài khoản.")
+        if ok:
+            user = _safe_fetch_all("SELECT user_id FROM Users WHERE username=?", (data["username"],))
+            user_id = user[0].get("user_id") if user else None
+            role = data.get("role")
+            if role == "doctor" and user_id:
+                _safe_execute(
+                    "INSERT INTO Doctors (name, specialty, phone, email, user_id, is_active) VALUES (?, ?, ?, ?, ?, ?)",
+                    (data.get("full_name") or data.get("username"), "Tổng quát", data.get("phone"), data.get("email"), user_id, data.get("is_active")),
+                )
+            elif user_id:
+                _safe_execute(
+                    "INSERT INTO Patients (name, phone, email, user_id, is_active) VALUES (?, ?, ?, ?, ?)",
+                    (data.get("full_name") or data.get("username"), data.get("phone"), data.get("email"), user_id, data.get("is_active")),
+                )
+        self._show_info("Tài khoản", "Thêm tài khoản thành công" if ok else "Không thể tạo tài khoản.")
         self.refresh()
 
     def edit_account(self, item):
         fields = [
             {"key": "username", "label": "Tên đăng nhập"},
-            {"key": "role", "label": "Vai trò", "type": "combo", "options": [("Admin", "admin"), ("Staff", "staff"), ("Doctor", "doctor"), ("Patient", "patient")]},
+            {"key": "full_name", "label": "Họ và tên"},
+            {"key": "email", "label": "Email"},
+            {"key": "phone", "label": "Số điện thoại"},
+            {"key": "role", "label": "Vai trò", "type": "combo", "options": ACCOUNT_ROLE_OPTIONS},
             {"key": "is_active", "label": "Trạng thái", "type": "combo", "options": [("Hoạt động", 1), ("Bị khóa", 0)]},
         ]
         data = dict(item)
@@ -1131,22 +1489,65 @@ class AccountManagementPage(AdminListPage):
         if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
             return
         values = dialog.values()
+        if "@" not in _as_text(values.get("email")):
+            self._show_info("Email", "Email không đúng định dạng.")
+            return
         ok = _safe_execute(
             "UPDATE Users SET username=?, role=?, is_active=? WHERE user_id=?",
-            (values["username"], values["role"], values["is_active"], item.get("user_id")),
+            (values["username"], _db_role(values["role"]), values["is_active"], item.get("user_id")),
         )
-        self._show_info("Tài khoản", "Đã cập nhật tài khoản." if ok else "Không thể cập nhật tài khoản.")
+        if ok and values.get("role") == "doctor":
+            _safe_execute(
+                "UPDATE Doctors SET name=?, phone=?, email=?, is_active=? WHERE user_id=?",
+                (values.get("full_name") or values.get("username"), values.get("phone"), values.get("email"), values.get("is_active"), item.get("user_id")),
+            )
+        elif ok:
+            _safe_execute(
+                "UPDATE Patients SET name=?, phone=?, email=?, is_active=? WHERE user_id=?",
+                (values.get("full_name") or values.get("username"), values.get("phone"), values.get("email"), values.get("is_active"), item.get("user_id")),
+            )
+        self._show_info("Tài khoản", "Cập nhật tài khoản thành công" if ok else "Không thể cập nhật tài khoản.")
         self.refresh()
 
     def toggle_account(self, item):
+        if item.get("deleted_at"):
+            self._show_info("Trạng thái", "Tài khoản đã xóa mềm, không thể khóa/mở khóa trực tiếp.")
+            return
         new_state = 0 if _is_active(item) else 1
         if item.get("role") == "admin" and new_state == 0:
             active_admins = sum(1 for row in self.rows if row.get("role") == "admin" and _is_active(row))
             if active_admins <= 1:
                 self._show_info("Bảo vệ Admin", "Không thể khóa admin hoạt động cuối cùng.")
                 return
+        if new_state == 0:
+            reason, ok_reason = QtWidgets.QInputDialog.getText(self, "Khóa tài khoản", "Nhập lý do khóa:")
+            if not ok_reason:
+                return
+            if not _as_text(reason).strip():
+                self._show_info("Khóa tài khoản", "Cần nhập lý do khóa.")
+                return
+        if not self._confirm("Cập nhật trạng thái", "Bạn có chắc muốn cập nhật trạng thái tài khoản này?"):
+            return
         ok = _safe_execute("UPDATE Users SET is_active=? WHERE user_id=?", (new_state, item.get("user_id")))
-        self._show_info("Tài khoản", "Đã cập nhật trạng thái." if ok else "Không thể cập nhật trạng thái.")
+        self._show_info("Tài khoản", "Khóa/Mở khóa tài khoản thành công" if ok else "Không thể cập nhật trạng thái.")
+        self.refresh()
+
+    def soft_delete_account(self, item):
+        if item.get("user_id") == self.user_data.get("user_id"):
+            self._show_info("Xóa tài khoản", "Không thể xóa chính tài khoản đang đăng nhập.")
+            return
+        if item.get("role") == "admin":
+            active_admins = sum(1 for row in self.rows if row.get("role") == "admin" and not row.get("deleted_at"))
+            if active_admins <= 1:
+                self._show_info("Xóa tài khoản", "Không thể xóa quản trị viên cuối cùng.")
+                return
+        if not self._confirm("Xóa tài khoản", "Bạn có chắc chắn muốn xóa tài khoản này không?"):
+            return
+        ok = _safe_execute(
+            "UPDATE Users SET is_active=0, deleted_at=? WHERE user_id=?",
+            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), item.get("user_id")),
+        )
+        self._show_info("Xóa tài khoản", "Xóa tài khoản thành công" if ok else "Không thể xóa tài khoản.")
         self.refresh()
 
     def reset_password(self, item):
@@ -1155,14 +1556,177 @@ class AccountManagementPage(AdminListPage):
         ok = _safe_execute("UPDATE Users SET password=? WHERE user_id=?", (_hash_password("123456"), item.get("user_id")))
         self._show_info("Reset mật khẩu", "Mật khẩu mới là 123456." if ok else "Không thể reset mật khẩu.")
 
+    def _selected_rows(self):
+        selected = [row for row in self.rows if row.get("user_id") in self.selected_user_ids]
+        return selected
+
+    def _apply_bulk_status(self, new_state):
+        selected = self._selected_rows()
+        if not selected:
+            self._show_info("Thao tác hàng loạt", "Vui lòng chọn ít nhất 1 tài khoản.")
+            return
+        if new_state == 0:
+            active_admins = sum(1 for row in self.rows if row.get("role") == "admin" and _is_active(row) and not row.get("deleted_at"))
+            selected_active_admins = sum(1 for row in selected if row.get("role") == "admin" and _is_active(row) and not row.get("deleted_at"))
+            if active_admins - selected_active_admins <= 0:
+                self._show_info("Bảo vệ Admin", "Không thể khóa tất cả quản trị viên hoạt động.")
+                return
+        if not self._confirm("Thao tác hàng loạt", "Xác nhận cập nhật trạng thái cho các tài khoản đã chọn?"):
+            return
+        for row in selected:
+            _safe_execute("UPDATE Users SET is_active=? WHERE user_id=?", (new_state, row.get("user_id")))
+        self._show_info("Thao tác hàng loạt", "Đã cập nhật trạng thái các tài khoản đã chọn.")
+        self.refresh()
+
+    def _bulk_soft_delete(self):
+        selected = self._selected_rows()
+        if not selected:
+            self._show_info("Thao tác hàng loạt", "Vui lòng chọn ít nhất 1 tài khoản.")
+            return
+        current_user_id = self.user_data.get("user_id")
+        selected = [row for row in selected if row.get("user_id") != current_user_id]
+        if not selected:
+            self._show_info("Thao tác hàng loạt", "Không thể xóa tài khoản đang đăng nhập.")
+            return
+        if not self._confirm("Xóa hàng loạt", "Bạn có chắc chắn muốn xóa mềm các tài khoản đã chọn?"):
+            return
+        for row in selected:
+            _safe_execute(
+                "UPDATE Users SET is_active=0, deleted_at=? WHERE user_id=?",
+                (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), row.get("user_id")),
+            )
+        self._show_info("Xóa hàng loạt", "Đã xóa mềm các tài khoản đã chọn.")
+        self.refresh()
+
+    def _bulk_assign_role(self):
+        selected = self._selected_rows()
+        if not selected:
+            self._show_info("Gán vai trò", "Vui lòng chọn ít nhất 1 tài khoản.")
+            return
+        labels = [label for label, _ in ACCOUNT_ROLE_OPTIONS]
+        role_label, ok = QtWidgets.QInputDialog.getItem(self, "Gán vai trò", "Chọn vai trò mới:", labels, editable=False)
+        if not ok:
+            return
+        role_map = {label: value for label, value in ACCOUNT_ROLE_OPTIONS}
+        role = _db_role(role_map.get(role_label))
+        for row in selected:
+            _safe_execute("UPDATE Users SET role=? WHERE user_id=?", (role, row.get("user_id")))
+        self._show_info("Gán vai trò", "Đã cập nhật vai trò cho các tài khoản đã chọn.")
+        self.refresh()
+
+    def export_excel(self):
+        self._export_rows_to_excel(self.filtered_rows)
+
+    def _export_selected_excel(self):
+        rows = self._selected_rows()
+        if not rows:
+            self._show_info("Xuất Excel", "Vui lòng chọn tài khoản để xuất.")
+            return
+        self._export_rows_to_excel(rows)
+
+    def _export_rows_to_excel(self, rows):
+        default_name = f"danh-sach-tai-khoan-{datetime.now().strftime('%d-%m-%Y')}.xlsx"
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Xuất Excel", default_name, "Excel Files (*.xlsx)")
+        if not path:
+            return
+        if not path.lower().endswith(".xlsx"):
+            path += ".xlsx"
+
+        # Build a minimal valid XLSX package without third-party dependency.
+        import zipfile
+        import xml.sax.saxutils as saxutils
+
+        headers = ["STT", "Họ tên", "Email", "SĐT", "Vai trò", "Trạng thái", "Ngày tạo"]
+        table_rows = []
+        for idx, row in enumerate(rows, 1):
+            status = "Đã xóa mềm" if row.get("deleted_at") else ("Hoạt động" if _is_active(row) else "Bị khóa")
+            table_rows.append([
+                str(idx),
+                _as_text(row.get("full_name") or row.get("username")),
+                _as_text(row.get("email")),
+                _as_text(row.get("phone")),
+                _role_label(row.get("role")),
+                status,
+                _format_datetime(row.get("created_at")),
+            ])
+
+        def make_row_xml(index, values):
+            cells = []
+            for col_idx, value in enumerate(values):
+                col = chr(ord('A') + col_idx)
+                escaped = saxutils.escape(_as_text(value))
+                cells.append(f'<c r="{col}{index}" t="inlineStr"><is><t>{escaped}</t></is></c>')
+            return f"<row r=\"{index}\">{''.join(cells)}</row>"
+
+        rows_xml = [make_row_xml(1, headers)]
+        for i, values in enumerate(table_rows, 2):
+            rows_xml.append(make_row_xml(i, values))
+        sheet_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            '<sheetData>' + ''.join(rows_xml) + '</sheetData>'
+            '</worksheet>'
+        )
+
+        workbook_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            '<sheets><sheet name="Accounts" sheetId="1" r:id="rId1"/></sheets>'
+            '</workbook>'
+        )
+
+        content_types_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            '</Types>'
+        )
+
+        root_rels_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            '</Relationships>'
+        )
+
+        workbook_rels_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            '</Relationships>'
+        )
+
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(tmp_fd)
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+            with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("[Content_Types].xml", content_types_xml)
+                zf.writestr("_rels/.rels", root_rels_xml)
+                zf.writestr("xl/workbook.xml", workbook_xml)
+                zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
+                zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+            shutil.copy2(tmp_path, path)
+            self._show_info("Xuất Excel", "Đã xuất Excel theo bộ lọc hiện tại.")
+        finally:
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
     def export_row(self, row):
+        status = "Đã xóa mềm" if row.get("deleted_at") else ("Hoạt động" if _is_active(row) else "Bị khóa")
         return [
             row.get("user_id"),
             row.get("full_name") or row.get("username"),
             row.get("email"),
             row.get("phone"),
             _role_label(row.get("role")),
-            "active" if _is_active(row) else "locked",
+            status,
             row.get("created_at"),
         ]
 
