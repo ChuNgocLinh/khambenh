@@ -4,7 +4,14 @@ class PatientModel:
 
     @staticmethod
     def get_all():
-        return fetch_all("SELECT * FROM Patients")
+        return fetch_all(
+            """
+            SELECT *
+            FROM Patients
+            WHERE COALESCE(is_active, 1) = 1
+            ORDER BY patient_id DESC
+            """
+        )
 
     @staticmethod
     def get_by_doctor(doctor_id):
@@ -48,7 +55,8 @@ class PatientModel:
                 WHERE doctor_id = ?
                 GROUP BY patient_id
             ) mr ON mr.patient_id = p.patient_id
-            WHERE ap.patient_id IS NOT NULL OR mr.patient_id IS NOT NULL
+            WHERE (ap.patient_id IS NOT NULL OR mr.patient_id IS NOT NULL)
+              AND COALESCE(p.is_active, 1) = 1
             ORDER BY COALESCE(ap.last_visit, mr.last_record_at, ap.latest_appointment_at, p.created_at) DESC,
                      p.patient_id DESC
             """,
@@ -135,4 +143,11 @@ class PatientModel:
 
     @staticmethod
     def delete(patient_id):
-        return execute("DELETE FROM Patients WHERE patient_id=?", (patient_id,))
+        return execute(
+            """
+            UPDATE Patients
+            SET is_active=0
+            WHERE patient_id=?
+            """,
+            (patient_id,),
+        )

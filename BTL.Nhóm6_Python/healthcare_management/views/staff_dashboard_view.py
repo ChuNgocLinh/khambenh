@@ -3438,9 +3438,6 @@ class StaffDashboardView(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
 
-        if not hasattr(self, "staff_patient_mock_rows") or not self.staff_patient_mock_rows:
-            self.staff_patient_mock_rows = self._build_staff_patient_mock_data()
-
         header = QtWidgets.QFrame()
         header.setStyleSheet("background: transparent; border: none;")
         header_layout = QtWidgets.QHBoxLayout(header)
@@ -3847,11 +3844,6 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _staff_patient_doctor_filter_options(self):
         options = ["Tất cả"]
-        if hasattr(self, "staff_patient_mock_rows") and self.staff_patient_mock_rows:
-            for patient in self.staff_patient_mock_rows:
-                doctor_name = str(patient.get("preferred_doctor") or "").strip()
-                if doctor_name and doctor_name not in options:
-                    options.append(doctor_name)
         try:
             doctors = DoctorController.get_all() or []
         except Exception:
@@ -3860,8 +3852,6 @@ class StaffDashboardView(QtWidgets.QWidget):
             name = str(doctor.get("name") or doctor.get("doctor_name") or doctor.get("full_name") or "").strip()
             if name and name not in options:
                 options.append(name)
-        if len(options) == 1:
-            options.extend(["BS. Minh", "BS. Lan"])
         return options
 
     def _reset_staff_patient_filters(self):
@@ -3886,11 +3876,6 @@ class StaffDashboardView(QtWidgets.QWidget):
             patients = PatientController.get_all() or []
         except Exception:
             patients = []
-
-        # Use resilient mock data when DB is empty/unavailable to keep staff UI operable.
-        if not patients:
-            patients = [dict(row) for row in getattr(self, "staff_patient_mock_rows", [])]
-            self.staff_patient_using_mock_data = True
 
         self.staff_patient_rows = patients
         self.staff_patient_history_cache = {}
@@ -4025,9 +4010,8 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _refresh_staff_patient_pagination_controls(self, start, end, total):
         if hasattr(self, "staff_patient_feedback") and total:
-            suffix = " (dữ liệu mẫu)" if getattr(self, "staff_patient_using_mock_data", False) else ""
             self.staff_patient_feedback.setText(
-                f"Hiển thị {start + 1}-{end} / {total} bệnh nhân{suffix}"
+                f"Hiển thị {start + 1}-{end} / {total} bệnh nhân"
             )
 
         for btn in getattr(self, "staff_patient_pagination_buttons", []):
@@ -4111,10 +4095,10 @@ class StaffDashboardView(QtWidgets.QWidget):
         address = str(patient.get("address") or "Chưa nhập địa chỉ")
         note = str(patient.get("note") or patient.get("notes") or "").strip()
 
-        emergency = str(patient.get("emergency_contact") or "Nguyễn Thị Hồng (Vợ) - 0988 111 222")
-        blood = str(patient.get("blood_type") or "O+")
-        allergy = str(patient.get("allergies") or "Không")
-        occupation = str(patient.get("job") or patient.get("occupation") or "Nhân viên văn phòng")
+        emergency = str(patient.get("emergency_contact") or "Chưa cập nhật")
+        blood = str(patient.get("blood_type") or "Chưa cập nhật")
+        allergy = str(patient.get("allergies") or "Chưa cập nhật")
+        occupation = str(patient.get("job") or patient.get("occupation") or "Chưa cập nhật")
 
         self.staff_patient_detail_name.setText(name)
         self.staff_patient_detail_badge.setText(gender)
@@ -4134,9 +4118,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_patient_common_allergy.setText(allergy)
         self.staff_patient_common_job.setText(occupation)
         self.staff_patient_common_emergency.setText(emergency)
-        self.staff_patient_note_text.setPlainText(
-            note or "Bệnh nhân có tiền sử đau dạ dày. Cân nhắc nhắc nhở kiêng đồ cay nóng."
-        )
+        self.staff_patient_note_text.setPlainText(note or "Chưa có ghi chú.")
 
         self.staff_patient_appointments_tab_content.setText(
             f"Bệnh nhân {name} hiện có {len(history)} lần khám đã ghi nhận. "
@@ -4359,224 +4341,22 @@ class StaffDashboardView(QtWidgets.QWidget):
             "patient_type": "general",
         }
 
-        if not getattr(self, "staff_patient_using_mock_data", False):
-            result = PatientController.create_with_status(form_payload)
-            if not result.get("status"):
-                self._set_staff_patient_info_hint(result.get("message") or "Không thể tạo bệnh nhân mới.")
-                return
-            self._refresh_staff_patient_table()
-            latest_patient = PatientController.find_by_cccd_or_phone(
-                cccd=payload["cccd"],
-                phone=payload["phone"],
-            )
-            if latest_patient:
-                self._select_staff_patient_by_id(latest_patient.get("patient_id"))
-            self._set_staff_patient_info_hint("Đã thêm bệnh nhân mới vào cơ sở dữ liệu.")
+        result = PatientController.create_with_status(form_payload)
+        if not result.get("status"):
+            self._set_staff_patient_info_hint(result.get("message") or "Không thể tạo bệnh nhân mới.")
             return
-
-        max_patient_id = 0
-        for row in self.staff_patient_rows:
-            try:
-                max_patient_id = max(max_patient_id, int(row.get("patient_id") or 0))
-            except (TypeError, ValueError):
-                continue
-        for row in getattr(self, "staff_patient_mock_rows", []):
-            try:
-                max_patient_id = max(max_patient_id, int(row.get("patient_id") or 0))
-            except (TypeError, ValueError):
-                continue
-
-        new_patient = {
-            "patient_id": max_patient_id + 1,
-            "name": payload["name"],
-            "gender": payload["gender"],
-            "dob": payload["dob"],
-            "phone": payload["phone"],
-            "cccd": payload["cccd"],
-            "address": payload["address"],
-            "occupation": payload["occupation"],
-            "status": "Khám mới",
-            "preferred_doctor": "BS. Minh",
-            "blood_type": "O+",
-            "allergies": "Không",
-            "emergency_contact": "Nguyễn Thị Hồng (Vợ) - 0988 111 222",
-            "note": "Hồ sơ mới được tạo tại màn hình nhân viên.",
-        }
-        self.staff_patient_rows.append(new_patient)
-        if hasattr(self, "staff_patient_mock_rows"):
-            self.staff_patient_mock_rows.append(dict(new_patient))
-
-        self.staff_patient_current_page = self.staff_patient_total_pages
-        self._filter_staff_patients()
-        self._select_staff_patient_by_id(new_patient["patient_id"])
-        self._set_staff_patient_info_hint(
-            "Đã thêm bệnh nhân mới ở chế độ dữ liệu mẫu (mock mode), chưa ghi vào cơ sở dữ liệu thật."
+        self._refresh_staff_patient_table()
+        latest_patient = PatientController.find_by_cccd_or_phone(
+            cccd=payload["cccd"],
+            phone=payload["phone"],
         )
+        if latest_patient:
+            self._select_staff_patient_by_id(latest_patient.get("patient_id"))
+        self._set_staff_patient_info_hint("Đã thêm bệnh nhân mới vào cơ sở dữ liệu.")
 
     @staticmethod
     def _build_staff_patient_mock_data():
-        return [
-            {
-                "patient_id": 125,
-                "name": "Nguyễn Văn Hùng",
-                "gender": "Nam",
-                "dob": "1990-02-15",
-                "phone": "0987 654 321",
-                "cccd": "123456789012",
-                "address": "123 Đường Lê Lợi, P.1, Q.1, TP.HCM",
-                "status": "Đang điều trị",
-                "preferred_doctor": "BS. Minh",
-                "blood_type": "O+",
-                "allergies": "Không",
-                "occupation": "Nhân viên văn phòng",
-                "emergency_contact": "Nguyễn Thị Hồng (Vợ) - 0988 111 222",
-                "note": "Bệnh nhân có tiền sử đau dạ dày. Cân nhắc nhắc nhở kiêng đồ cay nóng.",
-            },
-            {
-                "patient_id": 126,
-                "name": "Trần Thị Mai",
-                "gender": "Nữ",
-                "dob": "1988-10-03",
-                "phone": "0909 112 233",
-                "cccd": "223456789012",
-                "address": "22 Nguyễn Đình Chiểu, Q.3, TP.HCM",
-                "status": "Tái khám",
-                "preferred_doctor": "BS. Lan",
-                "blood_type": "A+",
-                "allergies": "Dị ứng hải sản",
-                "occupation": "Kế toán",
-                "emergency_contact": "Trần Văn Khải (Chồng) - 0909 113 355",
-                "note": "Tái khám sau 2 tuần điều trị viêm họng.",
-            },
-            {
-                "patient_id": 127,
-                "name": "Lê Minh Phúc",
-                "gender": "Nam",
-                "dob": "2017-06-28",
-                "phone": "0933 444 555",
-                "cccd": "",
-                "address": "45 Trường Chinh, Tân Bình, TP.HCM",
-                "status": "Khám mới",
-                "preferred_doctor": "BS. Hường",
-                "blood_type": "B+",
-                "allergies": "Không",
-                "occupation": "Học sinh",
-                "emergency_contact": "Lê Thị Tuyết (Mẹ) - 0933 111 777",
-                "note": "Bệnh nhân nhi lần đầu đến khám.",
-            },
-            {
-                "patient_id": 128,
-                "name": "Phạm Quốc Anh",
-                "gender": "Nam",
-                "dob": "1962-12-11",
-                "phone": "0912 010 999",
-                "cccd": "923456789012",
-                "address": "18 Lý Chính Thắng, Q.3, TP.HCM",
-                "status": "Đã hoàn tất",
-                "preferred_doctor": "BS. Minh",
-                "blood_type": "AB+",
-                "allergies": "Không",
-                "occupation": "Nghỉ hưu",
-                "emergency_contact": "Phạm Thị Thu (Con gái) - 0912 818 818",
-                "note": "Đã hoàn tất điều trị tăng huyết áp, hẹn tái khám sau 3 tháng.",
-            },
-            {
-                "patient_id": 129,
-                "name": "Đỗ Thu Hương",
-                "gender": "Nữ",
-                "dob": "1995-08-20",
-                "phone": "0977 889 900",
-                "cccd": "523456789012",
-                "address": "7C Cách Mạng Tháng 8, Q.10, TP.HCM",
-                "status": "Khám mới",
-                "preferred_doctor": "BS. Lan",
-                "blood_type": "O-",
-                "allergies": "Penicillin",
-                "occupation": "Thiết kế đồ họa",
-                "emergency_contact": "Đỗ Văn Dũng (Anh) - 0977 112 345",
-                "note": "Cần lưu ý dị ứng Penicillin.",
-            },
-            {
-                "patient_id": 130,
-                "name": "Ngô Đức Trọng",
-                "gender": "Nam",
-                "dob": "1982-03-09",
-                "phone": "0965 120 120",
-                "cccd": "623456789012",
-                "address": "61 Hoàng Hoa Thám, Bình Thạnh, TP.HCM",
-                "status": "Đang điều trị",
-                "preferred_doctor": "BS. Hường",
-                "blood_type": "B-",
-                "allergies": "Không",
-                "occupation": "Tài xế",
-                "emergency_contact": "Ngô Thị Mỹ (Vợ) - 0965 555 666",
-                "note": "Theo dõi đau lưng mạn tính, đang trong liệu trình vật lý trị liệu.",
-            },
-            {
-                "patient_id": 131,
-                "name": "Vũ Thị Mai",
-                "gender": "Nữ",
-                "dob": "1978-11-30",
-                "phone": "0941 332 221",
-                "cccd": "723456789012",
-                "address": "88 Tô Hiến Thành, Q.10, TP.HCM",
-                "status": "Tái khám",
-                "preferred_doctor": "BS. Minh",
-                "blood_type": "A-",
-                "allergies": "Không",
-                "occupation": "Giáo viên",
-                "emergency_contact": "Vũ Quốc Bình (Con trai) - 0941 999 121",
-                "note": "Tái khám sau điều trị dạ dày.",
-            },
-            {
-                "patient_id": 132,
-                "name": "Bùi Thanh Tùng",
-                "gender": "Nam",
-                "dob": "2003-01-14",
-                "phone": "0899 101 202",
-                "cccd": "823456789012",
-                "address": "11A Nguyễn Trãi, Q.5, TP.HCM",
-                "status": "Khám mới",
-                "preferred_doctor": "BS. Lan",
-                "blood_type": "O+",
-                "allergies": "Không",
-                "occupation": "Sinh viên",
-                "emergency_contact": "Bùi Minh Châu (Mẹ) - 0899 202 303",
-                "note": "Khám sức khỏe định kỳ.",
-            },
-            {
-                "patient_id": 133,
-                "name": "Hồ Ngọc Yến",
-                "gender": "Nữ",
-                "dob": "1992-05-02",
-                "phone": "0918 450 450",
-                "cccd": "923456789099",
-                "address": "33 Nguyễn Hữu Cảnh, Bình Thạnh, TP.HCM",
-                "status": "Đang điều trị",
-                "preferred_doctor": "BS. Hường",
-                "blood_type": "AB-",
-                "allergies": "Không",
-                "occupation": "Marketing",
-                "emergency_contact": "Hồ Minh Đức (Chồng) - 0918 777 333",
-                "note": "Theo dõi viêm xoang, đã kê thuốc uống 7 ngày.",
-            },
-            {
-                "patient_id": 134,
-                "name": "Trịnh Công Nam",
-                "gender": "Nam",
-                "dob": "1957-09-16",
-                "phone": "0903 200 200",
-                "cccd": "103456789012",
-                "address": "5 Cộng Hòa, Tân Bình, TP.HCM",
-                "status": "Đã hoàn tất",
-                "preferred_doctor": "BS. Minh",
-                "blood_type": "B+",
-                "allergies": "Không",
-                "occupation": "Nghỉ hưu",
-                "emergency_contact": "Trịnh Minh Khoa (Con trai) - 0903 404 505",
-                "note": "Đã hoàn tất điều trị và xuất viện.",
-            },
-        ]
+        return []
 
     def _build_appointment_management_page(self):
         page = QtWidgets.QFrame()

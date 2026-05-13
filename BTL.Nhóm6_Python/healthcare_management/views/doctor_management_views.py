@@ -1278,18 +1278,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
         self._active_tab = 0
 
         # ── Mock data ──
-        self._mock_patients = [
-            {"stt": 1, "code": "BN000123", "name": "Nguyễn Văn Nam", "gender": "Nam", "dob": "15/02/1990", "phone": "0987 654 321", "last_visit": "23/05/2026", "status": "Đang điều trị", "status_color": "#e67e22", "status_bg": "#fdf2e9", "age": 35},
-            {"stt": 2, "code": "BN000124", "name": "Trần Thị Mai", "gender": "Nữ", "dob": "22/08/1988", "phone": "0988 123 456", "last_visit": "20/05/2026", "status": "Tái khám", "status_color": "#3498db", "status_bg": "#ebf5fb", "age": 37},
-            {"stt": 3, "code": "BN000125", "name": "Lê Văn Nam", "gender": "Nam", "dob": "03/06/1975", "phone": "0912 345 678", "last_visit": "18/05/2026", "status": "Tái khám", "status_color": "#3498db", "status_bg": "#ebf5fb", "age": 50},
-            {"stt": 4, "code": "BN000126", "name": "Phạm Thị Lan", "gender": "Nữ", "dob": "12/11/1992", "phone": "0909 876 543", "last_visit": "23/05/2026", "status": "Bệnh nhân mới", "status_color": "#27ae60", "status_bg": "#eafaf1", "age": 33},
-            {"stt": 5, "code": "BN000127", "name": "Hoàng Anh Tuấn", "gender": "Nam", "dob": "30/09/1985", "phone": "0933 456 789", "last_visit": "21/05/2026", "status": "Đang điều trị", "status_color": "#e67e22", "status_bg": "#fdf2e9", "age": 40},
-            {"stt": 6, "code": "BN000128", "name": "Vũ Thị Hương", "gender": "Nữ", "dob": "05/04/1991", "phone": "0977 111 222", "last_visit": "17/05/2026", "status": "Tái khám", "status_color": "#3498db", "status_bg": "#ebf5fb", "age": 35},
-            {"stt": 7, "code": "BN000129", "name": "Đỗ Minh Quân", "gender": "Nam", "dob": "18/01/2000", "phone": "0966 333 444", "last_visit": "23/05/2026", "status": "Bệnh nhân mới", "status_color": "#27ae60", "status_bg": "#eafaf1", "age": 26},
-            {"stt": 8, "code": "BN000130", "name": "Nguyễn Thị Hoa", "gender": "Nữ", "dob": "25/12/1970", "phone": "0908 555 666", "last_visit": "29/05/2026", "status": "Tái khám", "status_color": "#3498db", "status_bg": "#ebf5fb", "age": 55},
-            {"stt": 9, "code": "BN000131", "name": "Bùi Văn Dũng", "gender": "Nam", "dob": "02/03/1982", "phone": "0982 777 888", "last_visit": "16/05/2026", "status": "Đang điều trị", "status_color": "#e67e22", "status_bg": "#fdf2e9", "age": 44},
-            {"stt": 10, "code": "BN000132", "name": "Trương Thị Kiều", "gender": "Nữ", "dob": "09/07/1995", "phone": "0933 999 000", "last_visit": "22/05/2026", "status": "Bệnh nhân mới", "status_color": "#27ae60", "status_bg": "#eafaf1", "age": 30},
-        ]
+        self._mock_patients = []
 
         self._init_ui()
 
@@ -1349,11 +1338,11 @@ class DoctorPatientListView(QtWidgets.QWidget):
         tabs_row = QtWidgets.QHBoxLayout()
         tabs_row.setSpacing(0)
         tab_data = [
-            ("Tất cả (156)", True),
-            ("Bệnh nhân mới (23)", False),
-            ("Đang điều trị (41)", False),
-            ("Tái khám (76)", False),
-            ("Khám gần đây (30)", False),
+            ("Tất cả (0)", True),
+            ("Bệnh nhân mới (0)", False),
+            ("Đang điều trị (0)", False),
+            ("Tái khám (0)", False),
+            ("Khám gần đây (0)", False),
         ]
         for label, active in tab_data:
             tb = QtWidgets.QPushButton(label)
@@ -1523,7 +1512,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
         pinfo.setSpacing(2)
 
         p_name_row = QtWidgets.QHBoxLayout()
-        p_name = QtWidgets.QLabel("Nguyễn Văn Nam")
+        p_name = QtWidgets.QLabel("Chưa chọn bệnh nhân")
         p_name.setStyleSheet("font-size: 15px; font-weight: 800; color: #1e293b; background: transparent;")
         p_gender_badge = QtWidgets.QLabel("Nam")
         p_gender_badge.setStyleSheet("background: #dbeafe; color: #2563eb; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px;")
@@ -1532,7 +1521,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
         p_name_row.addStretch()
         pinfo.addLayout(p_name_row)
 
-        for lbl in ["Mã BN: BN000123", "35 tuổi  ·  15/02/1990", "0987 654 321", "Địa chỉ: 123 Đường Lê Lợi, P1, Q.1, TPHCM"]:
+        for lbl in ["Mã BN: -", "Tuổi / DOB: -", "SĐT: -", "Địa chỉ: -"]:
             l = QtWidgets.QLabel(lbl)
             l.setStyleSheet("font-size: 11px; color: #64748b; background: transparent;")
             l.setWordWrap(True)
@@ -3128,8 +3117,8 @@ class DoctorPatientListView(QtWidgets.QWidget):
         patient_id = row.get("patient_id")
         confirm = QtWidgets.QMessageBox.question(
             self,
-            "Xóa bệnh nhân",
-            f"Bạn có chắc muốn xóa bệnh nhân {row.get('name') or patient_id}?",
+            "Ngưng hoạt động bệnh nhân",
+            f"Bạn có chắc muốn ngưng hoạt động bệnh nhân {row.get('name') or patient_id}?",
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
             QtWidgets.QMessageBox.StandardButton.No,
         )
@@ -3138,12 +3127,12 @@ class DoctorPatientListView(QtWidgets.QWidget):
         if not PatientController.delete(patient_id):
             QtWidgets.QMessageBox.warning(
                 self,
-                "Không thể xóa",
-                "Không thể xóa bệnh nhân này. Hồ sơ có thể đang được tham chiếu bởi lịch hẹn hoặc bệnh án.",
+                "Không thể cập nhật",
+                "Không thể cập nhật trạng thái bệnh nhân này.",
             )
             return
         self.selected_patient_id = None
-        QtWidgets.QMessageBox.information(self, "Đã xóa", "Đã xóa bệnh nhân khỏi hệ thống.")
+        QtWidgets.QMessageBox.information(self, "Hoàn tất", "Đã ngưng hoạt động bệnh nhân.")
         self.load_data()
 
     def show_patient_menu(self, row):

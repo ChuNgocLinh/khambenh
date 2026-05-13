@@ -27,7 +27,7 @@ def dashboard():
 # PATIENT
 @app.route("/patients")
 def patients():
-    data = PatientController.get_all_patients()
+    data = PatientController.get_all()
     return render_template("patients.html", patients=data)
 
 app.run(debug=True)

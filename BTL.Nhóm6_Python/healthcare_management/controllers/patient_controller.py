@@ -9,6 +9,11 @@ class PatientController:
         return PatientModel.get_all()
 
     @staticmethod
+    def get_all_patients():
+        # Backward-compatible alias for legacy web handlers.
+        return PatientController.get_all()
+
+    @staticmethod
     def get_by_doctor(doctor_id):
         return PatientModel.get_by_doctor(doctor_id)
 
