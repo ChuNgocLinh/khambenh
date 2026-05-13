@@ -1175,6 +1175,11 @@ class AccountManagementPage(AdminListPage):
         if self._search_debounce_timer is not None:
             self._search_debounce_timer.start(350)
 
+    def _reset_and_refresh(self):
+        self.current_page = 1
+        self.selected_doctor_ids.clear()
+        self.refresh()
+
     def _set_loading(self, loading):
         self._is_loading = loading
         if hasattr(self, "search_input"):
@@ -1263,8 +1268,9 @@ class AccountManagementPage(AdminListPage):
         check_layout.addWidget(checkbox)
         self.table.setCellWidget(row, 0, check_wrap)
         self._set_item(row, 1, row + 1)
-        avatar_text = "👨" if row % 2 == 0 else "👩"
-        self._set_item(row, 2, f"{avatar_text} {data.get('full_name') or data.get('username')}")
+        display_name = _as_text(data.get("full_name") or data.get("username")).strip()
+        initial = display_name[0].upper() if display_name else "?"
+        self._set_item(row, 2, f"[{initial}] {display_name}")
         self._set_item(row, 3, data.get("email"))
         self._set_item(row, 4, data.get("phone"))
         role_key = _as_text(data.get("role")).lower().strip()
@@ -1464,7 +1470,7 @@ class AccountManagementPage(AdminListPage):
             if role == "doctor" and user_id:
                 _safe_execute(
                     "INSERT INTO Doctors (name, specialty, phone, email, user_id, is_active) VALUES (?, ?, ?, ?, ?, ?)",
-                    (data.get("full_name") or data.get("username"), "Tổng quát", data.get("phone"), data.get("email"), user_id, data.get("is_active")),
+                    (data.get("full_name") or data.get("username"), None, data.get("phone"), data.get("email"), user_id, data.get("is_active")),
                 )
             elif user_id:
                 _safe_execute(
@@ -1738,67 +1744,390 @@ class DoctorManagementPage(AdminListPage):
     column_widths = [0.35, 0.45, 1.55, 1.35, 1.05, 1.8, 1.1, 1.15, 1.05, 0.95]
     search_placeholder = "Tìm kiếm bác sĩ (Tên, chuyên khoa, SĐT...)"
 
+    WORK_STATUS_OPTIONS = [
+        ("Đang làm việc", "Đang làm việc"),
+        ("Nghỉ phép", "Nghỉ phép"),
+        ("Tạm nghỉ", "Tạm nghỉ"),
+        ("Đã nghỉ việc", "Đã nghỉ việc"),
+    ]
+
+    def __init__(self, user_data=None, parent=None):
+        self.selected_doctor_ids = set()
+        self._header_checkbox = None
+        self._suspend_checkbox_sync = False
+        self._current_page_rows = []
+        self.load_error = ""
+        self.empty_card = None
+        self.empty_label = None
+        self.clear_filter_btn = None
+        self.retry_btn = None
+        self.table_card = None
+        self._search_debounce_timer = None
+        super().__init__(user_data, parent)
+
     def _add_filters(self, layout):
         self.specialty_filter = self._combo([("Tất cả chuyên khoa", "all")])
-        self.status_filter = self._combo([("Tất cả trạng thái", "all"), ("Hoạt động", "active"), ("Nghỉ việc", "inactive")])
+        self.status_filter = self._combo([
+            ("Tất cả trạng thái", "all"),
+            ("Hoạt động", "active"),
+            ("Tạm nghỉ", "paused"),
+            ("Nghỉ việc", "resigned"),
+        ])
+        self.work_status_filter = self._combo([("Tất cả tình trạng", "all")] + self.WORK_STATUS_OPTIONS)
         layout.addWidget(self.specialty_filter)
         layout.addWidget(self.status_filter)
+        layout.addWidget(self.work_status_filter)
 
     def _add_toolbar_buttons(self, layout):
         add_btn = self._button("Thêm bác sĩ", primary=True)
         add_btn.setFixedWidth(118)
         add_btn.clicked.connect(self.add_doctor)
         layout.addWidget(add_btn)
-        super()._add_toolbar_buttons(layout)
+        export_btn = self._button("Xuất Excel")
+        export_btn.setFixedWidth(106)
+        export_btn.clicked.connect(self.export_excel)
+        layout.addWidget(export_btn)
+
+    def _build_list_page(self):
+        super()._build_list_page()
+        self.search_input.textChanged.disconnect()
+        self._search_debounce_timer = QtCore.QTimer(self)
+        self._search_debounce_timer.setSingleShot(True)
+        self._search_debounce_timer.timeout.connect(self._reset_and_refresh)
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+        self.table_card = self.table.parentWidget().parentWidget()
+
+        self.bulk_row = QtWidgets.QHBoxLayout()
+        self.bulk_row.setSpacing(8)
+        self.bulk_label = QtWidgets.QLabel("Chưa chọn bác sĩ")
+        self.bulk_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 800;")
+        self.bulk_row.addWidget(self.bulk_label)
+        self.bulk_row.addStretch()
+
+        self.bulk_active_btn = self._button("Chuyển hoạt động", primary=True)
+        self.bulk_pause_btn = self._button("Chuyển tạm nghỉ")
+        self.bulk_resign_btn = self._button("Chuyển nghỉ việc", danger=True)
+        self.bulk_export_btn = self._button("Xuất đã chọn")
+        for btn in [self.bulk_active_btn, self.bulk_pause_btn, self.bulk_resign_btn, self.bulk_export_btn]:
+            btn.setVisible(False)
+            self.bulk_row.addWidget(btn)
+
+        self.bulk_active_btn.clicked.connect(lambda: self._apply_bulk_status("active"))
+        self.bulk_pause_btn.clicked.connect(lambda: self._apply_bulk_status("paused"))
+        self.bulk_resign_btn.clicked.connect(lambda: self._apply_bulk_status("resigned"))
+        self.bulk_export_btn.clicked.connect(self._export_selected_excel)
+        self.table_card.layout().insertLayout(1, self.bulk_row)
+
+        self.empty_card = self._card()
+        empty_layout = QtWidgets.QVBoxLayout(self.empty_card)
+        empty_layout.setContentsMargins(24, 24, 24, 24)
+        empty_layout.setSpacing(10)
+        empty_icon = QtWidgets.QLabel("🩺")
+        empty_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        empty_icon.setStyleSheet("font-size: 34px;")
+        self.empty_label = QtWidgets.QLabel("Không tìm thấy bác sĩ phù hợp.")
+        self.empty_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet("font-size: 14px; font-weight: 800; color: #475569;")
+        action_row = QtWidgets.QHBoxLayout()
+        action_row.addStretch()
+        self.clear_filter_btn = self._button("Xóa bộ lọc")
+        self.clear_filter_btn.clicked.connect(self._clear_filters)
+        self.retry_btn = self._button("Thử lại", primary=True)
+        self.retry_btn.clicked.connect(self.refresh)
+        action_row.addWidget(self.clear_filter_btn)
+        action_row.addWidget(self.retry_btn)
+        action_row.addStretch()
+        empty_layout.addWidget(empty_icon)
+        empty_layout.addWidget(self.empty_label)
+        empty_layout.addLayout(action_row)
+        self.content_layout.insertWidget(2, self.empty_card)
+        self.empty_card.hide()
+
+    def _on_search_text_changed(self):
+        if self._search_debounce_timer is not None:
+            self._search_debounce_timer.start(350)
+
+    def _clear_filters(self):
+        self.search_input.clear()
+        self.specialty_filter.setCurrentIndex(0)
+        self.status_filter.setCurrentIndex(0)
+        self.work_status_filter.setCurrentIndex(0)
+        self._reset_and_refresh()
+
+    def _set_loading(self, loading):
+        self.search_input.setEnabled(not loading)
+        self.specialty_filter.setEnabled(not loading)
+        self.status_filter.setEnabled(not loading)
+        self.work_status_filter.setEnabled(not loading)
+        self.page_size_combo.setEnabled(not loading)
+        if loading:
+            self.table.setRowCount(4)
+            for row in range(4):
+                for col in range(self.table.columnCount()):
+                    self.table.setItem(row, col, QtWidgets.QTableWidgetItem("Đang tải..."))
+
+    def _sync_bulk_ui(self):
+        selected_count = len(self.selected_doctor_ids)
+        has_selected = selected_count > 0
+        self.bulk_label.setText(f"Đã chọn {selected_count} bác sĩ" if has_selected else "Chưa chọn bác sĩ")
+        for btn in [self.bulk_active_btn, self.bulk_pause_btn, self.bulk_resign_btn, self.bulk_export_btn]:
+            btn.setVisible(has_selected)
+
+    def _ensure_schema(self):
+        # Keep schema migration out of runtime view logic.
+        # Database schema should be managed via init_db.sql / migrate scripts.
+        return
+
+    @staticmethod
+    def _normalize_work_status(row):
+        raw = _as_text(row.get("work_status")).strip()
+        mapping = {
+            "WORKING": "Đang làm việc",
+            "ON_LEAVE": "Nghỉ phép",
+            "LEFT": "Đã nghỉ việc",
+            "ACTIVE": "Đang làm việc",
+            "TEMPORARILY_INACTIVE": "Tạm nghỉ",
+            "RESIGNED": "Đã nghỉ việc",
+            "ĐANG LÀM VIỆC": "Đang làm việc",
+            "NGHỈ PHÉP": "Nghỉ phép",
+            "TẠM NGHỈ": "Tạm nghỉ",
+            "ĐÃ NGHỈ VIỆC": "Đã nghỉ việc",
+        }
+        if not raw:
+            value = "Đang làm việc" if _is_active(row) else "Đã nghỉ việc"
+        else:
+            value = mapping.get(raw.upper(), raw)
+        if not _is_active(row) and value in {"Đang làm việc", "Nghỉ phép", "Tạm nghỉ"}:
+            value = "Đã nghỉ việc"
+        return value
+
+    def _status_label(self, row):
+        work_status = self._normalize_work_status(row)
+        if not _is_active(row) or work_status == "Đã nghỉ việc":
+            return "Nghỉ việc"
+        if work_status in {"Nghỉ phép", "Tạm nghỉ"}:
+            return "Tạm nghỉ"
+        return "Hoạt động"
 
     def load_rows(self):
-        rows = _safe_fetch_all("SELECT * FROM Doctors ORDER BY doctor_id DESC")
-        current = self.specialty_filter.currentData() if hasattr(self, "specialty_filter") else "all"
-        self.specialty_filter.blockSignals(True)
-        self.specialty_filter.clear()
-        self.specialty_filter.addItem("Tất cả chuyên khoa", "all")
-        for specialty in sorted({_as_text(row.get("specialty")) for row in rows if row.get("specialty")}):
-            self.specialty_filter.addItem(specialty, specialty)
-        index = self.specialty_filter.findData(current)
-        self.specialty_filter.setCurrentIndex(max(index, 0))
-        self.specialty_filter.blockSignals(False)
-        return rows
+        self._set_loading(True)
+        self.load_error = ""
+        try:
+            rows = _safe_fetch_all(
+                """
+                SELECT doctor_id, name, specialty, phone, email, is_active, work_status, created_at, updated_at
+                FROM Doctors
+                ORDER BY doctor_id DESC
+                """
+            )
+            for row in rows:
+                row["work_status"] = self._normalize_work_status(row)
+            current = self.specialty_filter.currentData()
+            self.specialty_filter.blockSignals(True)
+            self.specialty_filter.clear()
+            self.specialty_filter.addItem("Tất cả chuyên khoa", "all")
+            for specialty in sorted({_as_text(row.get("specialty")) for row in rows if row.get("specialty")}):
+                self.specialty_filter.addItem(specialty, specialty)
+            index = self.specialty_filter.findData(current)
+            self.specialty_filter.setCurrentIndex(max(index, 0))
+            self.specialty_filter.blockSignals(False)
+            return rows
+        except Exception as exc:
+            self.load_error = f"Không thể tải danh sách bác sĩ. {exc}"
+            return []
+        finally:
+            self._set_loading(False)
 
     def accept_row(self, row):
         specialty_ok = self.specialty_filter.currentData() == "all" or row.get("specialty") == self.specialty_filter.currentData()
-        status = "active" if _is_active(row) else "inactive"
-        status_ok = self.status_filter.currentData() == "all" or status == self.status_filter.currentData()
-        return specialty_ok and status_ok and _contains(row, ["name", "specialty", "phone", "email"], self.search_input.text())
+        status_value = self.status_filter.currentData()
+        status_label = self._status_label(row)
+        status_ok = (
+            status_value == "all"
+            or (status_value == "active" and status_label == "Hoạt động")
+            or (status_value == "paused" and status_label == "Tạm nghỉ")
+            or (status_value == "resigned" and status_label == "Nghỉ việc")
+        )
+        work_choice = self.work_status_filter.currentData()
+        work_status = self._normalize_work_status(row)
+        work_ok = work_choice == "all" or work_choice == work_status
+        search_ok = _contains(row, ["name", "specialty", "phone", "email"], self.search_input.text())
+        if not search_ok:
+            query = _as_text(self.search_input.text()).strip().lower()
+            search_ok = bool(query) and (query in status_label.lower() or query in work_status.lower())
+        return specialty_ok and status_ok and work_ok and search_ok
 
     def stat_cards(self):
-        active = sum(1 for row in self.rows if _is_active(row))
-        inactive = len(self.rows) - active
-        paused = sum(1 for row in self.rows if _as_text(row.get("work_status")).lower() in {"nghỉ phép", "tạm nghỉ"})
+        active = sum(1 for row in self.rows if self._status_label(row) == "Hoạt động")
+        paused = sum(1 for row in self.rows if self._status_label(row) == "Tạm nghỉ")
+        resigned = sum(1 for row in self.rows if self._status_label(row) == "Nghỉ việc")
         return [
             self._stat_card("🩺", "Tổng bác sĩ", len(self.rows), "Dữ liệu theo DB hiện tại", "#2563eb"),
             self._stat_card("👤", "Đang hoạt động", active, "Dữ liệu theo DB hiện tại", "#00a651"),
             self._stat_card("⏸", "Tạm nghỉ", paused, "Dữ liệu theo DB hiện tại", "#f97316"),
-            self._stat_card("🚫", "Nghỉ việc", inactive, "Dữ liệu theo DB hiện tại", "#8b5cf6"),
+            self._stat_card("🚫", "Nghỉ việc", resigned, "Dữ liệu theo DB hiện tại", "#8b5cf6"),
         ]
 
     def render_row(self, row, data):
-        self._set_item(row, 0, "☐")
-        self._set_item(row, 1, row + 1)
+        checkbox = QtWidgets.QCheckBox()
+        checkbox.setChecked(data.get("doctor_id") in self.selected_doctor_ids)
+        checkbox.stateChanged.connect(lambda state, doctor_id=data.get("doctor_id"): self._toggle_selected(doctor_id, state))
+        check_wrap = QtWidgets.QWidget()
+        check_layout = QtWidgets.QHBoxLayout(check_wrap)
+        check_layout.setContentsMargins(0, 0, 0, 0)
+        check_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        check_layout.addWidget(checkbox)
+        self.table.setCellWidget(row, 0, check_wrap)
+
+        stt = (self.current_page - 1) * self.page_size + row + 1
+        self._set_item(row, 1, stt)
         self._set_item(row, 2, f"👨‍⚕️ {_as_text(data.get('name'))}")
         self._set_item(row, 3, data.get("specialty"))
         self._set_item(row, 4, data.get("phone"))
         self._set_item(row, 5, data.get("email"))
-        status_text = "Hoạt động" if _is_active(data) else "Nghỉ việc"
-        self.table.setCellWidget(row, 6, self._badge(status_text))
-        self.table.setCellWidget(row, 7, self._badge(data.get("work_status") or ("Đang làm việc" if _is_active(data) else "Đã nghỉ việc")))
-        self._set_item(row, 8, _format_date(data.get("created_at") or "2026-05-24"))
+
+        status_text = self._status_label(data)
+        status_kind = "success" if status_text == "Hoạt động" else ("warning" if status_text == "Tạm nghỉ" else "danger")
+        self.table.setCellWidget(row, 6, self._badge(status_text, status_kind))
+
+        work_status = self._normalize_work_status(data)
+        work_kind = "success" if work_status == "Đang làm việc" else ("warning" if work_status in {"Nghỉ phép", "Tạm nghỉ"} else "danger")
+        self.table.setCellWidget(row, 7, self._badge(work_status, work_kind))
+
+        self._set_item(row, 8, _format_date(data.get("created_at")))
         view_btn = self._icon_button("Xem", "info")
         edit_btn = self._icon_button("Sửa", "info")
         del_btn = self._icon_button("Xóa", "danger")
         view_btn.clicked.connect(lambda _, item=data: self.view_detail(item))
         edit_btn.clicked.connect(lambda _, item=data: self.edit_doctor(item))
-        del_btn.clicked.connect(lambda _, item=data: self.soft_delete(item, "Doctors", "doctor_id"))
+        del_btn.clicked.connect(lambda _, item=data: self.soft_delete(item))
         self.table.setCellWidget(row, 9, self._action_cell([view_btn, edit_btn, del_btn]))
+
+    def _toggle_selected(self, doctor_id, state):
+        if self._suspend_checkbox_sync or not doctor_id:
+            return
+        if state == int(QtCore.Qt.CheckState.Checked):
+            self.selected_doctor_ids.add(doctor_id)
+        else:
+            self.selected_doctor_ids.discard(doctor_id)
+        self._sync_bulk_ui()
+        self._sync_header_checkbox()
+
+    def _sync_header_checkbox(self):
+        if not self._header_checkbox:
+            return
+        page_ids = [row.get("doctor_id") for row in self._current_page_rows if row.get("doctor_id")]
+        if not page_ids:
+            self._header_checkbox.setCheckState(QtCore.Qt.CheckState.Unchecked)
+            return
+        selected_in_page = sum(1 for doctor_id in page_ids if doctor_id in self.selected_doctor_ids)
+        self._header_checkbox.blockSignals(True)
+        if selected_in_page == 0:
+            self._header_checkbox.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        elif selected_in_page == len(page_ids):
+            self._header_checkbox.setCheckState(QtCore.Qt.CheckState.Checked)
+        else:
+            self._header_checkbox.setCheckState(QtCore.Qt.CheckState.PartiallyChecked)
+        self._header_checkbox.blockSignals(False)
+
+    def _toggle_select_page(self, state):
+        page_ids = [row.get("doctor_id") for row in self._current_page_rows if row.get("doctor_id")]
+        if state == int(QtCore.Qt.CheckState.Checked):
+            for doctor_id in page_ids:
+                self.selected_doctor_ids.add(doctor_id)
+        elif state == int(QtCore.Qt.CheckState.Unchecked):
+            for doctor_id in page_ids:
+                self.selected_doctor_ids.discard(doctor_id)
+        self._render_table()
+        self._sync_bulk_ui()
+
+    def _setup_header_checkbox(self):
+        header = self.table.horizontalHeader()
+        if self._header_checkbox is not None:
+            self._header_checkbox.deleteLater()
+            self._header_checkbox = None
+        box = QtWidgets.QCheckBox(header)
+        box.setTristate(True)
+        box.stateChanged.connect(self._toggle_select_page)
+        box.show()
+        self._header_checkbox = box
+        self._position_header_checkbox()
+
+    def _position_header_checkbox(self):
+        if not self._header_checkbox:
+            return
+        header = self.table.horizontalHeader()
+        geo = header.sectionPosition(0)
+        self._header_checkbox.move(geo + max(0, int(header.sectionSize(0) / 2) - 7), 6)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_header_checkbox()
+
+    def _update_empty_state(self):
+        if not self.empty_label or not self.clear_filter_btn or not self.retry_btn or not self.empty_card or not self.table_card:
+            return
+        has_rows = len(self.filtered_rows) > 0
+        has_error = bool(self.load_error)
+        if has_error:
+            self.empty_label.setText(self.load_error)
+            self.clear_filter_btn.hide()
+            self.retry_btn.show()
+            self.empty_card.show()
+            self.table_card.hide()
+            return
+        if not has_rows:
+            self.empty_label.setText("Không tìm thấy bác sĩ phù hợp.")
+            self.clear_filter_btn.show()
+            self.retry_btn.hide()
+            self.empty_card.show()
+            self.table_card.hide()
+            return
+        self.empty_card.hide()
+        self.table_card.show()
+
+    def _render_table(self):
+        total_pages = max(1, (len(self.filtered_rows) + self.page_size - 1) // self.page_size)
+        self.current_page = min(max(1, self.current_page), total_pages)
+        start = (self.current_page - 1) * self.page_size
+        visible = self.filtered_rows[start:start + self.page_size]
+        self._current_page_rows = visible
+        self.table.setRowCount(len(visible))
+        for row_index, row_data in enumerate(visible):
+            self.render_row(row_index, row_data)
+        self.total_label.setText(f"{len(self.filtered_rows)} bản ghi")
+        self.page_label.setText(f"Trang {self.current_page}/{total_pages}")
+        self.prev_btn.setEnabled(self.current_page > 1)
+        self.next_btn.setEnabled(self.current_page < total_pages)
+        self.table.resizeRowsToContents()
+        for row in range(self.table.rowCount()):
+            self.table.setRowHeight(row, max(self.table.rowHeight(row), 44))
+        self._apply_column_widths()
+        target_rows = max(len(visible), min(self.page_size, 10))
+        self.table.setFixedHeight(42 + target_rows * 44 + 4)
+        self._setup_header_checkbox()
+        self._sync_header_checkbox()
+        self._sync_bulk_ui()
+        self._update_empty_state()
+
+    def refresh(self):
+        self.rows = self.load_rows()
+        self.filtered_rows = [row for row in self.rows if self.accept_row(row)]
+        valid_ids = {row.get("doctor_id") for row in self.rows}
+        self.selected_doctor_ids = {doctor_id for doctor_id in self.selected_doctor_ids if doctor_id in valid_ids}
+        self._render_stats()
+        self._render_table()
+        self._position_header_checkbox()
+
+    @staticmethod
+    def _email_valid(email):
+        text = _as_text(email).strip()
+        return not text or ("@" in text and not text.startswith("@") and not text.endswith("@"))
+
+    @staticmethod
+    def _phone_valid(phone):
+        digits = "".join(ch for ch in _as_text(phone) if ch.isdigit())
+        return 9 <= len(digits) <= 11
 
     def _doctor_fields(self):
         return [
@@ -1806,47 +2135,324 @@ class DoctorManagementPage(AdminListPage):
             {"key": "specialty", "label": "Chuyên khoa"},
             {"key": "phone", "label": "SĐT"},
             {"key": "email", "label": "Email"},
-            {"key": "is_active", "label": "Trạng thái", "type": "combo", "options": [("Hoạt động", 1), ("Nghỉ việc", 0)]},
+            {
+                "key": "is_active",
+                "label": "Trạng thái",
+                "type": "combo",
+                "options": [("Hoạt động", 1), ("Nghỉ việc", 0)],
+            },
+            {
+                "key": "work_status",
+                "label": "Tình trạng",
+                "type": "combo",
+                "options": self.WORK_STATUS_OPTIONS,
+            },
         ]
 
+    def _validate_doctor_payload(self, data, current_id=None):
+        if not _as_text(data.get("name")).strip():
+            return "Họ và tên không được để trống."
+        if not _as_text(data.get("specialty")).strip():
+            return "Vui lòng chọn hoặc nhập chuyên khoa."
+        if not self._phone_valid(data.get("phone")):
+            return "Số điện thoại phải có từ 9 đến 11 chữ số."
+        if not self._email_valid(data.get("email")):
+            return "Email không đúng định dạng."
+
+        if _as_text(data.get("email")).strip():
+            rows = _safe_fetch_all("SELECT doctor_id FROM Doctors WHERE email=?", (data.get("email"),))
+            for row in rows:
+                if current_id is None or str(row.get("doctor_id")) != str(current_id):
+                    return "Email đã tồn tại."
+        rows = _safe_fetch_all("SELECT doctor_id FROM Doctors WHERE phone=?", (data.get("phone"),))
+        for row in rows:
+            if current_id is None or str(row.get("doctor_id")) != str(current_id):
+                return "Số điện thoại đã tồn tại."
+        return ""
+
     def add_doctor(self):
-        dialog = FormDialog("Thêm bác sĩ", self._doctor_fields(), {"is_active": 1}, self)
+        dialog = FormDialog("Thêm bác sĩ", self._doctor_fields(), {"is_active": 1, "work_status": "Đang làm việc"}, self)
         if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
             return
         data = dialog.values()
+        if int(data.get("is_active") or 0) == 0:
+            data["work_status"] = "Đã nghỉ việc"
+        error = self._validate_doctor_payload(data)
+        if error:
+            self._show_info("Thiếu dữ liệu", error)
+            return
         ok = _safe_execute(
-            "INSERT INTO Doctors (name, specialty, phone, email, is_active) VALUES (?, ?, ?, ?, ?)",
-            (data["name"], data["specialty"], data["phone"], data["email"], data["is_active"]),
+            """
+            INSERT INTO Doctors (name, specialty, phone, email, is_active, work_status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (data["name"], data["specialty"], data["phone"], data["email"], data["is_active"], data["work_status"]),
         )
-        self._show_info("Bác sĩ", "Đã thêm bác sĩ." if ok else "Không thể thêm bác sĩ.")
+        if not ok:
+            ok = _safe_execute(
+                "INSERT INTO Doctors (name, specialty, phone, email, is_active) VALUES (?, ?, ?, ?, ?)",
+                (data["name"], data["specialty"], data["phone"], data["email"], data["is_active"]),
+            )
+        self._show_info("Bác sĩ", "Thêm bác sĩ thành công." if ok else "Không thể thêm bác sĩ.")
         self.refresh()
 
     def edit_doctor(self, item):
         data = dict(item)
         data["is_active"] = 1 if _is_active(item) else 0
+        data["work_status"] = self._normalize_work_status(item)
         dialog = FormDialog("Sửa bác sĩ", self._doctor_fields(), data, self)
         if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
             return
         values = dialog.values()
+        if int(values.get("is_active") or 0) == 0:
+            values["work_status"] = "Đã nghỉ việc"
+        error = self._validate_doctor_payload(values, item.get("doctor_id"))
+        if error:
+            self._show_info("Thiếu dữ liệu", error)
+            return
         ok = _safe_execute(
-            "UPDATE Doctors SET name=?, specialty=?, phone=?, email=?, is_active=? WHERE doctor_id=?",
-            (values["name"], values["specialty"], values["phone"], values["email"], values["is_active"], item.get("doctor_id")),
+            """
+            UPDATE Doctors
+            SET name=?, specialty=?, phone=?, email=?, is_active=?, work_status=?, updated_at=CURRENT_TIMESTAMP
+            WHERE doctor_id=?
+            """,
+            (
+                values["name"],
+                values["specialty"],
+                values["phone"],
+                values["email"],
+                values["is_active"],
+                values["work_status"],
+                item.get("doctor_id"),
+            ),
         )
+        if not ok:
+            ok = _safe_execute(
+                "UPDATE Doctors SET name=?, specialty=?, phone=?, email=?, is_active=? WHERE doctor_id=?",
+                (
+                    values["name"],
+                    values["specialty"],
+                    values["phone"],
+                    values["email"],
+                    values["is_active"],
+                    item.get("doctor_id"),
+                ),
+            )
         self._show_info("Bác sĩ", "Đã cập nhật bác sĩ." if ok else "Không thể cập nhật bác sĩ.")
         self.refresh()
 
     def view_detail(self, item):
-        self._show_info("Chi tiết bác sĩ", f"{item.get('name')}\nChuyên khoa: {item.get('specialty')}\nSĐT: {item.get('phone')}\nEmail: {item.get('email') or 'Chưa có'}")
+        self._show_info(
+            "Chi tiết bác sĩ",
+            f"Mã bác sĩ: {item.get('doctor_id')}\n"
+            f"Họ và tên: {item.get('name')}\n"
+            f"Chuyên khoa: {item.get('specialty') or 'Chưa cập nhật'}\n"
+            f"SĐT: {item.get('phone') or 'Chưa cập nhật'}\n"
+            f"Email: {item.get('email') or 'Chưa cập nhật'}\n"
+            f"Trạng thái: {self._status_label(item)}\n"
+            f"Tình trạng: {self._normalize_work_status(item)}\n"
+            f"Ngày tạo: {_format_date(item.get('created_at'))}\n"
+            f"Cập nhật gần nhất: {_format_datetime(item.get('updated_at'))}",
+        )
 
-    def soft_delete(self, item, table, key):
+    def soft_delete(self, item):
         if not self._confirm("Xóa bác sĩ", "Bác sĩ sẽ được chuyển sang trạng thái nghỉ việc. Tiếp tục?"):
             return
-        ok = _safe_execute(f"UPDATE {table} SET is_active=0 WHERE {key}=?", (item.get(key),))
-        self._show_info("Bác sĩ", "Đã ngừng hoạt động bác sĩ." if ok else "Không thể cập nhật trạng thái.")
+        related = _safe_fetch_all(
+            "SELECT COUNT(*) AS total FROM Appointments WHERE doctor_id=?",
+            (item.get("doctor_id"),),
+        )
+        related_count = _as_int((related[0] if related else {}).get("total"))
+        ok = _safe_execute(
+            "UPDATE Doctors SET is_active=0, work_status='Đã nghỉ việc', updated_at=CURRENT_TIMESTAMP WHERE doctor_id=?",
+            (item.get("doctor_id"),),
+        )
+        if ok and related_count > 0:
+            self._show_info(
+                "Bác sĩ",
+                "Bác sĩ đã có dữ liệu lịch khám nên hệ thống áp dụng ngừng hoạt động (soft delete) thay vì xóa cứng.",
+            )
+        else:
+            self._show_info("Bác sĩ", "Đã ngừng hoạt động bác sĩ." if ok else "Không thể cập nhật trạng thái.")
         self.refresh()
 
+    def _selected_rows(self):
+        return [row for row in self.rows if row.get("doctor_id") in self.selected_doctor_ids]
+
+    def _apply_bulk_status(self, mode):
+        selected = self._selected_rows()
+        if not selected:
+            self._show_info("Thao tác hàng loạt", "Vui lòng chọn ít nhất 1 bác sĩ.")
+            return
+        if not self._confirm("Thao tác hàng loạt", "Xác nhận cập nhật trạng thái cho các bác sĩ đã chọn?"):
+            return
+        success_count = 0
+        for row in selected:
+            doctor_id = row.get("doctor_id")
+            if mode == "active":
+                ok = _safe_execute(
+                    "UPDATE Doctors SET is_active=1, work_status='Đang làm việc', updated_at=CURRENT_TIMESTAMP WHERE doctor_id=?",
+                    (doctor_id,),
+                )
+            elif mode == "paused":
+                ok = _safe_execute(
+                    "UPDATE Doctors SET is_active=1, work_status='Tạm nghỉ', updated_at=CURRENT_TIMESTAMP WHERE doctor_id=?",
+                    (doctor_id,),
+                )
+            else:
+                ok = _safe_execute(
+                    "UPDATE Doctors SET is_active=0, work_status='Đã nghỉ việc', updated_at=CURRENT_TIMESTAMP WHERE doctor_id=?",
+                    (doctor_id,),
+                )
+            if ok:
+                success_count += 1
+        if success_count == len(selected):
+            self._show_info("Thao tác hàng loạt", "Đã cập nhật trạng thái các bác sĩ đã chọn.")
+        elif success_count == 0:
+            self._show_info("Thao tác hàng loạt", "Không thể cập nhật trạng thái bác sĩ nào.")
+        else:
+            self._show_info(
+                "Thao tác hàng loạt",
+                f"Đã cập nhật {success_count}/{len(selected)} bác sĩ. Vui lòng kiểm tra lại các bản ghi còn lại.",
+            )
+        self.refresh()
+
+    def export_excel(self):
+        options = [
+            "Xuất theo bộ lọc hiện tại",
+            "Xuất toàn bộ danh sách",
+            "Xuất các dòng đã chọn",
+        ]
+        choice, ok = QtWidgets.QInputDialog.getItem(self, "Xuất Excel", "Chọn phạm vi xuất:", options, editable=False)
+        if not ok:
+            return
+        if choice == options[0]:
+            rows = self.filtered_rows
+        elif choice == options[1]:
+            rows = self.rows
+        else:
+            rows = self._selected_rows()
+        if not rows:
+            self._show_info("Xuất Excel", "Không có dữ liệu để xuất theo lựa chọn hiện tại.")
+            return
+        self._export_rows_to_excel(rows)
+
+    def _export_selected_excel(self):
+        rows = self._selected_rows()
+        if not rows:
+            self._show_info("Xuất Excel", "Vui lòng chọn bác sĩ để xuất.")
+            return
+        self._export_rows_to_excel(rows)
+
+    def _export_rows_to_excel(self, rows):
+        default_name = f"danh_sach_bac_si_{datetime.now().strftime('%Y_%m_%d')}.xlsx"
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Xuất Excel", default_name, "Excel Files (*.xlsx)")
+        if not path:
+            return
+        if not path.lower().endswith(".xlsx"):
+            path += ".xlsx"
+
+        import zipfile
+        import xml.sax.saxutils as saxutils
+
+        headers = ["STT", "Họ và tên", "Chuyên khoa", "SĐT", "Email", "Trạng thái", "Tình trạng", "Ngày tạo", "Ngày cập nhật"]
+        table_rows = []
+        for idx, row in enumerate(rows, 1):
+            table_rows.append([
+                str(idx),
+                _as_text(row.get("name")),
+                _as_text(row.get("specialty")),
+                _as_text(row.get("phone")),
+                _as_text(row.get("email")),
+                self._status_label(row),
+                self._normalize_work_status(row),
+                _format_date(row.get("created_at")),
+                _format_datetime(row.get("updated_at")),
+            ])
+
+        def make_row_xml(index, values):
+            cells = []
+            for col_idx, value in enumerate(values):
+                col = chr(ord("A") + col_idx)
+                escaped = saxutils.escape(_as_text(value))
+                cells.append(f'<c r="{col}{index}" t="inlineStr"><is><t>{escaped}</t></is></c>')
+            return f"<row r=\"{index}\">{''.join(cells)}</row>"
+
+        rows_xml = [make_row_xml(1, headers)]
+        for i, values in enumerate(table_rows, 2):
+            rows_xml.append(make_row_xml(i, values))
+        sheet_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            '<sheetData>' + "".join(rows_xml) + "</sheetData>"
+            "</worksheet>"
+        )
+
+        workbook_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            '<sheets><sheet name="Doctors" sheetId="1" r:id="rId1"/></sheets>'
+            "</workbook>"
+        )
+
+        content_types_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            "</Types>"
+        )
+
+        root_rels_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            "</Relationships>"
+        )
+
+        workbook_rels_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(tmp_fd)
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+            try:
+                with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("[Content_Types].xml", content_types_xml)
+                    zf.writestr("_rels/.rels", root_rels_xml)
+                    zf.writestr("xl/workbook.xml", workbook_xml)
+                    zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
+                    zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+                shutil.copy2(tmp_path, path)
+                self._show_info("Xuất Excel", "Đã xuất Excel theo lựa chọn hiện tại.")
+            except Exception as exc:
+                self._show_info("Xuất Excel", f"Không thể xuất Excel: {exc}")
+        finally:
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
     def export_row(self, row):
-        return [row.get("doctor_id"), row.get("name"), row.get("specialty"), row.get("phone"), row.get("email"), _is_active(row)]
+        return [
+            row.get("doctor_id"),
+            row.get("name"),
+            row.get("specialty"),
+            row.get("phone"),
+            row.get("email"),
+            self._status_label(row),
+            self._normalize_work_status(row),
+            _format_date(row.get("created_at")),
+            _format_datetime(row.get("updated_at")),
+        ]
 
 
 class PatientManagementPage(AdminListPage):
@@ -2537,8 +3143,7 @@ class ReportStatsPage(AdminBasePage):
         for label in ["Tất cả", "Khám tổng quát", "Tim mạch", "Xét nghiệm", "Siêu âm", "X-quang"]:
             self.group_combo.addItem(label, label)
         self.doctor_combo = QtWidgets.QComboBox()
-        for label in ["Tất cả", "BS. Nguyễn Văn A", "BS. Trần Thị B", "BS. Lê Minh C"]:
-            self.doctor_combo.addItem(label, label)
+        self.doctor_combo.addItem("Tất cả", "Tất cả")
         for combo, width in [
             (self.range_combo, 200),
             (self.report_type_combo, 142),
@@ -2630,6 +3235,7 @@ class ReportStatsPage(AdminBasePage):
         return [row for row in rows if (_parse_date(row.get("payment_date")) or date.min) >= start]
 
     def refresh(self):
+        self._sync_doctor_filter()
         payments = self._filtered_payments()
         patients = _safe_fetch_all("SELECT * FROM Patients")
         services = _safe_fetch_all("SELECT * FROM Services")
@@ -2760,10 +3366,10 @@ class RolePermissionPage(AdminBasePage):
         "Quản lý phân quyền": ["Thêm vai trò", "Sửa vai trò", "Gán quyền", "Thu hồi quyền"],
     }
     ROLE_INFO = {
-        "admin": ("⚙", "Quản trị viên (Admin)", "Toàn quyền hệ thống", "2 người dùng", "success"),
-        "doctor": ("👨‍⚕️", "Bác sĩ (Doctor)", "Quản lý chuyên môn", "6 người dùng", "info"),
-        "receptionist": ("👥", "Lễ tân (Receptionist)", "Quản lý tiếp đón và lịch hẹn", "8 người dùng", "warning"),
-        "accountant": ("💳", "Kế toán (Accountant)", "Quản lý tài chính", "2 người dùng", "neutral"),
+        "admin": ("⚙", "Quản trị viên", "Toàn quyền hệ thống", "success"),
+        "doctor": ("👨‍⚕️", "Bác sĩ", "Quản lý chuyên môn", "info"),
+        "staff": ("👥", "Nhân viên", "Vận hành và hỗ trợ", "warning"),
+        "patient": ("🧑", "Khách hàng", "Sử dụng dịch vụ khám", "neutral"),
     }
 
     def __init__(self, user_data=None, parent=None):
@@ -2773,12 +3379,16 @@ class RolePermissionPage(AdminBasePage):
         self.refresh()
 
     def _build(self):
+        user_count = len(_safe_fetch_all("SELECT user_id FROM Users"))
+        role_count = len(self.ROLE_INFO)
+        permission_count = sum(len(values) for values in self.PERMISSIONS.values())
+        permission_groups = len(self.PERMISSIONS)
         stats = QtWidgets.QHBoxLayout()
         stats.setSpacing(12)
-        stats.addWidget(self._stat_card("🛡", "Tổng vai trò", 4, "vai trò trong hệ thống", "#00a651"))
-        stats.addWidget(self._stat_card("👥", "Tổng người dùng", 18, "người dùng đã phân quyền", "#2563eb"))
-        stats.addWidget(self._stat_card("🔑", "Tổng quyền", 68, "quyền trong hệ thống", "#f97316"))
-        stats.addWidget(self._stat_card("◔", "Nhóm quyền", 10, "nhóm quyền chức năng", "#8b5cf6"))
+        stats.addWidget(self._stat_card("🛡", "Tổng vai trò", role_count, "vai trò trong hệ thống", "#00a651"))
+        stats.addWidget(self._stat_card("👥", "Tổng người dùng", user_count, "người dùng đã phân quyền", "#2563eb"))
+        stats.addWidget(self._stat_card("🔑", "Tổng quyền", permission_count, "quyền trong hệ thống", "#f97316"))
+        stats.addWidget(self._stat_card("◔", "Nhóm quyền", permission_groups, "nhóm quyền chức năng", "#8b5cf6"))
         self.content_layout.addLayout(stats)
 
         actions = QtWidgets.QHBoxLayout()
@@ -2791,7 +3401,7 @@ class RolePermissionPage(AdminBasePage):
         add_role.clicked.connect(lambda: self._show_info("Thêm vai trò", "Mở form tạo vai trò mới khi có schema phân quyền động."))
         actions.addWidget(add_role)
         cfg = self._button("Cấu hình quyền", primary=True)
-        cfg.clicked.connect(lambda: self._show_info("Cấu hình quyền", "V1 dùng quyền cố định theo Users.role để tương thích schema hiện có."))
+        cfg.clicked.connect(lambda: self._show_info("Cấu hình quyền", "Hệ thống đang dùng phân quyền theo role trong bảng Users."))
         actions.addWidget(cfg)
         self.content_layout.addLayout(actions)
 
@@ -2838,8 +3448,10 @@ class RolePermissionPage(AdminBasePage):
         self.content_layout.addLayout(main)
 
     def refresh(self):
+        role_counts = {row.get("role"): _as_int(row.get("count")) for row in _safe_fetch_all("SELECT role, COUNT(*) AS count FROM Users GROUP BY role")}
         self.role_list.clear()
-        for role, (icon, name, description, users, _kind) in self.ROLE_INFO.items():
+        for role, (icon, name, description, _kind) in self.ROLE_INFO.items():
+            users = f"{role_counts.get(role, 0)} người dùng"
             item = QtWidgets.QListWidgetItem(f"{icon}  {name}\n   {description}                                      {users}")
             item.setSizeHint(QtCore.QSize(0, 62))
             item.setData(QtCore.Qt.ItemDataRole.UserRole, role)
@@ -2854,7 +3466,9 @@ class RolePermissionPage(AdminBasePage):
 
     def _fill_permissions(self):
         role = self.selected_role
-        _icon, role_name, description, users, _kind = self.ROLE_INFO.get(role, ("", "Admin", "Toàn quyền hệ thống", "", "success"))
+        role_counts = {row.get("role"): _as_int(row.get("count")) for row in _safe_fetch_all("SELECT role, COUNT(*) AS count FROM Users GROUP BY role")}
+        _icon, role_name, description, _kind = self.ROLE_INFO.get(role, ("", "Quản trị viên", "Toàn quyền hệ thống", "success"))
+        users = f"{role_counts.get(role, 0)} người dùng"
         self.permission_title.setText(f"Danh sách quyền của vai trò: {role_name}")
         self.permission_subtitle.setText(f"{description}                         {users}")
         rows = list(self.PERMISSIONS.items())
@@ -2920,7 +3534,7 @@ class BackupManagementPage(AdminBasePage):
         backup_btn = self._button("Sao lưu ngay", primary=True)
         backup_btn.clicked.connect(self.backup_now)
         advanced_btn = self._button("Tùy chọn nâng cao")
-        advanced_btn.clicked.connect(lambda: self._show_info("Tùy chọn nâng cao", "V1 hỗ trợ chọn Cloud/Local, nén/mã hóa sẽ bổ sung khi có backend lưu trữ thật."))
+        advanced_btn.clicked.connect(lambda: self._show_info("Tùy chọn nâng cao", "Hiện hỗ trợ chọn Cloud/Local; các tùy chọn mở rộng phụ thuộc hạ tầng lưu trữ."))
         action_row.addWidget(self.mode_combo)
         action_row.addWidget(backup_btn)
         action_row.addWidget(advanced_btn)
@@ -3000,7 +3614,7 @@ class BackupManagementPage(AdminBasePage):
             self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(item["mtime"].strftime("%d/%m/%Y %H:%M")))
             self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(_as_text(item["mode"]).title()))
             self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(item.get("size_text") or self._backup_size_text(item["size"])))
-            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(item.get("creator") or "Admin"))
+            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(item.get("creator") or "Hệ thống"))
             self.table.setCellWidget(row, 4, self._badge("Thành công", "success"))
             download = self._icon_button("Tải", "info")
             delete = self._icon_button("Xóa", "danger")
@@ -3016,7 +3630,7 @@ class BackupManagementPage(AdminBasePage):
                 "Đường dẫn: /backup/careplus/",
                 f"Tổng số bản sao lưu: {len(files)} bản",
                 f"Bản sao lưu gần nhất: {files[0]['mtime'].strftime('%d/%m/%Y %H:%M') if files else 'Chưa có'}",
-                "Bản sao lưu tiếp theo: 25/05/2026 02:00",
+                f"Bản sao lưu tiếp theo: {(datetime.now() + timedelta(days=1)).strftime('%d/%m/%Y')} 02:00",
                 "Phương thức: Tự động hằng ngày",
                 "Giữ lại bản sao lưu: 30 ngày",
             ]),
@@ -3078,6 +3692,21 @@ class BackupManagementPage(AdminBasePage):
             return
         item["path"].unlink(missing_ok=True)
         self.refresh()
+
+
+    def _sync_doctor_filter(self):
+        current = self.doctor_combo.currentData() if hasattr(self, "doctor_combo") else "Tất cả"
+        doctors = _safe_fetch_all("SELECT name FROM Doctors WHERE is_active=1 ORDER BY name ASC")
+        self.doctor_combo.blockSignals(True)
+        self.doctor_combo.clear()
+        self.doctor_combo.addItem("Tất cả", "Tất cả")
+        for row in doctors:
+            name = _as_text(row.get("name")).strip()
+            if name:
+                self.doctor_combo.addItem(f"BS. {name}", name)
+        idx = self.doctor_combo.findData(current)
+        self.doctor_combo.setCurrentIndex(max(idx, 0))
+        self.doctor_combo.blockSignals(False)
 
 
 class AppointmentManagementView(AdminListPage):
@@ -3160,7 +3789,7 @@ class CarePlusAdminDashboard(QtWidgets.QWidget):
 
     def __init__(self, user_data=None, parent=None):
         super().__init__(parent)
-        self.user_data = user_data or {"name": "Admin", "role": "admin"}
+        self.user_data = user_data or {"role": "admin"}
         self.nav_buttons = []
         self._build_shell()
         self.switch_page(0)
@@ -3251,7 +3880,7 @@ class CarePlusAdminDashboard(QtWidgets.QWidget):
         bell_badge.setGeometry(27, 2, 16, 16)
         bell_badge.setStyleSheet("background: #ef4444; color: white; border-radius: 8px; font-size: 10px; font-weight: 900;")
         header.addWidget(bell)
-        user_name = self.user_data.get("name") or self.user_data.get("username") or "Admin"
+        user_name = self.user_data.get("name") or self.user_data.get("username") or "Quản trị viên"
         user = QtWidgets.QFrame()
         user.setObjectName("adminUserPill")
         user.setStyleSheet("""

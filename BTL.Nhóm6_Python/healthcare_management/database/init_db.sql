@@ -538,37 +538,106 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- ========================================
--- 11. INSERT DỮ LIỆU MẪU
+-- 11. INSERT DỮ LIỆU KHỞI TẠO VẬN HÀNH
 -- ========================================
-INSERT IGNORE INTO Users (username, password, role) VALUES 
-('admin','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','admin'),
-('doctor1','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','doctor'),
-('staff1','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','patient');
+-- Mật khẩu mặc định cho seed users là 123456 (đã SHA256).
+INSERT IGNORE INTO Users (username, password, role, is_active) VALUES
+('admin','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','admin',1),
+('doctor1','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','doctor',1),
+('staff1','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','patient',1),
+('nam.nguyen','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','admin',1),
+('mai.tran','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','doctor',1),
+('cuong.le','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','doctor',1),
+('lan.pham','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','staff',1),
+('tuan.hoang','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','staff',1),
+('huong.vu','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','staff',0),
+('quan.do','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','staff',1),
+('hoa.nguyen','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','staff',0),
+('dung.bui','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','staff',1),
+('kien.truong','8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92','patient',1);
 
-INSERT INTO Patients (name, dob, gender, phone, address, user_id)
-SELECT 'Nguyễn Văn A','2000-01-01','Nam','0123456789','Hà Nội',
-       (SELECT user_id FROM Users WHERE username='staff1' LIMIT 1)
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Lễ tân hệ thống','2000-01-01','Nữ','0123456789','000000000001','staff1@careplus.vn','TP.HCM',
+       (SELECT user_id FROM Users WHERE username='staff1' LIMIT 1), 1
 WHERE NOT EXISTS (
     SELECT 1 FROM Patients WHERE phone='0123456789'
 );
 
-INSERT INTO Patients (name, dob, gender, phone, address, user_id)
-SELECT 'Trần Thị B','1995-05-10','Nữ','0987654321','HCM', NULL
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Nguyễn Văn Nam','1990-05-24','Nam','0987654321','000000000002','nam.nguyen@gmail.com','Quận 1, TP.HCM',
+       (SELECT user_id FROM Users WHERE username='nam.nguyen' LIMIT 1), 1
 WHERE NOT EXISTS (
     SELECT 1 FROM Patients WHERE phone='0987654321'
 );
 
-INSERT INTO Doctors (name, specialty, phone, email, user_id)
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Phạm Thị Lan','1992-08-14','Nữ','0909876543','000000000003','lan.pham@gmail.com','Quận 3, TP.HCM',
+       (SELECT user_id FROM Users WHERE username='lan.pham' LIMIT 1), 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0909876543'
+);
+
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Hoàng Anh Tuấn','1989-11-20','Nam','0988765432','000000000004','tuan.hoang@gmail.com','Quận 7, TP.HCM',
+       (SELECT user_id FROM Users WHERE username='tuan.hoang' LIMIT 1), 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0988765432'
+);
+
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Vũ Thị Hương','1993-03-16','Nữ','0977654321','000000000005','huong.vu@gmail.com','Quận 10, TP.HCM',
+       (SELECT user_id FROM Users WHERE username='huong.vu' LIMIT 1), 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0977654321'
+);
+
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Đỗ Minh Quân','1996-09-28','Nam','0966543210','000000000006','quan.do@gmail.com','Quận Bình Thạnh, TP.HCM',
+       (SELECT user_id FROM Users WHERE username='quan.do' LIMIT 1), 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0966543210'
+);
+
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Nguyễn Thị Hoa','1988-12-02','Nữ','0908111222','000000000007','hoa.nguyen@gmail.com','Quận Phú Nhuận, TP.HCM',
+       (SELECT user_id FROM Users WHERE username='hoa.nguyen' LIMIT 1), 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0908111222'
+);
+
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Bùi Văn Dũng','1991-06-07','Nam','0982333444','000000000008','dung.bui@gmail.com','Quận Tân Bình, TP.HCM',
+       (SELECT user_id FROM Users WHERE username='dung.bui' LIMIT 1), 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0982333444'
+);
+
+INSERT INTO Patients (name, dob, gender, phone, cccd, email, address, user_id, is_active)
+SELECT 'Trương Văn Kiên','1994-01-11','Nam','0933999000','000000000009','kien.truong@gmail.com','Quận 5, TP.HCM',
+       (SELECT user_id FROM Users WHERE username='kien.truong' LIMIT 1), 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM Patients WHERE phone='0933999000'
+);
+
+INSERT INTO Doctors (name, specialty, phone, email, user_id, is_active)
 SELECT 'Bác sĩ Minh','Nội khoa','0900000001','minh@gmail.com',
-       (SELECT user_id FROM Users WHERE username='doctor1' LIMIT 1)
+       (SELECT user_id FROM Users WHERE username='doctor1' LIMIT 1), 1
 WHERE NOT EXISTS (
     SELECT 1 FROM Doctors WHERE phone='0900000001'
 );
 
-INSERT INTO Doctors (name, specialty, phone, email, user_id)
-SELECT 'Bác sĩ Hùng','Ngoại khoa','0900000002','hung@gmail.com', NULL
+INSERT INTO Doctors (name, specialty, phone, email, user_id, is_active)
+SELECT 'Trần Thị Mai','Tim mạch','0912345678','mai.tran@gmail.com',
+       (SELECT user_id FROM Users WHERE username='mai.tran' LIMIT 1), 1
 WHERE NOT EXISTS (
-    SELECT 1 FROM Doctors WHERE phone='0900000002'
+    SELECT 1 FROM Doctors WHERE phone='0912345678'
+);
+
+INSERT INTO Doctors (name, specialty, phone, email, user_id, is_active)
+SELECT 'Lê Văn Cường','Da liễu','0933456789','cuong.le@gmail.com',
+       (SELECT user_id FROM Users WHERE username='cuong.le' LIMIT 1), 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM Doctors WHERE phone='0933456789'
 );
 
 INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
@@ -627,7 +696,7 @@ SELECT p.patient_id,
        (
            SELECT doctor_id
            FROM Doctors
-           WHERE phone='0900000002'
+           WHERE phone='0912345678'
            ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
            LIMIT 1
        ),
@@ -641,7 +710,7 @@ WHERE p.phone='0987654321'
         AND a.doctor_id = (
             SELECT doctor_id
             FROM Doctors
-            WHERE phone='0900000002'
+            WHERE phone='0912345678'
             ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
             LIMIT 1
         )
@@ -680,7 +749,7 @@ SELECT p.patient_id,
        (
            SELECT doctor_id
            FROM Doctors
-           WHERE phone='0900000002'
+           WHERE phone='0912345678'
            ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
            LIMIT 1
        ),
@@ -694,7 +763,7 @@ WHERE p.phone='0987654321'
         AND mr.doctor_id = (
             SELECT doctor_id
             FROM Doctors
-            WHERE phone='0900000002'
+            WHERE phone='0912345678'
             ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END, doctor_id ASC
             LIMIT 1
         )
@@ -721,7 +790,7 @@ FROM Patients p
 LEFT JOIN Appointments a ON a.patient_id = p.patient_id
 LEFT JOIN Doctors d ON d.doctor_id = a.doctor_id
 WHERE p.phone='0987654321'
-  AND (d.phone='0900000002' OR d.phone IS NULL)
+  AND (d.phone='0912345678' OR d.phone IS NULL)
   AND NOT EXISTS (
       SELECT 1 FROM Payments pay
       WHERE pay.patient_id = p.patient_id AND pay.total_amount=150000 AND pay.status='unpaid'

@@ -1479,7 +1479,7 @@ class HomePage(QtWidgets.QWidget):
         
         row = QtWidgets.QHBoxLayout()
         self.doctor = QtWidgets.QComboBox()
-        self.doctor.addItems(["BS Minh", "BS Lan"])
+        self.refresh_doctor_choices()
         self.doctor.setStyleSheet("padding: 8px; border-radius: 5px; border: 1px solid #ddd;")
         
         self.date = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
@@ -1520,6 +1520,68 @@ class HomePage(QtWidgets.QWidget):
             v.addWidget(QtWidgets.QLabel("Mô tả chức năng chi tiết..."))
             feature_layout.addWidget(box)
         layout.addLayout(feature_layout)
+
+    @staticmethod
+    def _is_active_doctor(doctor):
+        value = doctor.get("is_active", True)
+        if isinstance(value, str):
+            return value.lower() not in {"0", "false", "no", "ngung", "inactive"}
+        return bool(value)
+
+    @staticmethod
+    def _normalize_work_status(doctor):
+        raw = str(doctor.get("work_status") or "").strip().upper()
+        mapping = {
+            "WORKING": "ĐANG LÀM VIỆC",
+            "ON_LEAVE": "NGHỈ PHÉP",
+            "LEFT": "ĐÃ NGHỈ VIỆC",
+            "ACTIVE": "ĐANG LÀM VIỆC",
+            "TEMPORARILY_INACTIVE": "TẠM NGHỈ",
+            "RESIGNED": "ĐÃ NGHỈ VIỆC",
+            "ĐANG LÀM VIỆC": "ĐANG LÀM VIỆC",
+            "NGHỈ PHÉP": "NGHỈ PHÉP",
+            "TẠM NGHỈ": "TẠM NGHỈ",
+            "ĐÃ NGHỈ VIỆC": "ĐÃ NGHỈ VIỆC",
+        }
+        return mapping.get(raw, raw)
+
+    def refresh_doctor_choices(self):
+        selected_doctor_id = self.doctor.currentData() if hasattr(self, "doctor") else None
+        self.doctor.clear()
+
+        doctor_rows = DoctorController.get_all() or []
+        available = []
+        for doctor in doctor_rows:
+            if not doctor.get("name"):
+                continue
+            if not self._is_active_doctor(doctor):
+                continue
+            work_status = self._normalize_work_status(doctor)
+            if work_status in {"NGHỈ PHÉP", "TẠM NGHỈ", "ĐÃ NGHỈ VIỆC"}:
+                continue
+            available.append(doctor)
+
+        for doctor in available:
+            self.doctor.addItem(f"BS {doctor.get('name')}", doctor.get("doctor_id"))
+
+        if self.doctor.count() == 0:
+            self.doctor.addItem("Chưa có bác sĩ khả dụng", None)
+            self.doctor.setEnabled(False)
+        else:
+            self.doctor.setEnabled(True)
+
+        if selected_doctor_id is not None:
+            idx = self.doctor.findData(selected_doctor_id)
+            if idx >= 0:
+                self.doctor.setCurrentIndex(idx)
+
+    def select_doctor_by_id(self, doctor_id):
+        self.refresh_doctor_choices()
+        idx = self.doctor.findData(doctor_id)
+        if idx >= 0:
+            self.doctor.setCurrentIndex(idx)
+            return True
+        return False
 
 # --- VIEW CHÍNH ĐIỀU HƯỚNG ---
 class PatientView(QtWidgets.QWidget):
@@ -1618,6 +1680,8 @@ class PatientView(QtWidgets.QWidget):
 
     def switch_page(self, index):
         self.content_stack.setCurrentIndex(index)
+        if index == 0 and hasattr(self, "home_page"):
+            self.home_page.refresh_doctor_choices()
         # Đổi màu text để người dùng biết mình đang ở trang nào
         for i, btn in enumerate(self.nav_buttons):
             if i == index:
@@ -1642,6 +1706,8 @@ class PatientView(QtWidgets.QWidget):
         if action_key == "booking":
             self.switch_page(0)
             doctor_name = doctor.get("name", "") if isinstance(doctor, dict) else ""
+            if isinstance(doctor, dict) and doctor.get("doctor_id") is not None:
+                self.home_page.select_doctor_by_id(doctor.get("doctor_id"))
             message = (
                 f"Đã chuyển về Trang chủ để bạn đặt lịch với BS. {doctor_name}."
                 if doctor_name
