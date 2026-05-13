@@ -3825,7 +3825,6 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_patient_current_page = 1
         self.staff_patient_total_pages = 1
         self.staff_patient_pagination_buttons = []
-        self.staff_patient_using_mock_data = False
         self._refresh_staff_patient_table()
         self._reset_staff_patient_detail("Chọn một bệnh nhân trong bảng để xem thông tin chi tiết.")
         return page
@@ -3871,7 +3870,6 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _refresh_staff_patient_table(self):
         patients = []
-        self.staff_patient_using_mock_data = False
         try:
             patients = PatientController.get_all() or []
         except Exception:
@@ -4353,10 +4351,6 @@ class StaffDashboardView(QtWidgets.QWidget):
         if latest_patient:
             self._select_staff_patient_by_id(latest_patient.get("patient_id"))
         self._set_staff_patient_info_hint("Đã thêm bệnh nhân mới vào cơ sở dữ liệu.")
-
-    @staticmethod
-    def _build_staff_patient_mock_data():
-        return []
 
     def _build_appointment_management_page(self):
         page = QtWidgets.QFrame()
