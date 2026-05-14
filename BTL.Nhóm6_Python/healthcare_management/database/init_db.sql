@@ -836,6 +836,69 @@ WHERE p.status = 'unpaid'
   )
 LIMIT 1;
 
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status)
+SELECT p.patient_id, a.appointment_id, 350000, 'Thẻ ngân hàng', 'paid'
+FROM Patients p
+LEFT JOIN Appointments a ON a.patient_id = p.patient_id
+WHERE p.phone='0987654321'
+  AND NOT EXISTS (
+      SELECT 1 FROM Payments pay
+      WHERE pay.patient_id = p.patient_id AND pay.total_amount=350000 AND pay.status='paid'
+  )
+ORDER BY a.appointment_id DESC
+LIMIT 1;
+
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status)
+SELECT p.patient_id, a.appointment_id, 120000, 'Ví điện tử', 'failed'
+FROM Patients p
+LEFT JOIN Appointments a ON a.patient_id = p.patient_id
+WHERE p.phone='0123456789'
+  AND NOT EXISTS (
+      SELECT 1 FROM Payments pay
+      WHERE pay.patient_id = p.patient_id AND pay.total_amount=120000 AND pay.status='failed'
+  )
+ORDER BY a.appointment_id ASC
+LIMIT 1;
+
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status)
+SELECT p.patient_id, a.appointment_id, 500000, 'Chuyển khoản', 'refunded'
+FROM Patients p
+LEFT JOIN Appointments a ON a.patient_id = p.patient_id
+WHERE p.phone='0909876543'
+  AND NOT EXISTS (
+      SELECT 1 FROM Payments pay
+      WHERE pay.patient_id = p.patient_id AND pay.total_amount=500000 AND pay.status='refunded'
+  )
+ORDER BY a.appointment_id ASC
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT p.payment_id,
+       (SELECT s.service_id FROM Services s WHERE s.service_code = 'DV003' ORDER BY s.service_id ASC LIMIT 1),
+       1, p.total_amount
+FROM Payments p
+WHERE p.total_amount = 350000
+  AND NOT EXISTS (SELECT 1 FROM Invoices i WHERE i.payment_id = p.payment_id)
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT p.payment_id,
+       (SELECT s.service_id FROM Services s WHERE s.service_code = 'DV004' ORDER BY s.service_id ASC LIMIT 1),
+       1, p.total_amount
+FROM Payments p
+WHERE p.total_amount = 120000
+  AND NOT EXISTS (SELECT 1 FROM Invoices i WHERE i.payment_id = p.payment_id)
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT p.payment_id,
+       (SELECT s.service_id FROM Services s WHERE s.service_code = 'DV005' ORDER BY s.service_id ASC LIMIT 1),
+       1, p.total_amount
+FROM Payments p
+WHERE p.total_amount = 500000
+  AND NOT EXISTS (SELECT 1 FROM Invoices i WHERE i.payment_id = p.payment_id)
+LIMIT 1;
+
 INSERT INTO Notifications (user_id, title, content, type, target_page)
 SELECT u.user_id, 'Sao lưu dữ liệu thành công', 'Dữ liệu hệ thống đã được sao lưu lúc 02:00 AM', 'backup', 'settings'
 FROM Users u

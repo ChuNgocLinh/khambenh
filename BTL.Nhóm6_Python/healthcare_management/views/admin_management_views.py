@@ -763,7 +763,7 @@ class AdminListPage(AdminBasePage):
     def _add_toolbar_buttons(self, layout):
         export_btn = self._button("Xuất Excel")
         export_btn.setFixedWidth(106)
-        export_btn.clicked.connect(self.export_csv)
+        export_btn.clicked.connect(self.export_excel)
         layout.addWidget(export_btn)
 
     def _reset_and_refresh(self):
@@ -867,21 +867,87 @@ class AdminListPage(AdminBasePage):
         layout.addStretch()
         return widget
 
-    def export_csv(self):
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self,
-            "Xuất CSV",
-            f"{self.page_title.lower().replace(' ', '_')}.csv",
-            "CSV Files (*.csv)",
-        )
+    def export_excel(self):
+        import xml.sax.saxutils as saxutils
+        import tempfile
+        import zipfile
+        import shutil
+
+        default_name = f"{self.page_title.lower().replace(' ', '_')}_{datetime.now().strftime('%Y_%m_%d')}.xlsx"
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Xuất Excel", default_name, "Excel Files (*.xlsx)")
         if not path:
             return
-        with open(path, "w", newline="", encoding="utf-8-sig") as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow(self.headers)
-            for row in self.filtered_rows:
-                writer.writerow(self.export_row(row))
-        self._show_info("Xuất CSV", "Đã xuất dữ liệu theo bộ lọc hiện tại.")
+        if not path.lower().endswith(".xlsx"):
+            path += ".xlsx"
+
+        def make_row_xml(index, values):
+            cells = []
+            for col_idx, val in enumerate(values):
+                col_letter = chr(65 + col_idx) if col_idx < 26 else f"{chr(64 + col_idx // 26)}{chr(65 + col_idx % 26)}"
+                cell_ref = f"{col_letter}{index}"
+                str_val = _as_text(val)
+                escaped = saxutils.escape(str_val)
+                cells.append(f'<c r="{cell_ref}" t="inlineStr"><is><t>{escaped}</t></is></c>')
+            return f'<row r="{index}">' + "".join(cells) + "</row>"
+
+        export_headers = getattr(self, "export_headers", self.headers)
+        rows_xml = [make_row_xml(1, export_headers)]
+        for i, row in enumerate(self.filtered_rows, start=2):
+            rows_xml.append(make_row_xml(i, self.export_row(row)))
+
+        sheet_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            '<sheetData>' + "".join(rows_xml) + "</sheetData>"
+            '</worksheet>'
+        )
+
+        workbook_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            '<sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>'
+            '</workbook>'
+        )
+
+        content_types_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            '</Types>'
+        )
+
+        root_rels_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            '</Relationships>'
+        )
+
+        workbook_rels_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            '</Relationships>'
+        )
+
+        try:
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
+            os.close(tmp_fd)
+            with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("[Content_Types].xml", content_types_xml)
+                zf.writestr("_rels/.rels", root_rels_xml)
+                zf.writestr("xl/workbook.xml", workbook_xml)
+                zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
+                zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+            shutil.copy2(tmp_path, path)
+            os.unlink(tmp_path)
+            self._show_info("Xuất Excel", "Đã xuất dữ liệu ra file Excel thành công.")
+        except Exception as e:
+            self._show_info("Lỗi xuất Excel", f"Không thể tạo file Excel: {e}")
 
     def export_row(self, row):
         return [_as_text(row.get(header.lower(), "")) for header in self.headers]
@@ -2964,11 +3030,52 @@ class PaymentManagementPage(AdminListPage):
     page_title = "Quản lý thanh toán"
     breadcrumb = "Dashboard / Quản lý thanh toán"
     headers = ["☐", "STT", "Mã giao dịch", "Bệnh nhân", "Dịch vụ/Thuốc", "Phương thức", "Số tiền", "Ngày thanh toán", "Trạng thái", "Thao tác"]
+    export_headers = ["Mã giao dịch", "Bệnh nhân", "Dịch vụ/Thuốc", "Số tiền", "Phương thức", "Trạng thái", "Ngày thanh toán"]
     column_widths = [0.35, 0.45, 1.35, 1.45, 1.45, 1.05, 0.95, 1.35, 1.1, 0.9]
     search_placeholder = "Tìm kiếm (Mã giao dịch, tên bệnh nhân, dịch vụ...)"
     search_min_width = 180
     search_max_width = 260
     filter_combo_width = 128
+
+    def _build_list_page(self):
+        super()._build_list_page()
+        self.table_card = self.table.parentWidget().parentWidget()
+        
+        self.empty_card = self._card()
+        empty_layout = QtWidgets.QVBoxLayout(self.empty_card)
+        empty_layout.setContentsMargins(24, 24, 24, 24)
+        empty_layout.setSpacing(10)
+        empty_icon = QtWidgets.QLabel("📭")
+        empty_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        empty_icon.setStyleSheet("font-size: 34px;")
+        self.empty_label = QtWidgets.QLabel("Chưa có thanh toán nào\nKhông tìm thấy giao dịch phù hợp với bộ lọc hiện tại.")
+        self.empty_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet("font-size: 14px; font-weight: 800; color: #475569;")
+        
+        action_row = QtWidgets.QHBoxLayout()
+        action_row.addStretch()
+        add_btn = self._button("+ Thêm thanh toán", primary=True)
+        add_btn.clicked.connect(self.add_payment)
+        action_row.addWidget(add_btn)
+        action_row.addStretch()
+        
+        empty_layout.addWidget(empty_icon)
+        empty_layout.addWidget(self.empty_label)
+        empty_layout.addLayout(action_row)
+        
+        self.content_layout.insertWidget(2, self.empty_card)
+        self.empty_card.hide()
+
+    def _render_table(self):
+        super()._render_table()
+        if not hasattr(self, "empty_card"):
+            return
+        if len(self.filtered_rows) == 0:
+            self.empty_card.show()
+            self.table_card.hide()
+        else:
+            self.empty_card.hide()
+            self.table_card.show()
 
     def _add_filters(self, layout):
         self.from_date_filter = QtWidgets.QDateEdit(QtCore.QDate(2026, 5, 1))
@@ -3050,7 +3157,12 @@ class PaymentManagementPage(AdminListPage):
     def render_row(self, row, data):
         self._set_item(row, 0, "☐")
         self._set_item(row, 1, row + 1)
-        self._set_item(row, 2, data.get("payment_id"))
+        
+        parsed_date = _parse_date(data.get("payment_date"))
+        date_prefix = parsed_date.strftime("%d%m%y") if parsed_date else "000000"
+        tx_code = f"GD{date_prefix}-{_as_int(data.get('payment_id')):04d}"
+        
+        self._set_item(row, 2, tx_code)
         patient_code = data.get("patient_code") or f"BN{_as_int(data.get('patient_id')):03d}"
         self._set_item(row, 3, f"👤 {data.get('patient_name') or 'Bệnh nhân'}\n{patient_code}")
         self._set_item(row, 4, data.get("service_name") or f"Lịch hẹn #{data.get('appointment_id')}")
@@ -3067,17 +3179,28 @@ class PaymentManagementPage(AdminListPage):
         self.table.setCellWidget(row, 9, self._action_cell([view_btn, print_btn, status_btn]))
 
     def add_payment(self):
+        patients = _safe_fetch_all("SELECT patient_id, name FROM Patients ORDER BY name")
+        patient_opts = [(f"{p.get('name')} (ID: {p.get('patient_id')})", p.get("patient_id")) for p in patients] if patients else [("Không có bệnh nhân", 0)]
+        
+        appointments = _safe_fetch_all("SELECT appointment_id, appointment_date FROM Appointments ORDER BY appointment_date DESC LIMIT 100")
+        appt_opts = [(f"Lịch hẹn #{a.get('appointment_id')} ({_format_date(a.get('appointment_date'))})", a.get("appointment_id")) for a in appointments] if appointments else [("Không có lịch hẹn", 0)]
+        
         fields = [
-            {"key": "patient_id", "label": "ID bệnh nhân", "type": "spin", "min": 1, "max": 1000000},
-            {"key": "appointment_id", "label": "ID lịch hẹn", "type": "spin", "min": 1, "max": 1000000},
+            {"key": "patient_id", "label": "Bệnh nhân", "type": "combo", "options": patient_opts},
+            {"key": "appointment_id", "label": "Lịch hẹn/Dịch vụ", "type": "combo", "options": appt_opts},
             {"key": "method", "label": "Phương thức", "type": "combo", "options": [("Tiền mặt", "Tiền mặt"), ("Chuyển khoản", "Chuyển khoản"), ("Thẻ ngân hàng", "Thẻ ngân hàng"), ("Ví điện tử", "Ví điện tử")]},
             {"key": "total_amount", "label": "Số tiền", "type": "money"},
-            {"key": "status", "label": "Trạng thái", "type": "combo", "options": [("Đang chờ", "unpaid"), ("Thành công", "paid")]},
+            {"key": "status", "label": "Trạng thái", "type": "combo", "options": [("Thành công", "paid"), ("Đang chờ", "unpaid"), ("Thất bại", "failed"), ("Hoàn tiền", "refunded"), ("Đã hủy", "cancelled")]},
         ]
         dialog = FormDialog("Thêm thanh toán", fields, {"status": "unpaid", "method": "Tiền mặt"}, self)
         if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
             return
         data = dialog.values()
+        
+        if data["patient_id"] == 0:
+            self._show_info("Lỗi", "Vui lòng chọn bệnh nhân hợp lệ.")
+            return
+            
         ok = _safe_execute(
             "INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status) VALUES (?, ?, ?, ?, ?)",
             (data["patient_id"], data["appointment_id"], data["total_amount"], data["method"], data["status"]),
@@ -3086,32 +3209,53 @@ class PaymentManagementPage(AdminListPage):
         self.refresh()
 
     def view_detail(self, item):
+        parsed_date = _parse_date(item.get("payment_date"))
+        date_prefix = parsed_date.strftime("%d%m%y") if parsed_date else "000000"
+        tx_code = f"GD{date_prefix}-{_as_int(item.get('payment_id')):04d}"
+        
         self._show_info(
             "Chi tiết thanh toán",
-            f"Mã: {item.get('payment_id')}\nBệnh nhân: {item.get('patient_name')}\nDịch vụ/thuốc: {item.get('service_name') or 'Chưa có'}\n"
+            f"Mã giao dịch: {tx_code}\nBệnh nhân: {item.get('patient_name')}\nDịch vụ/thuốc: {item.get('service_name') or 'Chưa có'}\n"
             f"Phương thức: {item.get('method') or 'Tiền mặt'}\nSố tiền: {_format_money(item.get('total_amount'))}\n"
-            f"Trạng thái: {self._payment_status_text(item.get('status'))}",
+            f"Trạng thái: {self._payment_status_text(item.get('status'))}\nNgày thanh toán: {_format_datetime(item.get('payment_date'))}",
         )
 
     def print_invoice(self, item):
-        self._show_info("In hóa đơn", f"Hóa đơn #{item.get('payment_id')}\nBệnh nhân: {item.get('patient_name')}\nTổng tiền: {_format_money(item.get('total_amount'))}")
+        parsed_date = _parse_date(item.get("payment_date"))
+        date_prefix = parsed_date.strftime("%d%m%y") if parsed_date else "000000"
+        tx_code = f"GD{date_prefix}-{_as_int(item.get('payment_id')):04d}"
+        
+        self._show_info("In hóa đơn", f"Mã giao dịch: {tx_code}\nHóa đơn #{item.get('payment_id')}\nBệnh nhân: {item.get('patient_name')}\nDịch vụ/thuốc: {item.get('service_name') or 'Chưa có'}\nTổng tiền: {_format_money(item.get('total_amount'))}")
 
     def toggle_status(self, item):
-        new_status = "unpaid" if item.get("status") == "paid" else "paid"
+        fields = [
+            {"key": "status", "label": "Cập nhật trạng thái", "type": "combo", "options": [("Thành công", "paid"), ("Đang chờ", "unpaid"), ("Thất bại", "failed"), ("Hoàn tiền", "refunded"), ("Đã hủy", "cancelled")]}
+        ]
+        dialog = FormDialog("Cập nhật trạng thái", fields, {"status": item.get("status")}, self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+            
+        new_status = dialog.values()["status"]
+        if new_status == item.get("status"):
+            return
+            
         ok = _safe_execute("UPDATE Payments SET status=? WHERE payment_id=?", (new_status, item.get("payment_id")))
         self._show_info("Thanh toán", "Đã cập nhật trạng thái." if ok else "Không thể cập nhật trạng thái.")
         self.refresh()
 
     def export_row(self, row):
+        parsed_date = _parse_date(row.get("payment_date"))
+        date_prefix = parsed_date.strftime("%d%m%y") if parsed_date else "000000"
+        tx_code = f"GD{date_prefix}-{_as_int(row.get('payment_id')):04d}"
+        
         return [
-            row.get("payment_id"),
-            row.get("patient_code") or row.get("patient_id"),
+            tx_code,
             row.get("patient_name"),
             row.get("service_name") or row.get("appointment_id"),
+            _format_money(row.get("total_amount")),
             row.get("method"),
-            row.get("total_amount"),
-            row.get("payment_date"),
             self._payment_status_text(row.get("status")),
+            _format_datetime(row.get("payment_date")),
         ]
 
 
