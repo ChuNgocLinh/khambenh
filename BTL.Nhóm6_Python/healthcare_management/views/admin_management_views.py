@@ -9,6 +9,7 @@ import tempfile
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from controllers.settings_controller import SettingsController
+from controllers.report_controller import ReportController
 
 
 try:
@@ -3091,6 +3092,10 @@ class ReportStatsPage(AdminBasePage):
 
     def __init__(self, user_data=None, parent=None):
         super().__init__(user_data, parent)
+        self._report_payload = {}
+        self._status_label = None
+        self._last_error = ""
+        self._filter_button = None
         self._build()
         self.refresh()
 
@@ -3103,17 +3108,37 @@ class ReportStatsPage(AdminBasePage):
         row = QtWidgets.QHBoxLayout(filter_card)
         row.setContentsMargins(16, 10, 16, 10)
         row.setSpacing(10)
+
+        options = ReportController.get_filter_options()
+        ranges = options.get("ranges", [])
+        report_types = options.get("report_types", [])
+        groups = options.get("groups", [])
+        doctors = options.get("doctors", [])
+
         self.range_combo = QtWidgets.QComboBox()
-        for label, value in [("01/05/2026 - 24/05/2026", 7), ("30 ngày qua", 30), ("90 ngày qua", 90), ("Tất cả", 0)]:
-            self.range_combo.addItem(label, value)
+        for item in ranges:
+            self.range_combo.addItem(_as_text(item.get("label"), "30 ngày qua"), _as_int(item.get("value"), 30))
+
         self.report_type_combo = QtWidgets.QComboBox()
-        for label in ["Tổng quan", "Doanh thu", "Thanh toán", "Bệnh nhân", "Dịch vụ", "Bác sĩ", "Thuốc"]:
+        for label in report_types:
             self.report_type_combo.addItem(label, label)
+        self.report_type_combo.setEnabled(False)
+        self.report_type_combo.setToolTip("Loại báo cáo nâng cao sẽ được mở ở phiên bản kế tiếp.")
+
         self.group_combo = QtWidgets.QComboBox()
-        for label in ["Tất cả", "Khám tổng quát", "Tim mạch", "Xét nghiệm", "Siêu âm", "X-quang"]:
-            self.group_combo.addItem(label, label)
+        self.group_combo.addItem("Tất cả", "Tất cả")
+        for row_group in groups:
+            group_name = _as_text(row_group.get("category")).strip()
+            if group_name:
+                self.group_combo.addItem(group_name, group_name)
+
         self.doctor_combo = QtWidgets.QComboBox()
         self.doctor_combo.addItem("Tất cả", "Tất cả")
+        for row_doctor in doctors:
+            doctor_name = _as_text(row_doctor.get("name")).strip()
+            if doctor_name:
+                self.doctor_combo.addItem(f"BS. {doctor_name}", doctor_name)
+
         for combo, width in [
             (self.range_combo, 200),
             (self.report_type_combo, 142),
@@ -3130,10 +3155,10 @@ class ReportStatsPage(AdminBasePage):
         row.addWidget(self._filter_field("Nhóm", self.group_combo))
         row.addWidget(self._filter_field("Bác sĩ", self.doctor_combo))
         row.addStretch()
-        filter_btn = self._button("Lọc báo cáo", primary=True)
-        filter_btn.setFixedWidth(112)
-        filter_btn.clicked.connect(self.refresh)
-        row.addWidget(filter_btn)
+        self._filter_button = self._button("Lọc báo cáo", primary=True)
+        self._filter_button.setFixedWidth(112)
+        self._filter_button.clicked.connect(self.refresh)
+        row.addWidget(self._filter_button)
         export_btn = self._button("Xuất Excel")
         export_btn.setFixedWidth(106)
         export_btn.clicked.connect(self.export_csv)
@@ -3183,62 +3208,104 @@ class ReportStatsPage(AdminBasePage):
         table_layout = QtWidgets.QVBoxLayout(table_card)
         table_layout.setContentsMargins(16, 16, 16, 16)
         table_layout.addWidget(self._section_title("Chi tiết giao dịch gần đây"))
+        self._status_label = self._muted("")
+        table_layout.addWidget(self._status_label)
         table_layout.addWidget(self.table)
         self.content_layout.addWidget(table_card)
 
-    def _filtered_payments(self):
-        rows = _safe_fetch_all(
-            """
-            SELECT p.*, pa.name AS patient_name,
-                   COALESCE(s.service_name, CONCAT('Lịch hẹn #', p.appointment_id)) AS service_name
-            FROM Payments p
-            LEFT JOIN Patients pa ON pa.patient_id = p.patient_id
-            LEFT JOIN Invoices i ON i.payment_id = p.payment_id
-            LEFT JOIN Services s ON s.service_id = i.service_id
-            ORDER BY p.payment_date DESC
-            """
-        )
-        days = self.range_combo.currentData()
-        if not days:
-            return rows
-        start = date.today() - timedelta(days=int(days))
-        return [row for row in rows if (_parse_date(row.get("payment_date")) or date.min) >= start]
+    def _set_status_message(self, message):
+        if self._status_label is not None:
+            self._status_label.setText(_as_text(message))
+
+    def _set_filter_loading(self, loading):
+        if self._filter_button is None:
+            return
+        self._filter_button.setEnabled(not loading)
+        self._filter_button.setText("Đang lọc..." if loading else "Lọc báo cáo")
+
+    def _show_loading_state(self):
+        self._set_filter_loading(True)
+        self._set_status_message("Đang tải dữ liệu báo cáo...")
+
+    def _show_error_state(self, message):
+        self._set_filter_loading(False)
+        self._set_status_message(f"Không thể tải báo cáo. {message}")
+        self.revenue_chart.set_data([], [])
+        self.method_chart.set_items([])
+        self._fill_small_cards([], [], [], {
+            "patient_stats": {},
+            "payment_status": {},
+            "top_services": [],
+        })
+        self._fill_table([])
+
+    def _show_empty_state(self):
+        self._set_filter_loading(False)
+        self._set_status_message("Không có dữ liệu trong khoảng thời gian đã chọn")
+
+    def _report_filters(self):
+        return {
+            "range_days": self.range_combo.currentData(),
+            "group_name": self.group_combo.currentData() or "Tất cả",
+            "doctor_name": self.doctor_combo.currentData() or "Tất cả",
+        }
 
     def refresh(self):
-        self._sync_doctor_filter()
-        payments = self._filtered_payments()
-        patients = _safe_fetch_all("SELECT * FROM Patients")
-        services = _safe_fetch_all("SELECT * FROM Services")
-        total = sum(_as_float(row.get("total_amount")) for row in payments if row.get("status") == "paid")
-        paid_total = total
+        self._show_loading_state()
+
+        filters = self._report_filters()
+        try:
+            payload = ReportController.get_report_stats(**filters)
+            self._report_payload = payload
+            self._last_error = ""
+        except Exception as exc:
+            self._last_error = _as_text(exc, "Lỗi không xác định")
+            self._show_error_state(self._last_error)
+            return
+
+        self._set_filter_loading(False)
+
+        summary = self._report_payload.get("summary", {})
+        total_revenue = _as_float(summary.get("total_revenue"))
+        total_paid = _as_float(summary.get("total_paid"))
+        total_patients = _as_int(summary.get("total_patients"))
+        total_services = _as_int(summary.get("total_services"))
+
         while self.stats_row.count():
             item = self.stats_row.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         for card in [
-            self._stat_card("💵", "Tổng doanh thu", _format_money(total), "Dữ liệu theo DB hiện tại", "#2563eb"),
-            self._stat_card("✅", "Tổng thanh toán", _format_money(paid_total), "Dữ liệu theo DB hiện tại", "#00a651"),
-            self._stat_card("👥", "Tổng bệnh nhân", len(patients), "Dữ liệu theo DB hiện tại", "#f97316"),
-            self._stat_card("🧾", "Tổng dịch vụ", len(services), "Dữ liệu theo DB hiện tại", "#8b5cf6"),
+            self._stat_card("💵", "Tổng doanh thu", _format_money(total_revenue), "Dữ liệu động từ DB", "#2563eb"),
+            self._stat_card("✅", "Tổng thanh toán", _format_money(total_paid), "Dữ liệu động từ DB", "#00a651"),
+            self._stat_card("👥", "Tổng bệnh nhân", total_patients, "Dữ liệu động từ DB", "#f97316"),
+            self._stat_card("🧾", "Tổng dịch vụ", total_services, "Dữ liệu động từ DB", "#8b5cf6"),
         ]:
             self.stats_row.addWidget(card)
 
-        daily = {}
-        methods = {}
-        for row in payments:
-            if row.get("status") != "paid":
-                continue
-            day = _format_date(row.get("payment_date"))
-            daily[day] = daily.get(day, 0) + _as_float(row.get("total_amount")) / 1000000
-            method = row.get("method") or "Tiền mặt"
-            methods[method] = methods.get(method, 0) + _as_float(row.get("total_amount"))
-        labels = list(daily.keys())[-10:]
-        self.revenue_chart.set_data(labels, [daily[label] for label in labels])
-        self.method_chart.set_items(list(methods.items()))
-        self._fill_small_cards(payments, patients, services)
-        self._fill_table(payments[:10])
+        daily_rows = self._report_payload.get("daily_revenue", [])
+        daily_labels = [_as_text(row.get("label")) for row in daily_rows]
+        daily_values = [_as_float(row.get("amount_million")) for row in daily_rows]
+        self.revenue_chart.set_data(daily_labels, daily_values)
 
-    def _fill_small_cards(self, payments, patients, services):
+        method_rows = self._report_payload.get("payment_methods", [])
+        method_items = [(_as_text(row.get("method")), _as_float(row.get("amount"))) for row in method_rows]
+        self.method_chart.set_items(method_items)
+
+        self._fill_small_cards(
+            self._report_payload.get("recent_transactions", []),
+            [],
+            [],
+            self._report_payload,
+        )
+        self._fill_table(self._report_payload.get("recent_transactions", []))
+
+        if not self._report_payload.get("recent_transactions"):
+            self._show_empty_state()
+        else:
+            self._set_status_message("Dữ liệu đã được cập nhật theo bộ lọc.")
+
+    def _fill_small_cards(self, payments, patients, services, payload):
         for card in [self.top_services_card, self.patient_stats_card, self.payment_status_card]:
             layout = card.layout()
             if layout:
@@ -3251,43 +3318,36 @@ class ReportStatsPage(AdminBasePage):
                 layout.setContentsMargins(18, 18, 18, 18)
 
         self.top_services_card.layout().addWidget(self._section_title("Top dịch vụ có doanh thu cao"))
-        service_revenue = {}
-        service_count = {}
-        for row in payments:
-            if row.get("status") != "paid":
-                continue
-            service_name = _as_text(row.get("service_name"), "Chưa xác định")
-            service_revenue[service_name] = service_revenue.get(service_name, 0.0) + _as_float(row.get("total_amount"))
-            service_count[service_name] = service_count.get(service_name, 0) + 1
-
-        ranking = sorted(service_revenue.items(), key=lambda item: item[1], reverse=True)[:5]
+        ranking = payload.get("top_services", [])
         if ranking:
-            for index, (name, revenue) in enumerate(ranking, 1):
+            for item in ranking:
                 self.top_services_card.layout().addWidget(
-                    self._muted(f"{index}. {name} - {_format_money(revenue)} - {service_count.get(name, 0)} lượt")
+                    self._muted(
+                        f"{_as_int(item.get('rank'))}. {_as_text(item.get('name'))} - {_format_money(item.get('revenue'))} - {_as_int(item.get('count'))} lượt"
+                    )
                 )
         else:
-            for index, service in enumerate(services[:5], 1):
-                self.top_services_card.layout().addWidget(
-                    self._muted(f"{index}. {service.get('service_name')} - {_format_money(service.get('price'))}")
-                )
+            self.top_services_card.layout().addWidget(self._muted("Chưa có dữ liệu"))
 
         self.patient_stats_card.layout().addWidget(self._section_title("Thống kê bệnh nhân"))
+        patient_stats = payload.get("patient_stats", {})
         patient_lines = [
-            ("Tổng bệnh nhân", str(len(patients))),
-            ("Bệnh nhân mới", str(len(patients))),
-            ("Bệnh nhân tái khám", "0"),
-            ("Nam", str(sum(1 for row in patients if row.get("gender") == "Nam"))),
-            ("Nữ", str(sum(1 for row in patients if row.get("gender") == "Nữ"))),
+            ("Tổng bệnh nhân", str(_as_int(patient_stats.get("total")))),
+            ("Bệnh nhân mới", str(_as_int(patient_stats.get("new")))),
+            ("Bệnh nhân tái khám", str(_as_int(patient_stats.get("returning")))),
+            ("Nam", str(_as_int(patient_stats.get("male")))),
+            ("Nữ", str(_as_int(patient_stats.get("female")))),
         ]
         for label, value in patient_lines:
             self.patient_stats_card.layout().addWidget(self._muted(f"{label}: {value}"))
 
         self.payment_status_card.layout().addWidget(self._section_title("Tình trạng thanh toán"))
+        status_payload = payload.get("payment_status", {})
         status_lines = [
-            (f"Thành công: {sum(1 for row in payments if row.get('status') == 'paid')}", "success"),
-            (f"Đang chờ: {sum(1 for row in payments if row.get('status') == 'unpaid')}", "warning"),
-            (f"Thất bại: {sum(1 for row in payments if row.get('status') == 'failed')}", "danger"),
+            (f"Thành công: {_as_int(status_payload.get('paid'))}", "success"),
+            (f"Đang chờ: {_as_int(status_payload.get('unpaid'))}", "warning"),
+            (f"Thất bại: {_as_int(status_payload.get('failed'))}", "danger"),
+            (f"Khác: {_as_int(status_payload.get('other'))}", "neutral"),
         ]
         for text, kind in status_lines:
             self.payment_status_card.layout().addWidget(self._badge(text, kind))
@@ -3295,8 +3355,11 @@ class ReportStatsPage(AdminBasePage):
     def _fill_table(self, payments):
         self.table.setRowCount(len(payments))
         for row, item in enumerate(payments):
+            parsed_date = _parse_date(item.get("payment_date"))
+            date_prefix = parsed_date.strftime("%d%m%y") if parsed_date else "000000"
+            tx_code = f"GD{date_prefix}-{_as_int(item.get('payment_id')):04d}"
             for column, value in enumerate([
-                item.get("payment_id"),
+                tx_code,
                 item.get("patient_name"),
                 item.get("service_name") or item.get("appointment_id"),
                 _format_money(item.get("total_amount")),
@@ -3311,7 +3374,7 @@ class ReportStatsPage(AdminBasePage):
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Xuất báo cáo", "bao_cao_thong_ke.csv", "CSV Files (*.csv)")
         if not path:
             return
-        payments = self._filtered_payments()
+        payments = self._report_payload.get("recent_transactions", [])
         with open(path, "w", newline="", encoding="utf-8-sig") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(["payment_id", "patient_name", "service_name", "total_amount", "method", "payment_date", "status"])

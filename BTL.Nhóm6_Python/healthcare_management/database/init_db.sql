@@ -945,3 +945,222 @@ WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV008');
 INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
 SELECT 'DV009', 'Vật lý trị liệu', 'Điều trị', 30, 180000, 'Phục hồi chức năng cơ xương khớp', 1, 1
 WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV009');
+
+-- ========================================
+-- 12. DATASET MẪU CHO DASHBOARD BÁO CÁO (DỮ LIỆU ĐỘNG)
+-- ========================================
+INSERT INTO Appointments (patient_id, doctor_id, appointment_date, status, note)
+SELECT
+    p.patient_id,
+    d.doctor_id,
+    DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 25 DAY),
+    'done',
+    'Tái khám định kỳ'
+FROM Patients p
+JOIN Doctors d ON d.phone = '0900000001'
+WHERE p.phone = '0987654321'
+  AND NOT EXISTS (
+    SELECT 1 FROM Appointments a
+    WHERE a.patient_id = p.patient_id
+      AND a.doctor_id = d.doctor_id
+      AND DATE(a.appointment_date) = DATE(DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 25 DAY))
+  )
+LIMIT 1;
+
+INSERT INTO Appointments (patient_id, doctor_id, appointment_date, status, note)
+SELECT
+    p.patient_id,
+    d.doctor_id,
+    DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 18 DAY),
+    'done',
+    'Khám chuyên khoa tim mạch'
+FROM Patients p
+JOIN Doctors d ON d.phone = '0912345678'
+WHERE p.phone = '0909876543'
+  AND NOT EXISTS (
+    SELECT 1 FROM Appointments a
+    WHERE a.patient_id = p.patient_id
+      AND a.doctor_id = d.doctor_id
+      AND DATE(a.appointment_date) = DATE(DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 18 DAY))
+  )
+LIMIT 1;
+
+INSERT INTO Appointments (patient_id, doctor_id, appointment_date, status, note)
+SELECT
+    p.patient_id,
+    d.doctor_id,
+    DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 12 DAY),
+    'done',
+    'Theo dõi sau xét nghiệm'
+FROM Patients p
+JOIN Doctors d ON d.phone = '0933456789'
+WHERE p.phone = '0966543210'
+  AND NOT EXISTS (
+    SELECT 1 FROM Appointments a
+    WHERE a.patient_id = p.patient_id
+      AND a.doctor_id = d.doctor_id
+      AND DATE(a.appointment_date) = DATE(DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 12 DAY))
+  )
+LIMIT 1;
+
+INSERT INTO Appointments (patient_id, doctor_id, appointment_date, status, note)
+SELECT
+    p.patient_id,
+    d.doctor_id,
+    DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 9 DAY),
+    'confirmed',
+    'Đặt lịch kiểm tra tổng quát'
+FROM Patients p
+JOIN Doctors d ON d.phone = '0900000001'
+WHERE p.phone = '0933999000'
+  AND NOT EXISTS (
+    SELECT 1 FROM Appointments a
+    WHERE a.patient_id = p.patient_id
+      AND a.doctor_id = d.doctor_id
+      AND DATE(a.appointment_date) = DATE(DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 9 DAY))
+  )
+LIMIT 1;
+
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status, payment_date)
+SELECT
+    a.patient_id,
+    a.appointment_id,
+    280000,
+    'Tiền mặt',
+    'paid',
+    DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 25 DAY)
+FROM Appointments a
+JOIN Patients p ON p.patient_id = a.patient_id
+WHERE p.phone = '0987654321'
+  AND DATE(a.appointment_date) = DATE(DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 25 DAY))
+  AND NOT EXISTS (
+    SELECT 1 FROM Payments pay
+    WHERE pay.appointment_id = a.appointment_id
+      AND pay.total_amount = 280000
+      AND pay.status = 'paid'
+  )
+LIMIT 1;
+
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status, payment_date)
+SELECT
+    a.patient_id,
+    a.appointment_id,
+    420000,
+    'Chuyển khoản',
+    'paid',
+    DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 18 DAY)
+FROM Appointments a
+JOIN Patients p ON p.patient_id = a.patient_id
+WHERE p.phone = '0909876543'
+  AND DATE(a.appointment_date) = DATE(DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 18 DAY))
+  AND NOT EXISTS (
+    SELECT 1 FROM Payments pay
+    WHERE pay.appointment_id = a.appointment_id
+      AND pay.total_amount = 420000
+      AND pay.status = 'paid'
+  )
+LIMIT 1;
+
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status, payment_date)
+SELECT
+    a.patient_id,
+    a.appointment_id,
+    360000,
+    'Thẻ ngân hàng',
+    'paid',
+    DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 12 DAY)
+FROM Appointments a
+JOIN Patients p ON p.patient_id = a.patient_id
+WHERE p.phone = '0966543210'
+  AND DATE(a.appointment_date) = DATE(DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 12 DAY))
+  AND NOT EXISTS (
+    SELECT 1 FROM Payments pay
+    WHERE pay.appointment_id = a.appointment_id
+      AND pay.total_amount = 360000
+      AND pay.status = 'paid'
+  )
+LIMIT 1;
+
+INSERT INTO Payments (patient_id, appointment_id, total_amount, method, status, payment_date)
+SELECT
+    a.patient_id,
+    a.appointment_id,
+    190000,
+    'Ví điện tử',
+    'unpaid',
+    DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 9 DAY)
+FROM Appointments a
+JOIN Patients p ON p.patient_id = a.patient_id
+WHERE p.phone = '0933999000'
+  AND DATE(a.appointment_date) = DATE(DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 9 DAY))
+  AND NOT EXISTS (
+    SELECT 1 FROM Payments pay
+    WHERE pay.appointment_id = a.appointment_id
+      AND pay.total_amount = 190000
+      AND pay.status = 'unpaid'
+  )
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT
+    pay.payment_id,
+    s.service_id,
+    1,
+    pay.total_amount
+FROM Payments pay
+JOIN Services s ON s.service_code = 'DV001'
+WHERE pay.total_amount = 280000
+  AND pay.status = 'paid'
+  AND NOT EXISTS (
+    SELECT 1 FROM Invoices i
+    WHERE i.payment_id = pay.payment_id
+  )
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT
+    pay.payment_id,
+    s.service_id,
+    1,
+    pay.total_amount
+FROM Payments pay
+JOIN Services s ON s.service_code = 'DV003'
+WHERE pay.total_amount = 420000
+  AND pay.status = 'paid'
+  AND NOT EXISTS (
+    SELECT 1 FROM Invoices i
+    WHERE i.payment_id = pay.payment_id
+  )
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT
+    pay.payment_id,
+    s.service_id,
+    1,
+    pay.total_amount
+FROM Payments pay
+JOIN Services s ON s.service_code = 'DV007'
+WHERE pay.total_amount = 360000
+  AND pay.status = 'paid'
+  AND NOT EXISTS (
+    SELECT 1 FROM Invoices i
+    WHERE i.payment_id = pay.payment_id
+  )
+LIMIT 1;
+
+INSERT INTO Invoices (payment_id, service_id, quantity, unit_price)
+SELECT
+    pay.payment_id,
+    s.service_id,
+    1,
+    pay.total_amount
+FROM Payments pay
+JOIN Services s ON s.service_code = 'DV004'
+WHERE pay.total_amount = 190000
+  AND pay.status = 'unpaid'
+  AND NOT EXISTS (
+    SELECT 1 FROM Invoices i
+    WHERE i.payment_id = pay.payment_id
+  )
+LIMIT 1;
