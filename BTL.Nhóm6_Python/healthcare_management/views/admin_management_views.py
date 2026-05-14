@@ -4225,8 +4225,22 @@ class BackupManagementPage(AdminBasePage):
     def __init__(self, user_data=None, parent=None):
         super().__init__(user_data, parent)
         self.backups_root = Path(__file__).resolve().parents[1] / "backups"
+        self.history_page = 1
+        self.history_limit = 10
+        self.history_total_pages = 1
+        self.history_total = 0
+        self.selected_backup_id = None
+        self._last_summary = {}
+        self._last_items = []
         self._build()
+        self._ensure_seed_data()
         self.refresh()
+
+    def _ensure_seed_data(self):
+        try:
+            SettingsController.ensure_backup_seed_data()
+        except Exception:
+            pass
 
     def _build(self):
         self.stats_row = QtWidgets.QHBoxLayout()
@@ -4240,7 +4254,7 @@ class BackupManagementPage(AdminBasePage):
         now_layout = QtWidgets.QVBoxLayout(now_card)
         now_layout.setContentsMargins(18, 18, 18, 18)
         now_layout.addWidget(self._section_title("Sao lưu dữ liệu ngay"))
-        now_layout.addWidget(self._muted("Tạo bản sao lưu mới cho toàn bộ hệ thống. Quá trình sao lưu có thể mất vài phút tùy theo dung lượng dữ liệu."))
+        now_layout.addWidget(self._muted("Tạo bản sao lưu dữ liệu động từ DB. Quá trình có thể mất vài phút tùy dung lượng thực tế."))
         self.ready_box = self._badge("Hệ thống sẵn sàng để sao lưu", "success")
         now_layout.addWidget(self.ready_box)
         now_layout.addWidget(self._muted("Tất cả dữ liệu sẽ được sao lưu an toàn."))
@@ -4277,6 +4291,33 @@ class BackupManagementPage(AdminBasePage):
         self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.table.setFixedHeight(42 + 7 * 44)
         history_layout.addWidget(self.table)
+
+        pager = QtWidgets.QHBoxLayout()
+        pager.setSpacing(8)
+        pager.addWidget(QtWidgets.QLabel("Hiển thị"))
+        self.history_page_size_combo = QtWidgets.QComboBox()
+        for item in ["10", "20", "50", "100"]:
+            self.history_page_size_combo.addItem(item)
+        self.history_page_size_combo.setCurrentText(str(self.history_limit))
+        self.history_page_size_combo.setFixedWidth(72)
+        self.history_page_size_combo.setStyleSheet(FormDialog._input_style())
+        self.history_page_size_combo.currentTextChanged.connect(self._change_history_page_size)
+        pager.addWidget(self.history_page_size_combo)
+        pager.addWidget(QtWidgets.QLabel("bản ghi"))
+        pager.addStretch()
+        self.history_prev_btn = self._button("‹")
+        self.history_prev_btn.setFixedWidth(38)
+        self.history_prev_btn.clicked.connect(self._prev_history_page)
+        self.history_page_label = QtWidgets.QLabel("Trang 1/1")
+        self.history_page_label.setStyleSheet("font-weight: 900; color: #0f172a;")
+        self.history_next_btn = self._button("›")
+        self.history_next_btn.setFixedWidth(38)
+        self.history_next_btn.clicked.connect(self._next_history_page)
+        pager.addWidget(self.history_prev_btn)
+        pager.addWidget(self.history_page_label)
+        pager.addWidget(self.history_next_btn)
+        history_layout.addLayout(pager)
+
         left.addWidget(history_card)
         main.addLayout(left, 2)
 
@@ -4290,34 +4331,167 @@ class BackupManagementPage(AdminBasePage):
         main.addLayout(right, 1)
         self.content_layout.addLayout(main)
 
-    def _backup_files(self):
-        files = []
-        for mode in ["local", "cloud"]:
-            folder = self.backups_root / mode
-            if not folder.exists():
+    def _status_label(self, status):
+        value = _as_text(status).lower().strip()
+        mapping = {
+            "success": "Thành công",
+            "processing": "Đang xử lý",
+            "failed": "Thất bại",
+            "expired": "Đã hết hạn",
+        }
+        return mapping.get(value, _as_text(status) or "Không xác định")
+
+    def _status_kind_from_value(self, status):
+        value = _as_text(status).lower().strip()
+        if value == "success":
+            return "success"
+        if value == "processing":
+            return "info"
+        if value == "failed":
+            return "danger"
+        if value == "expired":
+            return "neutral"
+        return "neutral"
+
+    def _status_for_system(self):
+        value = _as_text((self._last_summary or {}).get("system_status") or "warning").lower().strip()
+        if value == "safe":
+            return "success"
+        if value == "danger":
+            return "danger"
+        if value == "processing":
+            return "info"
+        return "warning"
+
+    def _frequency_label(self, frequency):
+        mapping = {
+            "daily": "Hàng ngày",
+            "weekly": "Hàng tuần",
+            "monthly": "Hàng tháng",
+        }
+        return mapping.get(_as_text(frequency).lower().strip(), "Hàng ngày")
+
+    def _mode_label(self, mode):
+        value = _as_text(mode).lower().strip()
+        return "Cloud" if value == "cloud" else "Local"
+
+    def _relative_time(self, value):
+        text = _as_text(value).strip()
+        if not text:
+            return "Chưa có"
+        parsed = None
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                parsed = datetime.strptime(text[:19], fmt)
+                break
+            except ValueError:
                 continue
-            for path in folder.glob("*.json"):
-                stat = path.stat()
-                files.append({"path": path, "mode": mode, "size": stat.st_size, "mtime": datetime.fromtimestamp(stat.st_mtime)})
-        return sorted(files, key=lambda item: item["mtime"], reverse=True)
+        if parsed is None:
+            return text
+
+        delta_seconds = int((datetime.now() - parsed).total_seconds())
+        if delta_seconds < 60:
+            return "Vừa xong"
+        if delta_seconds < 3600:
+            return f"{delta_seconds // 60} phút trước"
+        if delta_seconds < 86400:
+            return f"{delta_seconds // 3600} giờ trước"
+        return f"{delta_seconds // 86400} ngày trước"
+
+    def _can_use_backup_permission(self, permission_key):
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            return False
+        rows = _safe_fetch_all(
+            """
+            SELECT rp.allowed
+            FROM rbac_user_role_assignments ura
+            JOIN rbac_role_permissions rp ON rp.role_id = ura.role_id
+            JOIN rbac_permissions p ON p.permission_id = rp.permission_id
+            WHERE ura.user_id=?
+              AND ura.is_active=1
+              AND p.permission_key=?
+            LIMIT 1
+            """,
+            (user_id, permission_key),
+        )
+        if not rows:
+            return _as_text(self.user_data.get("role")).lower().strip() == "admin"
+        return bool(rows[0].get("allowed", True))
 
     def refresh(self):
-        files = self._backup_files()
-        total_size = sum(item["size"] for item in files)
-        last = files[0]["mtime"].strftime("%d/%m/%Y %H:%M") if files else "Chưa có"
+        try:
+            summary = SettingsController.backup_summary() or {}
+            history_payload = SettingsController.backup_history(page=self.history_page, limit=self.history_limit) or {}
+        except Exception as exc:
+            self._show_info("Sao lưu dữ liệu", f"Không thể tải dữ liệu sao lưu động: {exc}")
+            summary = {}
+            history_payload = {}
+
+        self._last_summary = summary
+        self._last_items = history_payload.get("items") or []
+        pagination = history_payload.get("pagination") or {}
+        self.history_total = _as_int(pagination.get("total"))
+        self.history_total_pages = max(1, _as_int(pagination.get("total_pages")) or 1)
+        self.history_page = min(max(1, self.history_page), self.history_total_pages)
+
+        total_size = _as_int(summary.get("total_size_bytes"))
+        last_row = summary.get("last_backup") or {}
+        last = _format_datetime(last_row.get("created_at")) if last_row else "Chưa có"
+        schedule_time = _as_text(summary.get("schedule_time") or "02:00")
+        schedule_text = f"{schedule_time}"
+        system_status = _as_text(summary.get("system_status") or "warning")
+        system_status_text = {
+            "safe": "An toàn",
+            "warning": "Cảnh báo",
+            "danger": "Nguy hiểm",
+        }.get(system_status, "Cảnh báo")
+        system_hint = "Dữ liệu được bảo vệ" if system_status == "safe" else "Cần kiểm tra cấu hình sao lưu"
+
         while self.stats_row.count():
             item = self.stats_row.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         for card in [
             self._stat_card("🗄", "Tổng dung lượng dữ liệu", self._backup_size_text(total_size), "Tính trên toàn bộ dữ liệu sao lưu", "#2563eb"),
-            self._stat_card("☁", "Bản sao lưu gần nhất", last, "Sao lưu dữ liệu hoàn tất", "#00a651"),
-            self._stat_card("🕑", "Lịch sao lưu tự động", "02:00 AM", "Hàng ngày", "#f97316"),
-            self._stat_card("🛡", "Trạng thái hệ thống", "An toàn" if files else "Cảnh báo", "Dữ liệu được bảo vệ", "#8b5cf6"),
+            self._stat_card("☁", "Bản sao lưu gần nhất", last, self._relative_time(last_row.get("created_at")), "#00a651"),
+            self._stat_card("🕑", "Lịch sao lưu tự động", schedule_text, self._frequency_label(summary.get("schedule_frequency")), "#f97316"),
+            self._stat_card("🛡", "Trạng thái hệ thống", system_status_text, system_hint, "#8b5cf6"),
         ]:
             self.stats_row.addWidget(card)
-        self._fill_table(files)
-        self._fill_side_cards(files, total_size)
+        status_text = {
+            "safe": "Hệ thống sao lưu ổn định",
+            "danger": "Hệ thống đang có rủi ro",
+            "warning": "Hệ thống cần kiểm tra",
+            "processing": "Hệ thống đang xử lý sao lưu",
+        }.get(_as_text(summary.get("system_status") or "warning"), "Hệ thống cần kiểm tra")
+        self.ready_box.setText(status_text)
+        self.ready_box.setStyleSheet(self._badge(status_text, self._status_for_system()).styleSheet())
+        self._fill_table(self._last_items)
+        self._fill_side_cards(summary, total_size)
+        self._render_history_pagination()
+
+    def _render_history_pagination(self):
+        start = 0 if self.history_total == 0 else (self.history_page - 1) * self.history_limit + 1
+        end = min(self.history_total, self.history_page * self.history_limit)
+        self.history_page_label.setText(f"{start}-{end}/{self.history_total} • Trang {self.history_page}/{self.history_total_pages}")
+        self.history_prev_btn.setEnabled(self.history_page > 1)
+        self.history_next_btn.setEnabled(self.history_page < self.history_total_pages)
+
+    def _change_history_page_size(self, value):
+        self.history_limit = max(1, int(value or 10))
+        self.history_page = 1
+        self.refresh()
+
+    def _prev_history_page(self):
+        if self.history_page > 1:
+            self.history_page -= 1
+            self.refresh()
+
+    def _next_history_page(self):
+        if self.history_page < self.history_total_pages:
+            self.history_page += 1
+            self.refresh()
 
     def _backup_size_text(self, size):
         if size >= 1024 * 1024 * 1024:
@@ -4326,40 +4500,63 @@ class BackupManagementPage(AdminBasePage):
             return f"{size / (1024 * 1024):.1f} MB"
         return f"{size / 1024:.1f} KB"
 
-    def _fill_table(self, files):
-        self.table.setRowCount(len(files))
-        for row, item in enumerate(files):
-            self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(item["mtime"].strftime("%d/%m/%Y %H:%M")))
-            self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(_as_text(item["mode"]).title()))
-            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(item.get("size_text") or self._backup_size_text(item["size"])))
-            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(item.get("creator") or "Hệ thống"))
-            self.table.setCellWidget(row, 4, self._badge("Thành công", "success"))
+    def _fill_table(self, items):
+        self.table.setRowCount(len(items))
+        for row, item in enumerate(items):
+            created_at_text = _format_datetime(item.get("created_at"))
+            status_value = _as_text(item.get("status") or "success").lower().strip()
+            status_label = self._status_label(status_value)
+            self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(created_at_text))
+            self.table.setItem(row, 1, QtWidgets.QTableWidgetItem("Tự động" if _as_text(item.get("backup_type")) == "automatic" else "Thủ công"))
+            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(self._backup_size_text(_as_int(item.get("size_bytes")))))
+            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(_as_text(item.get("created_by_name")) or "Hệ thống"))
+            self.table.setCellWidget(row, 4, self._badge(status_label, self._status_kind_from_value(status_value)))
             download = self._icon_button("Tải", "info")
             delete = self._icon_button("Xóa", "danger")
+            restore = self._icon_button("Đổi", "success")
             download.clicked.connect(lambda _, file_item=item: self.download_backup(file_item))
             delete.clicked.connect(lambda _, file_item=item: self.delete_backup(file_item))
-            self.table.setCellWidget(row, 5, self._action_cell([download, delete]))
+            restore.clicked.connect(lambda _, file_item=item: self.select_backup_for_restore(file_item))
+
+            can_download = self._can_use_backup_permission("backup.view")
+            can_delete = self._can_use_backup_permission("backup.delete") or self._can_use_backup_permission("backup.execute")
+            can_restore = self._can_use_backup_permission("backup.restore")
+
+            download.setEnabled(can_download and status_value == "success")
+            delete.setEnabled(can_delete and status_value != "processing")
+            restore.setEnabled(can_restore and status_value == "success")
+
+            self.table.setCellWidget(row, 5, self._action_cell([download, restore, delete]))
             self.table.setRowHeight(row, 44)
 
-    def _fill_side_cards(self, files, total_size):
+    def _fill_side_cards(self, summary, total_size):
+        settings = summary.get("settings") or {}
+        last_row = summary.get("last_backup") or {}
+        selected_text = "Chưa chọn"
+        if self.selected_backup_id:
+            selected_text = self.selected_backup_id
         specs = [
             (self.info_card, "Thông tin sao lưu", [
-                "Vị trí lưu trữ: Máy chủ nội bộ",
-                "Đường dẫn: /backup/careplus/",
-                f"Tổng số bản sao lưu: {len(files)} bản",
-                f"Bản sao lưu gần nhất: {files[0]['mtime'].strftime('%d/%m/%Y %H:%M') if files else 'Chưa có'}",
-                f"Bản sao lưu tiếp theo: {(datetime.now() + timedelta(days=1)).strftime('%d/%m/%Y')} 02:00",
-                "Phương thức: Tự động hằng ngày",
-                "Giữ lại bản sao lưu: 30 ngày",
+                f"Vị trí lưu trữ: {_as_text(summary.get('storage_location') or 'Máy chủ nội bộ')}",
+                f"Đường dẫn: {_as_text(summary.get('storage_path') or 'backups/local')}",
+                f"Tổng số bản sao lưu: {_as_int(summary.get('total_backups'))} bản",
+                f"Bản sao lưu gần nhất: {_format_datetime(last_row.get('created_at')) if last_row else 'Chưa có'}",
+                f"Bản sao lưu tiếp theo: {_format_datetime(summary.get('next_backup_at')) if summary.get('next_backup_at') else 'Chưa có lịch'}",
+                f"Phương thức: {self._frequency_label(summary.get('schedule_frequency'))}",
+                f"Giữ lại bản sao lưu: {_as_int(summary.get('retention_days') or 30)} ngày",
             ]),
             (self.options_card, "Tùy chọn sao lưu", [
-                "Sao lưu tự động: Bật",
-                "Sao lưu cơ sở dữ liệu: Bật",
-                "Sao lưu tệp đính kèm: Bật",
-                "Nén dữ liệu: Bật",
-                "Gửi email thông báo: Tắt",
+                ("Sao lưu tự động", "auto_backup", bool(settings.get("auto_backup", True))),
+                ("Sao lưu cơ sở dữ liệu", "include_database", bool(settings.get("include_database", True))),
+                ("Sao lưu tệp đính kèm", "include_attachments", bool(settings.get("include_attachments", True))),
+                ("Nén dữ liệu", "compress_data", bool(settings.get("compress_data", True))),
+                ("Gửi email thông báo", "email_notification", bool(settings.get("email_notification", False))),
             ]),
-            (self.restore_card, "Khôi phục dữ liệu", ["Khôi phục dữ liệu từ bản sao lưu đã chọn.", "Bạn nên tạo bản sao lưu hiện tại trước khi khôi phục."]),
+            (self.restore_card, "Khôi phục dữ liệu", [
+                "Khôi phục dữ liệu từ bản sao lưu đã chọn.",
+                "Bạn nên tạo bản sao lưu hiện tại trước khi khôi phục.",
+                f"Bản đã chọn: {selected_text}",
+            ]),
         ]
         for card, title, lines in specs:
             layout = card.layout()
@@ -4375,21 +4572,48 @@ class BackupManagementPage(AdminBasePage):
             for line in lines:
                 if card is self.options_card:
                     row = QtWidgets.QHBoxLayout()
-                    label, _, state = line.partition(":")
+                    label, setting_key, setting_value = line
                     row.addWidget(self._muted(label))
                     row.addStretch()
-                    row.addWidget(self._badge(state.strip(), "success" if state.strip() == "Bật" else "neutral"))
+                    toggle = QtWidgets.QCheckBox()
+                    toggle.setChecked(bool(setting_value))
+                    toggle.setEnabled(self._can_use_backup_permission("backup.execute"))
+                    toggle.stateChanged.connect(
+                        lambda state, key=setting_key, name=label: self._toggle_backup_setting(key, state, name)
+                    )
+                    row.addWidget(toggle)
+                    row.addWidget(self._badge("Bật" if bool(setting_value) else "Tắt", "success" if bool(setting_value) else "neutral"))
                     layout.addLayout(row)
                 else:
                     layout.addWidget(self._muted(line))
             if card is self.restore_card:
-                restore_btn = self._button("Chọn bản sao lưu để khôi phục", danger=True)
-                restore_btn.clicked.connect(lambda: self._show_info("Khôi phục dữ liệu", "Restore thật đang bị khóa để tránh mất dữ liệu ngoài ý muốn."))
+                restore_btn = self._button("Khôi phục từ bản đã chọn", danger=True)
+                restore_btn.clicked.connect(self.restore_selected_backup)
+                restore_btn.setEnabled(self._can_use_backup_permission("backup.restore") and bool(self.selected_backup_id))
                 layout.addWidget(restore_btn)
+                pick_btn = self._button("Chọn bản sao lưu để khôi phục")
+                pick_btn.clicked.connect(self.open_restore_picker)
+                pick_btn.setEnabled(self._can_use_backup_permission("backup.restore"))
+                layout.addWidget(pick_btn)
             layout.addStretch()
 
+        if self.options_card.layout() is not None:
+            footer = QtWidgets.QHBoxLayout()
+            footer.addStretch()
+            advanced_btn = self._button("Tùy chọn nâng cao")
+            advanced_btn.clicked.connect(self.open_advanced_options)
+            advanced_btn.setEnabled(self._can_use_backup_permission("backup.execute"))
+            footer.addWidget(advanced_btn)
+            self.options_card.layout().addLayout(footer)
+
     def backup_now(self):
-        user_id = self.user_data.get("user_id") or 1
+        if not self._can_use_backup_permission("backup.execute"):
+            self._show_info("Sao lưu dữ liệu", "Bạn không có quyền tạo bản sao lưu.")
+            return
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            self._show_info("Sao lưu dữ liệu", "Không xác định được tài khoản hiện tại.")
+            return
         mode = self.mode_combo.currentData() or "local"
         if not self._confirm("Sao lưu dữ liệu", "Bạn có chắc muốn tạo bản sao lưu mới?"):
             return
@@ -4398,17 +4622,142 @@ class BackupManagementPage(AdminBasePage):
         self.refresh()
 
     def download_backup(self, item):
+        if not self._can_use_backup_permission("backup.view"):
+            self._show_info("Tải bản sao lưu", "Bạn không có quyền tải bản sao lưu.")
+            return
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Chọn thư mục lưu bản sao")
         if not folder:
             return
-        destination = Path(folder) / item["path"].name
-        shutil.copy2(item["path"], destination)
+        backup_path = Path(_as_text(item.get("storage_path") or ""))
+        if not backup_path.exists() or not backup_path.is_file():
+            self._show_info("Tải bản sao lưu", "Không tìm thấy tệp bản sao lưu trên máy chủ.")
+            return
+        destination = Path(folder) / backup_path.name
+        shutil.copy2(backup_path, destination)
         self._show_info("Tải bản sao lưu", f"Đã sao chép tới:\n{destination}")
 
     def delete_backup(self, item):
-        if not self._confirm("Xóa backup", f"Xóa bản sao lưu {item['path'].name}? Thao tác này không thể hoàn tác."):
+        if not self._can_use_backup_permission("backup.delete") and not self._can_use_backup_permission("backup.execute"):
+            self._show_info("Xóa bản sao lưu", "Bạn không có quyền xóa bản sao lưu.")
             return
-        item["path"].unlink(missing_ok=True)
+        backup_id = _as_text(item.get("backup_id"))
+        backup_path = Path(_as_text(item.get("storage_path") or ""))
+        file_name = backup_path.name if backup_path.name else backup_id
+        if not self._confirm("Xóa backup", f"Xóa bản sao lưu {file_name}? Thao tác này không thể hoàn tác."):
+            return
+        ok, message = SettingsController.delete_backup_record(backup_id)
+        self._show_info("Xóa bản sao lưu", message)
+        if ok and self.selected_backup_id == backup_id:
+            self.selected_backup_id = None
+        self.refresh()
+
+    def open_advanced_options(self):
+        settings = (self._last_summary or {}).get("settings") or {}
+        fields = [
+            {
+                "key": "storage_location",
+                "label": "Vị trí lưu trữ",
+                "type": "combo",
+                "options": [("Máy chủ nội bộ", "Máy chủ nội bộ"), ("Cloud storage", "Cloud storage")],
+            },
+            {"key": "storage_path", "label": "Đường dẫn lưu trữ"},
+            {"key": "retention_days", "label": "Số ngày lưu trữ", "type": "spin", "min": 1, "max": 365},
+            {
+                "key": "schedule_frequency",
+                "label": "Chu kỳ sao lưu",
+                "type": "combo",
+                "options": [("Hàng ngày", "daily"), ("Hàng tuần", "weekly"), ("Hàng tháng", "monthly")],
+            },
+            {"key": "schedule_time", "label": "Giờ sao lưu (HH:MM)"},
+        ]
+        dialog = FormDialog("Tùy chọn sao lưu nâng cao", fields, data=settings, parent=self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+
+        user_id = self.user_data.get("user_id")
+        payload = dialog.values()
+        ok, message = SettingsController.update_backup_settings(user_id, payload)
+        self._show_info("Tùy chọn sao lưu", message)
+        if ok:
+            self.refresh()
+
+    def _toggle_backup_setting(self, key, state, label):
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            return
+
+        value = bool(state)
+        if key in {"auto_backup", "include_database"} and not value:
+            if not self._confirm("Xác nhận thay đổi", f"Tắt tùy chọn '{label}' có thể làm tăng rủi ro mất dữ liệu. Bạn có chắc muốn tiếp tục?"):
+                self.refresh()
+                return
+
+        ok, message = SettingsController.update_backup_settings(user_id, {key: value})
+        if not ok:
+            self._show_info("Cập nhật tùy chọn", message)
+        self.refresh()
+
+    def open_restore_picker(self):
+        items = self._last_items or []
+        if not items:
+            self._show_info("Khôi phục dữ liệu", "Chưa có bản sao lưu để khôi phục.")
+            return
+        options = []
+        mapping = {}
+        for item in items:
+            if _as_text(item.get("status")).lower().strip() != "success":
+                continue
+            backup_id = _as_text(item.get("backup_id"))
+            created_at = _format_datetime(item.get("created_at"))
+            size_text = self._backup_size_text(_as_int(item.get("size_bytes")))
+            text = f"{backup_id} • {created_at} • {size_text}"
+            options.append(text)
+            mapping[text] = backup_id
+
+        if not options:
+            self._show_info("Khôi phục dữ liệu", "Không có bản sao lưu thành công để chọn.")
+            return
+        selected, accepted = QtWidgets.QInputDialog.getItem(
+            self,
+            "Chọn bản sao lưu",
+            "Chọn bản sao lưu để khôi phục:",
+            options,
+            editable=False,
+        )
+        if not accepted:
+            return
+        self.selected_backup_id = mapping.get(selected)
+        self.refresh()
+
+    def select_backup_for_restore(self, item):
+        self.selected_backup_id = _as_text(item.get("backup_id"))
+        self.refresh()
+
+    def restore_selected_backup(self):
+        if not self._can_use_backup_permission("backup.restore"):
+            self._show_info("Khôi phục dữ liệu", "Bạn không có quyền khôi phục dữ liệu.")
+            return
+        user_id = self.user_data.get("user_id")
+        if not user_id:
+            self._show_info("Khôi phục dữ liệu", "Không xác định được tài khoản hiện tại.")
+            return
+        if not self.selected_backup_id:
+            self._show_info("Khôi phục dữ liệu", "Bạn chưa chọn bản sao lưu.")
+            return
+        if not self._confirm(
+            "Khôi phục dữ liệu",
+            "Khôi phục dữ liệu sẽ ghi đè cài đặt hiện tại của tài khoản này. Bạn có muốn tiếp tục?",
+        ):
+            return
+        ok, message = SettingsController.restore_from_backup(
+            user_id=user_id,
+            backup_id=self.selected_backup_id,
+            confirm_text="RESTORE",
+            create_backup_before_restore=True,
+        )
+        self._show_info("Khôi phục dữ liệu", message)
+        if ok:
+            self.selected_backup_id = None
         self.refresh()
 
 
