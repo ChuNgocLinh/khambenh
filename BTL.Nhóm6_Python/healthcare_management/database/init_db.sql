@@ -406,6 +406,82 @@ CREATE TABLE IF NOT EXISTS Notifications (
 );
 
 -- ========================================
+-- 8.1 BẢNG RBAC (PHÂN QUYỀN ĐỘNG)
+-- ========================================
+CREATE TABLE IF NOT EXISTS rbac_roles (
+    role_id INT AUTO_INCREMENT PRIMARY KEY,
+    role_key VARCHAR(50) NOT NULL,
+    display_name VARCHAR(100) NOT NULL,
+    description VARCHAR(255),
+    color_kind VARCHAR(20) DEFAULT 'neutral',
+    is_system BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_rbac_roles_key (role_key)
+);
+
+CREATE TABLE IF NOT EXISTS rbac_permission_groups (
+    group_id INT AUTO_INCREMENT PRIMARY KEY,
+    group_key VARCHAR(100) NOT NULL,
+    display_name VARCHAR(150) NOT NULL,
+    description VARCHAR(255),
+    sort_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_rbac_permission_groups_key (group_key)
+);
+
+CREATE TABLE IF NOT EXISTS rbac_permissions (
+    permission_id INT AUTO_INCREMENT PRIMARY KEY,
+    group_id INT NOT NULL,
+    permission_key VARCHAR(120) NOT NULL,
+    display_name VARCHAR(150) NOT NULL,
+    description VARCHAR(255),
+    is_sensitive BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES rbac_permission_groups(group_id),
+    UNIQUE KEY uq_rbac_permissions_key (permission_key)
+);
+
+CREATE TABLE IF NOT EXISTS rbac_role_permissions (
+    role_id INT NOT NULL,
+    permission_id INT NOT NULL,
+    allowed BOOLEAN DEFAULT TRUE,
+    granted_by_user_id INT NULL,
+    granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (role_id, permission_id),
+    FOREIGN KEY (role_id) REFERENCES rbac_roles(role_id),
+    FOREIGN KEY (permission_id) REFERENCES rbac_permissions(permission_id),
+    FOREIGN KEY (granted_by_user_id) REFERENCES Users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS rbac_user_role_assignments (
+    assignment_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    role_id INT NOT NULL,
+    assigned_by_user_id INT NULL,
+    assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    UNIQUE KEY uq_rbac_user_role_active (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES Users(user_id),
+    FOREIGN KEY (role_id) REFERENCES rbac_roles(role_id),
+    FOREIGN KEY (assigned_by_user_id) REFERENCES Users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS rbac_audit_logs (
+    audit_id INT AUTO_INCREMENT PRIMARY KEY,
+    actor_user_id INT NULL,
+    action_key VARCHAR(100) NOT NULL,
+    target_type VARCHAR(50) NOT NULL,
+    target_id VARCHAR(100) NOT NULL,
+    details TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (actor_user_id) REFERENCES Users(user_id)
+);
+
+-- ========================================
 -- 9. BẢNG PAYMENTS (THANH TOÁN)
 -- ========================================
 CREATE TABLE IF NOT EXISTS Payments (
@@ -945,6 +1021,272 @@ WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV008');
 INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
 SELECT 'DV009', 'Vật lý trị liệu', 'Điều trị', 30, 180000, 'Phục hồi chức năng cơ xương khớp', 1, 1
 WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV009');
+
+-- ========================================
+-- 13. SEED RBAC ĐỘNG CHO MÀN PHÂN QUYỀN
+-- ========================================
+INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+SELECT 'admin', 'Quản trị viên', 'Toàn quyền hệ thống', 'success', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key='admin');
+
+INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+SELECT 'doctor', 'Bác sĩ', 'Quản lý chuyên môn', 'info', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key='doctor');
+
+INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+SELECT 'receptionist', 'Lễ tân', 'Quản lý tiếp đón và lịch hẹn', 'warning', 0, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key='receptionist');
+
+INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+SELECT 'accountant', 'Kế toán', 'Quản lý tài chính và thanh toán', 'neutral', 0, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key='accountant');
+
+INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+SELECT 'nurse', 'Điều dưỡng', 'Hỗ trợ lâm sàng và theo dõi bệnh nhân', 'info', 0, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key='nurse');
+
+INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+SELECT 'staff', 'Nhân viên', 'Vận hành và hỗ trợ nghiệp vụ', 'neutral', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key='staff');
+
+INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+SELECT 'patient', 'Khách hàng', 'Sử dụng dịch vụ khám chữa bệnh', 'warning', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key='patient');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'system', 'Quản lý hệ thống', 'Quản trị cấu hình và bảo mật hệ thống', 10, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='system');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'doctor', 'Quản lý bác sĩ', 'Quản lý dữ liệu bác sĩ', 20, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='doctor');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'patient', 'Quản lý bệnh nhân', 'Quản lý hồ sơ bệnh nhân', 30, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='patient');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'medicine', 'Quản lý thuốc', 'Quản lý kho thuốc và danh mục', 40, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='medicine');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'service', 'Quản lý dịch vụ', 'Quản lý dịch vụ khám và xét nghiệm', 50, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='service');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'payment', 'Quản lý thanh toán', 'Quản lý thanh toán và hóa đơn', 60, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='payment');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'report', 'Báo cáo thống kê', 'Xem và xuất báo cáo hệ thống', 70, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='report');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'backup', 'Sao lưu dữ liệu', 'Sao lưu và phục hồi dữ liệu', 80, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='backup');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'account', 'Quản lý tài khoản', 'Quản lý tài khoản người dùng', 90, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='account');
+
+INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+SELECT 'rbac', 'Quản lý phân quyền', 'Quản trị vai trò và quyền truy cập', 100, 1
+WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key='rbac');
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, 'system.user.manage', 'Quản lý người dùng', 'Thêm, sửa, xóa người dùng', 1, 1
+FROM rbac_permission_groups g
+WHERE g.group_key='system'
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key='system.user.manage');
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, 'system.permission.assign', 'Phân quyền người dùng', 'Cấp quyền cho người dùng', 1, 1
+FROM rbac_permission_groups g
+WHERE g.group_key='system'
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key='system.permission.assign');
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, 'system.role.manage', 'Quản lý vai trò', 'Quản lý các vai trò hệ thống', 1, 1
+FROM rbac_permission_groups g
+WHERE g.group_key='system'
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key='system.role.manage');
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, 'system.config.update', 'Cấu hình hệ thống', 'Cấu hình thông số hệ thống', 1, 1
+FROM rbac_permission_groups g
+WHERE g.group_key='system'
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key='system.config.update');
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, 'system.backup.execute', 'Sao lưu dữ liệu', 'Sao lưu và phục hồi dữ liệu', 1, 1
+FROM rbac_permission_groups g
+WHERE g.group_key='system'
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key='system.backup.execute');
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, 'system.audit.view', 'Nhật ký hệ thống', 'Xem nhật ký hoạt động hệ thống', 1, 1
+FROM rbac_permission_groups g
+WHERE g.group_key='system'
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key='system.audit.view');
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, CONCAT(g.group_key, '.view'), CONCAT('Xem ', LOWER(g.display_name)), CONCAT('Xem dữ liệu ', LOWER(g.display_name)), 0, 1
+FROM rbac_permission_groups g
+WHERE g.group_key IN ('doctor','patient','medicine','service','payment','report','backup','account','rbac')
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions p WHERE p.permission_key=CONCAT(g.group_key, '.view'));
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, CONCAT(g.group_key, '.create'), CONCAT('Thêm ', LOWER(g.display_name)), CONCAT('Tạo mới dữ liệu ', LOWER(g.display_name)), 0, 1
+FROM rbac_permission_groups g
+WHERE g.group_key IN ('doctor','patient','medicine','service','payment','account','rbac')
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions p WHERE p.permission_key=CONCAT(g.group_key, '.create'));
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, CONCAT(g.group_key, '.update'), CONCAT('Sửa ', LOWER(g.display_name)), CONCAT('Cập nhật dữ liệu ', LOWER(g.display_name)), 0, 1
+FROM rbac_permission_groups g
+WHERE g.group_key IN ('doctor','patient','medicine','service','payment','account','rbac')
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions p WHERE p.permission_key=CONCAT(g.group_key, '.update'));
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, CONCAT(g.group_key, '.delete'), CONCAT('Xóa ', LOWER(g.display_name)), CONCAT('Xóa dữ liệu ', LOWER(g.display_name)), 1, 1
+FROM rbac_permission_groups g
+WHERE g.group_key IN ('doctor','patient','medicine','service','account','rbac')
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions p WHERE p.permission_key=CONCAT(g.group_key, '.delete'));
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, 'report.export', 'Xuất báo cáo', 'Xuất dữ liệu báo cáo', 0, 1
+FROM rbac_permission_groups g
+WHERE g.group_key='report'
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key='report.export');
+
+INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+SELECT g.group_id, 'backup.restore', 'Khôi phục dữ liệu', 'Khôi phục dữ liệu từ bản sao lưu', 1, 1
+FROM rbac_permission_groups g
+WHERE g.group_key='backup'
+  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key='backup.restore');
+
+INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
+SELECT r.role_id, p.permission_id, 1,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1)
+FROM rbac_roles r
+JOIN rbac_permissions p ON 1=1
+WHERE r.role_key='admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM rbac_role_permissions rp
+      WHERE rp.role_id=r.role_id AND rp.permission_id=p.permission_id
+  );
+
+INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
+SELECT r.role_id, p.permission_id, 1,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1)
+FROM rbac_roles r
+JOIN rbac_permissions p ON p.permission_key IN (
+    'doctor.view', 'doctor.create', 'doctor.update',
+    'patient.view', 'patient.update',
+    'report.view', 'report.export'
+)
+WHERE r.role_key='doctor'
+  AND NOT EXISTS (
+      SELECT 1 FROM rbac_role_permissions rp
+      WHERE rp.role_id=r.role_id AND rp.permission_id=p.permission_id
+  );
+
+INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
+SELECT r.role_id, p.permission_id, 1,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1)
+FROM rbac_roles r
+JOIN rbac_permissions p ON p.permission_key IN (
+    'account.view', 'account.update',
+    'patient.view', 'patient.create', 'patient.update',
+    'service.view',
+    'doctor.view'
+)
+WHERE r.role_key='receptionist'
+  AND NOT EXISTS (
+      SELECT 1 FROM rbac_role_permissions rp
+      WHERE rp.role_id=r.role_id AND rp.permission_id=p.permission_id
+  );
+
+INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
+SELECT r.role_id, p.permission_id, 1,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1)
+FROM rbac_roles r
+JOIN rbac_permissions p ON p.permission_key IN (
+    'payment.view', 'payment.create', 'payment.update',
+    'report.view', 'report.export',
+    'backup.view'
+)
+WHERE r.role_key='accountant'
+  AND NOT EXISTS (
+      SELECT 1 FROM rbac_role_permissions rp
+      WHERE rp.role_id=r.role_id AND rp.permission_id=p.permission_id
+  );
+
+INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
+SELECT r.role_id, p.permission_id, 1,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1)
+FROM rbac_roles r
+JOIN rbac_permissions p ON p.permission_key IN (
+    'patient.view', 'patient.update',
+    'doctor.view',
+    'service.view',
+    'medicine.view'
+)
+WHERE r.role_key='nurse'
+  AND NOT EXISTS (
+      SELECT 1 FROM rbac_role_permissions rp
+      WHERE rp.role_id=r.role_id AND rp.permission_id=p.permission_id
+  );
+
+INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
+SELECT u.user_id, r.role_id,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1), 1
+FROM Users u
+JOIN rbac_roles r ON r.role_key = CASE
+    WHEN u.role='admin' THEN 'admin'
+    WHEN u.role='doctor' THEN 'doctor'
+    WHEN u.role='patient' THEN 'patient'
+    ELSE 'staff'
+END
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM rbac_user_role_assignments ura
+    WHERE ura.user_id=u.user_id AND ura.role_id=r.role_id
+);
+
+INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
+SELECT u.user_id, r.role_id,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1), 1
+FROM Users u
+JOIN rbac_roles r ON r.role_key='receptionist'
+WHERE u.username='staff1'
+  AND NOT EXISTS (
+    SELECT 1 FROM rbac_user_role_assignments ura
+    WHERE ura.user_id=u.user_id AND ura.role_id=r.role_id
+  );
+
+INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
+SELECT u.user_id, r.role_id,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1), 1
+FROM Users u
+JOIN rbac_roles r ON r.role_key='accountant'
+WHERE u.username='quan.do'
+  AND NOT EXISTS (
+    SELECT 1 FROM rbac_user_role_assignments ura
+    WHERE ura.user_id=u.user_id AND ura.role_id=r.role_id
+  );
+
+INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
+SELECT u.user_id, r.role_id,
+       (SELECT user_id FROM Users WHERE username='admin' LIMIT 1), 1
+FROM Users u
+JOIN rbac_roles r ON r.role_key='nurse'
+WHERE u.username='dung.bui'
+  AND NOT EXISTS (
+    SELECT 1 FROM rbac_user_role_assignments ura
+    WHERE ura.user_id=u.user_id AND ura.role_id=r.role_id
+  );
 
 -- ========================================
 -- 12. DATASET MẪU CHO DASHBOARD BÁO CÁO (DỮ LIỆU ĐỘNG)

@@ -3386,43 +3386,301 @@ class ReportStatsPage(AdminBasePage):
 class RolePermissionPage(AdminBasePage):
     page_title = "Phân quyền hệ thống"
     breadcrumb = "Dashboard / Phân quyền hệ thống"
-    PERMISSIONS = {
-        "Quản lý hệ thống": ["Quản lý người dùng", "Phân quyền người dùng", "Quản lý vai trò", "Cấu hình hệ thống", "Sao lưu dữ liệu", "Nhật ký hệ thống"],
-        "Quản lý bác sĩ": ["Xem danh sách bác sĩ", "Thêm bác sĩ", "Sửa thông tin bác sĩ", "Xóa bác sĩ", "Quản lý lịch làm việc"],
-        "Quản lý bệnh nhân": ["Xem danh sách bệnh nhân", "Thêm bệnh nhân", "Sửa thông tin bệnh nhân", "Xóa bệnh nhân", "Xem lịch sử khám"],
-        "Quản lý thuốc": ["Xem danh sách thuốc", "Thêm thuốc", "Sửa thông tin thuốc", "Xóa thuốc"],
-        "Quản lý dịch vụ": ["Xem dịch vụ", "Thêm dịch vụ", "Sửa dịch vụ", "Ngừng cung cấp dịch vụ"],
-        "Quản lý thanh toán": ["Xem thanh toán", "Cập nhật trạng thái", "In hóa đơn", "Hoàn tiền", "Xuất báo cáo"],
-        "Báo cáo thống kê": ["Xem dashboard báo cáo", "Lọc báo cáo", "Xuất Excel", "Xem doanh thu", "Xem thống kê bệnh nhân"],
-        "Sao lưu dữ liệu": ["Xem backup", "Tạo backup", "Tải backup", "Xóa backup", "Khôi phục dữ liệu"],
-        "Quản lý tài khoản": ["Tạo tài khoản", "Khóa tài khoản", "Reset mật khẩu", "Gán vai trò", "Xem lịch sử đăng nhập"],
-        "Quản lý phân quyền": ["Thêm vai trò", "Sửa vai trò", "Gán quyền", "Thu hồi quyền"],
-    }
-    ROLE_INFO = {
-        "admin": ("⚙", "Quản trị viên", "Toàn quyền hệ thống", "success"),
-        "doctor": ("👨‍⚕️", "Bác sĩ", "Quản lý chuyên môn", "info"),
-        "staff": ("👥", "Nhân viên", "Vận hành và hỗ trợ", "warning"),
-        "patient": ("🧑", "Khách hàng", "Sử dụng dịch vụ khám", "neutral"),
+    ROLE_ICONS = {
+        "admin": "⚙",
+        "doctor": "👨‍⚕️",
+        "receptionist": "👩‍💼",
+        "accountant": "💳",
+        "nurse": "💉",
+        "staff": "👥",
+        "patient": "🧑",
     }
 
     def __init__(self, user_data=None, parent=None):
         super().__init__(user_data, parent)
-        self.selected_role = "admin"
+        self.selected_role = ""
+        self.selected_role_id = None
+        self.role_rows = []
+        self.permission_rows = []
+        self.permission_groups = []
+        self.role_permission_map = {}
         self._build()
         self.refresh()
 
+    def _ensure_rbac_schema(self):
+        statements = [
+            """
+            CREATE TABLE IF NOT EXISTS rbac_roles (
+                role_id INT AUTO_INCREMENT PRIMARY KEY,
+                role_key VARCHAR(50) NOT NULL,
+                display_name VARCHAR(100) NOT NULL,
+                description VARCHAR(255),
+                color_kind VARCHAR(20) DEFAULT 'neutral',
+                is_system BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_rbac_roles_key (role_key)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS rbac_permission_groups (
+                group_id INT AUTO_INCREMENT PRIMARY KEY,
+                group_key VARCHAR(100) NOT NULL,
+                display_name VARCHAR(150) NOT NULL,
+                description VARCHAR(255),
+                sort_order INT DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_rbac_permission_groups_key (group_key)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS rbac_permissions (
+                permission_id INT AUTO_INCREMENT PRIMARY KEY,
+                group_id INT NOT NULL,
+                permission_key VARCHAR(120) NOT NULL,
+                display_name VARCHAR(150) NOT NULL,
+                description VARCHAR(255),
+                is_sensitive BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (group_id) REFERENCES rbac_permission_groups(group_id),
+                UNIQUE KEY uq_rbac_permissions_key (permission_key)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS rbac_role_permissions (
+                role_id INT NOT NULL,
+                permission_id INT NOT NULL,
+                allowed BOOLEAN DEFAULT TRUE,
+                granted_by_user_id INT NULL,
+                granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (role_id, permission_id),
+                FOREIGN KEY (role_id) REFERENCES rbac_roles(role_id),
+                FOREIGN KEY (permission_id) REFERENCES rbac_permissions(permission_id),
+                FOREIGN KEY (granted_by_user_id) REFERENCES Users(user_id)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS rbac_user_role_assignments (
+                assignment_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                role_id INT NOT NULL,
+                assigned_by_user_id INT NULL,
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN DEFAULT TRUE,
+                UNIQUE KEY uq_rbac_user_role_active (user_id, role_id),
+                FOREIGN KEY (user_id) REFERENCES Users(user_id),
+                FOREIGN KEY (role_id) REFERENCES rbac_roles(role_id),
+                FOREIGN KEY (assigned_by_user_id) REFERENCES Users(user_id)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS rbac_audit_logs (
+                audit_id INT AUTO_INCREMENT PRIMARY KEY,
+                actor_user_id INT NULL,
+                action_key VARCHAR(100) NOT NULL,
+                target_type VARCHAR(50) NOT NULL,
+                target_id VARCHAR(100) NOT NULL,
+                details TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (actor_user_id) REFERENCES Users(user_id)
+            )
+            """,
+        ]
+        for stmt in statements:
+            _safe_execute(stmt)
+
+    def _seed_rbac_defaults(self):
+        role_seed = [
+            ("admin", "Quản trị viên", "Toàn quyền hệ thống", "success", 1, 1),
+            ("doctor", "Bác sĩ", "Quản lý chuyên môn", "info", 1, 1),
+            ("receptionist", "Lễ tân", "Quản lý tiếp đón và lịch hẹn", "warning", 0, 1),
+            ("accountant", "Kế toán", "Quản lý tài chính", "neutral", 0, 1),
+            ("nurse", "Điều dưỡng", "Hỗ trợ lâm sàng", "info", 0, 1),
+            ("staff", "Nhân viên", "Vận hành và hỗ trợ", "neutral", 1, 1),
+            ("patient", "Khách hàng", "Sử dụng dịch vụ khám", "warning", 1, 1),
+        ]
+        for role in role_seed:
+            _safe_execute(
+                """
+                INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+                SELECT ?, ?, ?, ?, ?, ?
+                WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key=?)
+                """,
+                role + (role[0],),
+            )
+
+        group_seed = [
+            ("system", "Quản lý hệ thống", "Quản trị hệ thống", 10),
+            ("doctor", "Quản lý bác sĩ", "Quản lý dữ liệu bác sĩ", 20),
+            ("patient", "Quản lý bệnh nhân", "Quản lý hồ sơ bệnh nhân", 30),
+            ("medicine", "Quản lý thuốc", "Quản lý kho thuốc", 40),
+            ("service", "Quản lý dịch vụ", "Quản lý dịch vụ", 50),
+            ("payment", "Quản lý thanh toán", "Quản lý thanh toán", 60),
+            ("report", "Báo cáo thống kê", "Xem và xuất báo cáo", 70),
+            ("backup", "Sao lưu dữ liệu", "Sao lưu và khôi phục", 80),
+            ("account", "Quản lý tài khoản", "Quản lý tài khoản", 90),
+            ("rbac", "Quản lý phân quyền", "Quản lý vai trò và quyền", 100),
+        ]
+        for group in group_seed:
+            _safe_execute(
+                """
+                INSERT INTO rbac_permission_groups (group_key, display_name, description, sort_order, is_active)
+                SELECT ?, ?, ?, ?, 1
+                WHERE NOT EXISTS (SELECT 1 FROM rbac_permission_groups WHERE group_key=?)
+                """,
+                group + (group[0],),
+            )
+
+        permission_seed = [
+            ("system", "system.user.manage", "Quản lý người dùng", "Thêm, sửa, xóa người dùng", 1),
+            ("system", "system.permission.assign", "Phân quyền người dùng", "Cấp quyền cho người dùng", 1),
+            ("system", "system.role.manage", "Quản lý vai trò", "Quản lý vai trò hệ thống", 1),
+            ("system", "system.config.update", "Cấu hình hệ thống", "Cấu hình tham số hệ thống", 1),
+            ("system", "system.backup.execute", "Sao lưu dữ liệu", "Sao lưu và phục hồi dữ liệu", 1),
+            ("system", "system.audit.view", "Nhật ký hệ thống", "Xem nhật ký hoạt động", 1),
+            ("doctor", "doctor.view", "Xem danh sách bác sĩ", "Xem thông tin bác sĩ", 0),
+            ("doctor", "doctor.create", "Thêm bác sĩ", "Thêm bác sĩ mới", 0),
+            ("doctor", "doctor.update", "Sửa thông tin bác sĩ", "Cập nhật thông tin bác sĩ", 0),
+            ("doctor", "doctor.delete", "Xóa bác sĩ", "Xóa bác sĩ khỏi hệ thống", 1),
+            ("patient", "patient.view", "Xem danh sách bệnh nhân", "Xem thông tin bệnh nhân", 0),
+            ("patient", "patient.create", "Thêm bệnh nhân", "Thêm bệnh nhân mới", 0),
+            ("patient", "patient.update", "Sửa thông tin bệnh nhân", "Cập nhật thông tin bệnh nhân", 0),
+            ("patient", "patient.delete", "Xóa bệnh nhân", "Xóa bệnh nhân", 1),
+            ("patient", "patient.history.view", "Xem lịch sử khám", "Xem lịch sử khám bệnh", 0),
+            ("medicine", "medicine.view", "Xem danh sách thuốc", "Xem danh mục thuốc", 0),
+            ("medicine", "medicine.create", "Thêm thuốc", "Thêm thuốc mới", 0),
+            ("medicine", "medicine.update", "Sửa thông tin thuốc", "Sửa thông tin thuốc", 0),
+            ("medicine", "medicine.delete", "Xóa thuốc", "Xóa thuốc khỏi hệ thống", 1),
+            ("service", "service.view", "Xem danh sách dịch vụ", "Xem dịch vụ", 0),
+            ("service", "service.create", "Thêm dịch vụ", "Thêm dịch vụ", 0),
+            ("service", "service.update", "Sửa dịch vụ", "Sửa dịch vụ", 0),
+            ("payment", "payment.view", "Xem thanh toán", "Xem dữ liệu thanh toán", 0),
+            ("payment", "payment.update", "Cập nhật trạng thái thanh toán", "Cập nhật trạng thái thanh toán", 1),
+            ("report", "report.view", "Xem dashboard báo cáo", "Xem dashboard báo cáo", 0),
+            ("report", "report.export", "Xuất báo cáo", "Xuất báo cáo dữ liệu", 0),
+            ("backup", "backup.view", "Xem danh sách sao lưu", "Xem danh sách backup", 0),
+            ("backup", "backup.execute", "Tạo sao lưu", "Tạo bản sao lưu", 1),
+            ("backup", "backup.restore", "Khôi phục dữ liệu", "Khôi phục từ backup", 1),
+            ("account", "account.view", "Xem danh sách tài khoản", "Xem tài khoản hệ thống", 0),
+            ("account", "account.create", "Tạo tài khoản", "Tạo tài khoản", 1),
+            ("account", "account.update", "Sửa tài khoản", "Sửa thông tin tài khoản", 1),
+            ("account", "account.lock", "Khóa tài khoản", "Khóa tài khoản", 1),
+            ("rbac", "rbac.role.create", "Thêm vai trò", "Tạo vai trò mới", 1),
+            ("rbac", "rbac.role.update", "Sửa vai trò", "Sửa vai trò", 1),
+            ("rbac", "rbac.permission.assign", "Gán quyền", "Gán quyền cho vai trò", 1),
+            ("rbac", "rbac.permission.revoke", "Thu hồi quyền", "Thu hồi quyền từ vai trò", 1),
+        ]
+        for group_key, permission_key, display_name, description, sensitive in permission_seed:
+            _safe_execute(
+                """
+                INSERT INTO rbac_permissions (group_id, permission_key, display_name, description, is_sensitive, is_active)
+                SELECT g.group_id, ?, ?, ?, ?, 1
+                FROM rbac_permission_groups g
+                WHERE g.group_key=?
+                  AND NOT EXISTS (SELECT 1 FROM rbac_permissions WHERE permission_key=?)
+                """,
+                (permission_key, display_name, description, sensitive, group_key, permission_key),
+            )
+
+        _safe_execute(
+            """
+            INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
+            SELECT r.role_id, p.permission_id, 1,
+                   (SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1)
+            FROM rbac_roles r
+            JOIN rbac_permissions p ON 1=1
+            WHERE r.role_key='admin'
+              AND NOT EXISTS (
+                  SELECT 1 FROM rbac_role_permissions rp
+                  WHERE rp.role_id=r.role_id AND rp.permission_id=p.permission_id
+              )
+            """
+        )
+
+        role_permission_packs = {
+            "doctor": ["doctor.", "patient.view", "patient.update", "patient.history.view", "report.view", "report.export"],
+            "receptionist": ["account.view", "account.update", "patient.view", "patient.create", "patient.update", "doctor.view", "service.view"],
+            "accountant": ["payment.", "report.view", "report.export", "backup.view"],
+            "nurse": ["patient.view", "patient.update", "doctor.view", "medicine.view", "service.view"],
+            "staff": ["patient.view", "patient.create", "patient.update", "doctor.view", "service.view", "payment.view"],
+            "patient": ["service.view"],
+        }
+        for role_key, patterns in role_permission_packs.items():
+            for pattern in patterns:
+                comparator = "LIKE" if pattern.endswith(".") else "="
+                value = f"{pattern}%" if pattern.endswith(".") else pattern
+                _safe_execute(
+                    f"""
+                    INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
+                    SELECT r.role_id, p.permission_id, 1,
+                           (SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1)
+                    FROM rbac_roles r
+                    JOIN rbac_permissions p ON p.permission_key {comparator} ?
+                    WHERE r.role_key=?
+                      AND NOT EXISTS (
+                          SELECT 1 FROM rbac_role_permissions rp
+                          WHERE rp.role_id=r.role_id AND rp.permission_id=p.permission_id
+                      )
+                    """,
+                    (value, role_key),
+                )
+
+        _safe_execute(
+            """
+            INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
+            SELECT u.user_id, r.role_id,
+                   (SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1),
+                   1
+            FROM Users u
+            JOIN rbac_roles r ON r.role_key = CASE
+                WHEN u.role='admin' THEN 'admin'
+                WHEN u.role='doctor' THEN 'doctor'
+                WHEN u.role='patient' THEN 'patient'
+                ELSE 'staff'
+            END
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM rbac_user_role_assignments ura
+                WHERE ura.user_id=u.user_id AND ura.role_id=r.role_id
+            )
+            """
+        )
+
+        for username, role_key in [("staff1", "receptionist"), ("quan.do", "accountant"), ("dung.bui", "nurse")]:
+            _safe_execute(
+                """
+                INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
+                SELECT u.user_id, r.role_id,
+                       (SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1),
+                       1
+                FROM Users u
+                JOIN rbac_roles r ON r.role_key=?
+                WHERE u.username=?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM rbac_user_role_assignments ura
+                      WHERE ura.user_id=u.user_id AND ura.role_id=r.role_id
+                  )
+                """,
+                (role_key, username),
+            )
+
+    def _write_audit_log(self, action_key, target_type, target_id, details):
+        actor_user_id = self.user_data.get("user_id")
+        _safe_execute(
+            "INSERT INTO rbac_audit_logs (actor_user_id, action_key, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)",
+            (actor_user_id, action_key, target_type, _as_text(target_id), _as_text(details)),
+        )
+
     def _build(self):
-        user_count = len(_safe_fetch_all("SELECT user_id FROM Users"))
-        role_count = len(self.ROLE_INFO)
-        permission_count = sum(len(values) for values in self.PERMISSIONS.values())
-        permission_groups = len(self.PERMISSIONS)
-        stats = QtWidgets.QHBoxLayout()
-        stats.setSpacing(12)
-        stats.addWidget(self._stat_card("🛡", "Tổng vai trò", role_count, "vai trò trong hệ thống", "#00a651"))
-        stats.addWidget(self._stat_card("👥", "Tổng người dùng", user_count, "người dùng đã phân quyền", "#2563eb"))
-        stats.addWidget(self._stat_card("🔑", "Tổng quyền", permission_count, "quyền trong hệ thống", "#f97316"))
-        stats.addWidget(self._stat_card("◔", "Nhóm quyền", permission_groups, "nhóm quyền chức năng", "#8b5cf6"))
-        self.content_layout.addLayout(stats)
+        self._ensure_rbac_schema()
+        self._seed_rbac_defaults()
+
+        self.stats_layout = QtWidgets.QHBoxLayout()
+        self.stats_layout.setSpacing(12)
+        self.content_layout.addLayout(self.stats_layout)
 
         actions = QtWidgets.QHBoxLayout()
         self.role_tab = self._badge("Quản lý vai trò", "success")
@@ -3431,11 +3689,14 @@ class RolePermissionPage(AdminBasePage):
         actions.addWidget(self.user_tab)
         actions.addStretch()
         add_role = self._button("Thêm vai trò", primary=True)
-        add_role.clicked.connect(lambda: self._show_info("Thêm vai trò", "Mở form tạo vai trò mới khi có schema phân quyền động."))
+        add_role.clicked.connect(self.add_role)
         actions.addWidget(add_role)
         cfg = self._button("Cấu hình quyền", primary=True)
-        cfg.clicked.connect(lambda: self._show_info("Cấu hình quyền", "Hệ thống đang dùng phân quyền theo role trong bảng Users."))
+        cfg.clicked.connect(self.configure_permissions)
         actions.addWidget(cfg)
+        assign_btn = self._button("Gán vai trò người dùng")
+        assign_btn.clicked.connect(self.assign_user_role)
+        actions.addWidget(assign_btn)
         self.content_layout.addLayout(actions)
 
         main = QtWidgets.QHBoxLayout()
@@ -3444,11 +3705,12 @@ class RolePermissionPage(AdminBasePage):
         left_layout = QtWidgets.QVBoxLayout(left)
         left_layout.setContentsMargins(16, 16, 16, 16)
         left_layout.addWidget(self._section_title("Danh sách vai trò"))
-        role_search = QtWidgets.QLineEdit()
-        role_search.setPlaceholderText("Tìm kiếm vai trò...")
-        role_search.setMinimumHeight(38)
-        role_search.setStyleSheet(FormDialog._input_style())
-        left_layout.addWidget(role_search)
+        self.role_search = QtWidgets.QLineEdit()
+        self.role_search.setPlaceholderText("Tìm kiếm vai trò...")
+        self.role_search.setMinimumHeight(38)
+        self.role_search.setStyleSheet(FormDialog._input_style())
+        self.role_search.textChanged.connect(self._filter_roles)
+        left_layout.addWidget(self.role_search)
         self.role_list = QtWidgets.QListWidget()
         self.role_list.setStyleSheet("""
             QListWidget { border: none; background: white; }
@@ -3458,6 +3720,22 @@ class RolePermissionPage(AdminBasePage):
         self.role_list.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.role_list.currentTextChanged.connect(self._role_changed)
         left_layout.addWidget(self.role_list)
+
+        role_actions = QtWidgets.QHBoxLayout()
+        role_actions.setSpacing(8)
+        edit_role_btn = self._button("Sửa")
+        edit_role_btn.clicked.connect(self.edit_role)
+        clone_role_btn = self._button("Nhân bản")
+        clone_role_btn.clicked.connect(self.clone_role)
+        toggle_role_btn = self._button("Bật/Tắt")
+        toggle_role_btn.clicked.connect(self.toggle_role)
+        delete_role_btn = self._button("Xóa", danger=True)
+        delete_role_btn.clicked.connect(self.delete_role)
+        role_actions.addWidget(edit_role_btn)
+        role_actions.addWidget(clone_role_btn)
+        role_actions.addWidget(toggle_role_btn)
+        role_actions.addWidget(delete_role_btn)
+        left_layout.addLayout(role_actions)
         main.addWidget(left, 1)
 
         right = self._card()
@@ -3480,57 +3758,464 @@ class RolePermissionPage(AdminBasePage):
         main.addWidget(right, 2)
         self.content_layout.addLayout(main)
 
-    def refresh(self):
-        role_counts = {row.get("role"): _as_int(row.get("count")) for row in _safe_fetch_all("SELECT role, COUNT(*) AS count FROM Users GROUP BY role")}
+    def _query_roles(self):
+        return _safe_fetch_all(
+            """
+            SELECT
+                r.role_id,
+                r.role_key,
+                r.display_name,
+                r.description,
+                r.color_kind,
+                r.is_system,
+                r.is_active,
+                COALESCE(stats.total_users, 0) AS user_count
+            FROM rbac_roles r
+            LEFT JOIN (
+                SELECT ura.role_id, COUNT(*) AS total_users
+                FROM rbac_user_role_assignments ura
+                WHERE ura.is_active=1
+                GROUP BY ura.role_id
+            ) stats ON stats.role_id = r.role_id
+            ORDER BY r.is_system DESC, r.role_key ASC
+            """
+        )
+
+    def _query_permission_groups(self):
+        return _safe_fetch_all(
+            """
+            SELECT
+                g.group_id,
+                g.group_key,
+                g.display_name,
+                g.description,
+                g.sort_order,
+                p.permission_id,
+                p.permission_key,
+                p.display_name AS permission_name,
+                p.description AS permission_description,
+                p.is_sensitive,
+                p.is_active
+            FROM rbac_permission_groups g
+            LEFT JOIN rbac_permissions p ON p.group_id = g.group_id
+            WHERE g.is_active=1
+            ORDER BY g.sort_order ASC, g.group_id ASC, p.permission_id ASC
+            """
+        )
+
+    def _query_role_permissions(self):
+        rows = _safe_fetch_all(
+            """
+            SELECT role_id, permission_id, allowed
+            FROM rbac_role_permissions
+            """
+        )
+        data = {}
+        for row in rows:
+            data[(row.get("role_id"), row.get("permission_id"))] = bool(row.get("allowed", True))
+        return data
+
+    def _render_stats(self):
+        while self.stats_layout.count():
+            item = self.stats_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        role_count = len(self.role_rows)
+        user_count = sum(_as_int(item.get("user_count")) for item in self.role_rows)
+        permission_count = sum(1 for item in self.permission_rows if item.get("permission_id"))
+        permission_groups = len({item.get("group_id") for item in self.permission_rows if item.get("group_id")})
+        self.stats_layout.addWidget(self._stat_card("🛡", "Tổng vai trò", role_count, "vai trò trong hệ thống", "#00a651"))
+        self.stats_layout.addWidget(self._stat_card("👥", "Tổng người dùng", user_count, "người dùng đã phân quyền", "#2563eb"))
+        self.stats_layout.addWidget(self._stat_card("🔑", "Tổng quyền", permission_count, "quyền trong hệ thống", "#f97316"))
+        self.stats_layout.addWidget(self._stat_card("◔", "Nhóm quyền", permission_groups, "nhóm quyền chức năng", "#8b5cf6"))
+
+    def _filter_roles(self):
+        self._render_roles()
+
+    def _render_roles(self):
+        keyword = _as_text(self.role_search.text()).lower().strip()
+        selected_role_id = self.selected_role_id
         self.role_list.clear()
-        for role, (icon, name, description, _kind) in self.ROLE_INFO.items():
-            users = f"{role_counts.get(role, 0)} người dùng"
-            item = QtWidgets.QListWidgetItem(f"{icon}  {name}\n   {description}                                      {users}")
-            item.setSizeHint(QtCore.QSize(0, 62))
-            item.setData(QtCore.Qt.ItemDataRole.UserRole, role)
+
+        for role in self.role_rows:
+            searchable = " ".join([
+                _as_text(role.get("role_key")),
+                _as_text(role.get("display_name")),
+                _as_text(role.get("description")),
+            ]).lower()
+            if keyword and keyword not in searchable:
+                continue
+
+            icon = self.ROLE_ICONS.get(_as_text(role.get("role_key")).lower(), "🛡")
+            users = f"{_as_int(role.get('user_count'))} người dùng"
+            status = "Hoạt động" if bool(role.get("is_active", True)) else "Tạm ngưng"
+            item = QtWidgets.QListWidgetItem(
+                f"{icon}  {_as_text(role.get('display_name'))}\n"
+                f"   {_as_text(role.get('description'))} · {users} · {status}"
+            )
+            item.setSizeHint(QtCore.QSize(0, 66))
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, role.get("role_key"))
+            item.setData(QtCore.Qt.ItemDataRole.UserRole + 1, role.get("role_id"))
             self.role_list.addItem(item)
+
+        if self.role_list.count() == 0:
+            self.selected_role = ""
+            self.selected_role_id = None
+            self.permission_title.setText("Danh sách quyền của vai trò")
+            self.permission_subtitle.setText("Không có vai trò phù hợp")
+            self.permission_table.setRowCount(0)
+            return
+
+        for idx in range(self.role_list.count()):
+            role_id = self.role_list.item(idx).data(QtCore.Qt.ItemDataRole.UserRole + 1)
+            if role_id == selected_role_id:
+                self.role_list.setCurrentRow(idx)
+                return
         self.role_list.setCurrentRow(0)
+
+    def refresh(self):
+        self.role_rows = self._query_roles()
+        self.permission_rows = self._query_permission_groups()
+        self.role_permission_map = self._query_role_permissions()
+        self._render_stats()
+        self._render_roles()
 
     def _role_changed(self, _text=None):
         item = self.role_list.currentItem()
         if item:
             self.selected_role = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            self.selected_role_id = item.data(QtCore.Qt.ItemDataRole.UserRole + 1)
         self._fill_permissions()
 
     def _fill_permissions(self):
-        role = self.selected_role
-        role_counts = {row.get("role"): _as_int(row.get("count")) for row in _safe_fetch_all("SELECT role, COUNT(*) AS count FROM Users GROUP BY role")}
-        _icon, role_name, description, _kind = self.ROLE_INFO.get(role, ("", "Quản trị viên", "Toàn quyền hệ thống", "success"))
-        users = f"{role_counts.get(role, 0)} người dùng"
-        self.permission_title.setText(f"Danh sách quyền của vai trò: {role_name}")
-        self.permission_subtitle.setText(f"{description}                         {users}")
-        rows = list(self.PERMISSIONS.items())
-        row_count = sum(len(permissions) for _group, permissions in rows)
+        role_row = next((item for item in self.role_rows if item.get("role_id") == self.selected_role_id), None)
+        if role_row is None:
+            self.permission_title.setText("Danh sách quyền của vai trò")
+            self.permission_subtitle.setText("Chưa chọn vai trò")
+            self.permission_table.setRowCount(0)
+            return
+
+        self.permission_title.setText(f"Danh sách quyền của vai trò: {_as_text(role_row.get('display_name'))}")
+        self.permission_subtitle.setText(f"{_as_text(role_row.get('description'))} · {_as_int(role_row.get('user_count'))} người dùng")
+
+        grouped = {}
+        for row in self.permission_rows:
+            group_id = row.get("group_id")
+            if not group_id or not row.get("permission_id"):
+                continue
+            grouped.setdefault(group_id, {
+                "group_name": row.get("display_name"),
+                "permissions": [],
+            })
+            grouped[group_id]["permissions"].append(row)
+
+        rows = list(grouped.values())
+        row_count = sum(len(item.get("permissions", [])) for item in rows)
         self.permission_table.setRowCount(row_count)
         table_row = 0
-        for group, permissions in rows:
-            allowed = self.selected_role == "admin" or group not in {"Quản lý hệ thống"}
+        for group in rows:
+            group_name = _as_text(group.get("group_name"))
+            permissions = group.get("permissions", [])
             for index, permission in enumerate(permissions):
-                group_text = f"⌄  {group}\n   {len(permissions)} quyền" if index == 0 else ""
+                permission_id = permission.get("permission_id")
+                group_text = f"⌄  {group_name}\n   {len(permissions)} quyền" if index == 0 else ""
                 self.permission_table.setItem(table_row, 0, QtWidgets.QTableWidgetItem(group_text))
-                self.permission_table.setItem(table_row, 1, QtWidgets.QTableWidgetItem(permission))
-                self.permission_table.setItem(table_row, 2, QtWidgets.QTableWidgetItem(self._permission_description(group, permission)))
-                self.permission_table.setCellWidget(table_row, 3, self._badge("Được phép" if allowed else "Không được phép", "success" if allowed else "danger"))
+                self.permission_table.setItem(table_row, 1, QtWidgets.QTableWidgetItem(_as_text(permission.get("permission_name"))))
+                self.permission_table.setItem(table_row, 2, QtWidgets.QTableWidgetItem(_as_text(permission.get("permission_description"))))
+
+                allowed = bool(self.role_permission_map.get((self.selected_role_id, permission_id), False))
+                status_text = "Được phép" if allowed else "Không được phép"
+                status_kind = "success" if allowed else "danger"
+                if bool(permission.get("is_sensitive")):
+                    status_text += " · Nhạy cảm"
+                self.permission_table.setCellWidget(table_row, 3, self._badge(status_text, status_kind))
                 self.permission_table.setRowHeight(table_row, 50 if index == 0 else 34)
                 table_row += 1
         self.permission_table.setFixedHeight(min(560, 42 + row_count * 34 + len(rows) * 16))
 
-    def _permission_description(self, group, permission):
-        lowered = permission.lower()
-        if lowered.startswith("xem"):
-            return f"Xem thông tin trong module {group.lower()}"
-        if lowered.startswith("thêm") or lowered.startswith("tạo"):
-            return f"Thêm mới dữ liệu trong module {group.lower()}"
-        if lowered.startswith("sửa") or lowered.startswith("cập nhật"):
-            return f"Cập nhật thông tin trong module {group.lower()}"
-        if lowered.startswith("xóa") or lowered.startswith("thu hồi"):
-            return f"Xóa hoặc thu hồi quyền trong module {group.lower()}"
-        return f"Quyền thao tác module {group.lower()}"
+    def _selected_role_row(self):
+        return next((item for item in self.role_rows if item.get("role_id") == self.selected_role_id), None)
+
+    def add_role(self):
+        fields = [
+            {"key": "role_key", "label": "Mã vai trò (không dấu)"},
+            {"key": "display_name", "label": "Tên vai trò"},
+            {"key": "description", "label": "Mô tả"},
+            {"key": "color_kind", "label": "Màu hiển thị", "type": "combo", "options": [("Xanh lá", "success"), ("Xanh dương", "info"), ("Cam", "warning"), ("Xám", "neutral")]},
+            {"key": "is_active", "label": "Trạng thái", "type": "combo", "options": [("Hoạt động", 1), ("Tạm ngưng", 0)]},
+        ]
+        dialog = FormDialog("Thêm vai trò", fields, {"color_kind": "success", "is_active": 1}, self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+        role_key = _as_text(values.get("role_key")).lower().strip()
+        if not role_key or not _as_text(values.get("display_name")).strip():
+            self._show_info("Thiếu dữ liệu", "Mã vai trò và tên vai trò là bắt buộc.")
+            return
+        if _safe_fetch_all("SELECT role_id FROM rbac_roles WHERE role_key=?", (role_key,)):
+            self._show_info("Trùng vai trò", "Mã vai trò đã tồn tại.")
+            return
+        ok = _safe_execute(
+            "INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active) VALUES (?, ?, ?, ?, 0, ?)",
+            (role_key, values.get("display_name"), values.get("description"), values.get("color_kind"), values.get("is_active")),
+        )
+        if ok:
+            self._write_audit_log("rbac.role.create", "role", role_key, f"Tạo vai trò {values.get('display_name')}")
+        self._show_info("Vai trò", "Tạo vai trò thành công." if ok else "Không thể tạo vai trò.")
+        self.refresh()
+
+    def edit_role(self):
+        role = self._selected_role_row()
+        if not role:
+            self._show_info("Vai trò", "Vui lòng chọn vai trò.")
+            return
+        fields = [
+            {"key": "display_name", "label": "Tên vai trò"},
+            {"key": "description", "label": "Mô tả"},
+            {"key": "color_kind", "label": "Màu hiển thị", "type": "combo", "options": [("Xanh lá", "success"), ("Xanh dương", "info"), ("Cam", "warning"), ("Xám", "neutral")]},
+            {"key": "is_active", "label": "Trạng thái", "type": "combo", "options": [("Hoạt động", 1), ("Tạm ngưng", 0)]},
+        ]
+        dialog = FormDialog("Sửa vai trò", fields, role, self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+        if not _as_text(values.get("display_name")).strip():
+            self._show_info("Thiếu dữ liệu", "Tên vai trò không được để trống.")
+            return
+        if bool(role.get("is_system")) and int(values.get("is_active") or 0) == 0 and _as_text(role.get("role_key")) == "admin":
+            self._show_info("Bảo vệ Admin", "Không thể tạm ngưng vai trò hệ thống Admin.")
+            return
+        ok = _safe_execute(
+            "UPDATE rbac_roles SET display_name=?, description=?, color_kind=?, is_active=? WHERE role_id=?",
+            (values.get("display_name"), values.get("description"), values.get("color_kind"), values.get("is_active"), role.get("role_id")),
+        )
+        if ok:
+            self._write_audit_log("rbac.role.update", "role", role.get("role_key"), f"Cập nhật vai trò {values.get('display_name')}")
+        self._show_info("Vai trò", "Cập nhật vai trò thành công." if ok else "Không thể cập nhật vai trò.")
+        self.refresh()
+
+    def clone_role(self):
+        role = self._selected_role_row()
+        if not role:
+            self._show_info("Nhân bản vai trò", "Vui lòng chọn vai trò.")
+            return
+        new_key, ok_input = QtWidgets.QInputDialog.getText(
+            self,
+            "Nhân bản vai trò",
+            "Nhập mã vai trò mới:",
+            text=f"{_as_text(role.get('role_key'))}_copy",
+        )
+        if not ok_input:
+            return
+        new_key = _as_text(new_key).lower().strip()
+        if not new_key:
+            self._show_info("Nhân bản vai trò", "Mã vai trò mới không hợp lệ.")
+            return
+        if _safe_fetch_all("SELECT role_id FROM rbac_roles WHERE role_key=?", (new_key,)):
+            self._show_info("Nhân bản vai trò", "Mã vai trò đã tồn tại.")
+            return
+        ok = _safe_execute(
+            "INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active) VALUES (?, ?, ?, ?, 0, 1)",
+            (new_key, f"{_as_text(role.get('display_name'))} (Bản sao)", role.get("description"), role.get("color_kind")),
+        )
+        if not ok:
+            self._show_info("Nhân bản vai trò", "Không thể tạo vai trò bản sao.")
+            return
+
+        new_role = _safe_fetch_all("SELECT role_id FROM rbac_roles WHERE role_key=?", (new_key,))
+        if new_role:
+            _safe_execute(
+                """
+                INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
+                SELECT ?, permission_id, allowed, ?
+                FROM rbac_role_permissions
+                WHERE role_id=?
+                """,
+                (new_role[0].get("role_id"), self.user_data.get("user_id"), role.get("role_id")),
+            )
+        self._write_audit_log("rbac.role.clone", "role", new_key, f"Nhân bản từ {role.get('role_key')}")
+        self._show_info("Nhân bản vai trò", "Đã nhân bản vai trò và quyền đi kèm.")
+        self.refresh()
+
+    def toggle_role(self):
+        role = self._selected_role_row()
+        if not role:
+            self._show_info("Vai trò", "Vui lòng chọn vai trò.")
+            return
+        new_state = 0 if bool(role.get("is_active", True)) else 1
+        if _as_text(role.get("role_key")) == "admin" and new_state == 0:
+            self._show_info("Bảo vệ Admin", "Không thể tắt vai trò Admin.")
+            return
+        ok = _safe_execute("UPDATE rbac_roles SET is_active=? WHERE role_id=?", (new_state, role.get("role_id")))
+        if ok:
+            self._write_audit_log("rbac.role.toggle", "role", role.get("role_key"), f"Đổi trạng thái -> {new_state}")
+        self._show_info("Vai trò", "Đã cập nhật trạng thái vai trò." if ok else "Không thể cập nhật trạng thái.")
+        self.refresh()
+
+    def delete_role(self):
+        role = self._selected_role_row()
+        if not role:
+            self._show_info("Vai trò", "Vui lòng chọn vai trò.")
+            return
+        if bool(role.get("is_system")):
+            self._show_info("Xóa vai trò", "Không thể xóa vai trò hệ thống.")
+            return
+        assignments = _safe_fetch_all(
+            "SELECT assignment_id FROM rbac_user_role_assignments WHERE role_id=? AND is_active=1",
+            (role.get("role_id"),),
+        )
+        if assignments:
+            self._show_info("Xóa vai trò", "Vai trò đang có người dùng. Hãy gỡ gán trước khi xóa.")
+            return
+        if not self._confirm("Xóa vai trò", f"Bạn có chắc muốn xóa vai trò {_as_text(role.get('display_name'))}?"):
+            return
+        _safe_execute("DELETE FROM rbac_role_permissions WHERE role_id=?", (role.get("role_id"),))
+        ok = _safe_execute("DELETE FROM rbac_roles WHERE role_id=?", (role.get("role_id"),))
+        if ok:
+            self._write_audit_log("rbac.role.delete", "role", role.get("role_key"), "Xóa vai trò")
+        self._show_info("Xóa vai trò", "Xóa vai trò thành công." if ok else "Không thể xóa vai trò.")
+        self.refresh()
+
+    def configure_permissions(self):
+        role = self._selected_role_row()
+        if not role:
+            self._show_info("Cấu hình quyền", "Vui lòng chọn vai trò.")
+            return
+
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle(f"Cấu hình quyền - {_as_text(role.get('display_name'))}")
+        dialog.setMinimumSize(860, 580)
+        layout = QtWidgets.QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.addWidget(self._muted("Chọn quyền cấp cho vai trò. Các quyền nhạy cảm được đánh dấu ⚠."))
+
+        table = QtWidgets.QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["Nhóm", "Quyền", "Mô tả", "Cấp quyền"])
+        self._style_table(table, 12)
+        table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        table.setWordWrap(True)
+        table.setRowCount(sum(1 for row in self.permission_rows if row.get("permission_id")))
+
+        row_idx = 0
+        checkboxes = []
+        for row in self.permission_rows:
+            if not row.get("permission_id"):
+                continue
+            table.setItem(row_idx, 0, QtWidgets.QTableWidgetItem(_as_text(row.get("display_name"))))
+            name = _as_text(row.get("permission_name"))
+            if bool(row.get("is_sensitive")):
+                name = f"⚠ {name}"
+            table.setItem(row_idx, 1, QtWidgets.QTableWidgetItem(name))
+            table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(_as_text(row.get("permission_description"))))
+            cb = QtWidgets.QCheckBox()
+            cb.setChecked(bool(self.role_permission_map.get((role.get("role_id"), row.get("permission_id")), False)))
+            wrap = QtWidgets.QWidget()
+            wrap_layout = QtWidgets.QHBoxLayout(wrap)
+            wrap_layout.setContentsMargins(0, 0, 0, 0)
+            wrap_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            wrap_layout.addWidget(cb)
+            table.setCellWidget(row_idx, 3, wrap)
+            checkboxes.append((row.get("permission_id"), cb))
+            row_idx += 1
+        table.setRowCount(row_idx)
+        layout.addWidget(table)
+
+        btns = QtWidgets.QHBoxLayout()
+        select_all = self._button("Cấp tất cả")
+        clear_all = self._button("Gỡ tất cả")
+        save_btn = self._button("Lưu thay đổi", primary=True)
+        cancel_btn = self._button("Hủy")
+        btns.addWidget(select_all)
+        btns.addWidget(clear_all)
+        btns.addStretch()
+        btns.addWidget(cancel_btn)
+        btns.addWidget(save_btn)
+        layout.addLayout(btns)
+
+        select_all.clicked.connect(lambda: [cb.setChecked(True) for _, cb in checkboxes])
+        clear_all.clicked.connect(lambda: [cb.setChecked(False) for _, cb in checkboxes])
+        cancel_btn.clicked.connect(dialog.reject)
+
+        def _save():
+            if _as_text(role.get("role_key")) == "admin":
+                for permission_id, cb in checkboxes:
+                    if not cb.isChecked():
+                        self._show_info("Bảo vệ Admin", "Vai trò Admin phải giữ toàn bộ quyền.")
+                        return
+
+            _safe_execute("DELETE FROM rbac_role_permissions WHERE role_id=?", (role.get("role_id"),))
+            for permission_id, cb in checkboxes:
+                if cb.isChecked():
+                    _safe_execute(
+                        "INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id) VALUES (?, ?, 1, ?)",
+                        (role.get("role_id"), permission_id, self.user_data.get("user_id")),
+                    )
+            self._write_audit_log("rbac.permission.assign", "role", role.get("role_key"), "Cập nhật tập quyền")
+            dialog.accept()
+
+        save_btn.clicked.connect(_save)
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            self._show_info("Cấu hình quyền", "Cập nhật quyền thành công.")
+            self.refresh()
+
+    def assign_user_role(self):
+        users = _safe_fetch_all("SELECT user_id, username, role FROM Users ORDER BY username ASC")
+        if not users:
+            self._show_info("Gán vai trò", "Chưa có người dùng trong hệ thống.")
+            return
+        roles = self._query_roles()
+        if not roles:
+            self._show_info("Gán vai trò", "Chưa có vai trò khả dụng.")
+            return
+
+        user_map = {f"{_as_text(u.get('username'))} (#{_as_int(u.get('user_id'))})": u for u in users}
+        role_map = {f"{_as_text(r.get('display_name'))} ({_as_text(r.get('role_key'))})": r for r in roles if bool(r.get("is_active", True))}
+
+        user_label, ok_user = QtWidgets.QInputDialog.getItem(self, "Gán vai trò", "Chọn người dùng:", list(user_map.keys()), editable=False)
+        if not ok_user:
+            return
+        role_label, ok_role = QtWidgets.QInputDialog.getItem(self, "Gán vai trò", "Chọn vai trò:", list(role_map.keys()), editable=False)
+        if not ok_role:
+            return
+
+        user = user_map.get(user_label)
+        role = role_map.get(role_label)
+        if user is None or role is None:
+            self._show_info("Gán vai trò", "Dữ liệu không hợp lệ.")
+            return
+
+        existing = _safe_fetch_all(
+            "SELECT assignment_id FROM rbac_user_role_assignments WHERE user_id=? AND role_id=?",
+            (user.get("user_id"), role.get("role_id")),
+        )
+        if existing:
+            ok = _safe_execute(
+                """
+                UPDATE rbac_user_role_assignments
+                SET is_active=1,
+                    assigned_by_user_id=?,
+                    assigned_at=CURRENT_TIMESTAMP
+                WHERE assignment_id=?
+                """,
+                (self.user_data.get("user_id"), existing[0].get("assignment_id")),
+            )
+        else:
+            ok = _safe_execute(
+                "INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active) VALUES (?, ?, ?, 1)",
+                (user.get("user_id"), role.get("role_id"), self.user_data.get("user_id")),
+            )
+        if ok:
+            self._write_audit_log(
+                "rbac.user_role.assign",
+                "user",
+                user.get("user_id"),
+                f"Gán role {_as_text(role.get('role_key'))} cho user {_as_text(user.get('username'))}",
+            )
+        self._show_info("Gán vai trò", "Gán vai trò thành công." if ok else "Không thể gán vai trò.")
+        self.refresh()
 
 
 class BackupManagementPage(AdminBasePage):
