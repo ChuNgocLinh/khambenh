@@ -918,3 +918,30 @@ WHERE u.role = 'admin'
       WHERE n.user_id = u.user_id AND n.title = 'Cảnh báo tồn kho thuốc'
   )
 LIMIT 1;
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV003', 'Khám chuyên khoa Nội tiết', 'Khám bệnh', 45, 200000, 'Khám và tư vấn bệnh lý nội tiết', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV003');
+
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV004', 'Xét nghiệm đường huyết', 'Xét nghiệm', 10, 80000, 'Kiểm tra lượng đường trong máu', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV004');
+
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV005', 'Xét nghiệm mỡ máu', 'Xét nghiệm', 15, 150000, 'Định lượng Cholesterol, Triglycerid, HDL, LDL', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV005');
+
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV006', 'Siêu âm ổ bụng tổng quát', 'Chẩn đoán hình ảnh', 30, 250000, 'Siêu âm 4D ổ bụng', 1, 0
+WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV006');
+
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV007', 'Chụp X-quang phổi', 'Chẩn đoán hình ảnh', 20, 200000, 'Chụp X-quang tim phổi thẳng', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV007');
+
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV008', 'Điện tâm đồ (ECG)', 'Thăm dò chức năng', 15, 120000, 'Đo điện tim đồ 12 chuyển đạo', 1, 0
+WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV008');
+
+INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active)
+SELECT 'DV009', 'Vật lý trị liệu', 'Điều trị', 30, 180000, 'Phục hồi chức năng cơ xương khớp', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM Services WHERE service_code='DV009');

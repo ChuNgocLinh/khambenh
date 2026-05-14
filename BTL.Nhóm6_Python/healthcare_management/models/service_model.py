@@ -4,20 +4,24 @@ class ServiceModel:
 
     @staticmethod
     def get_all():
-        return fetch_all("SELECT * FROM Services")
+        return fetch_all("SELECT * FROM Services ORDER BY service_id DESC")
 
     @staticmethod
-    def create(name, price, description):
+    def get_by_id(service_id):
+        return fetch_one("SELECT * FROM Services WHERE service_id=?", (service_id,))
+
+    @staticmethod
+    def create(code, name, category, duration, price, description, is_visible, is_active):
         return execute(
-            "INSERT INTO Services (service_name, price, description) VALUES (?, ?, ?)",
-            (name, price, description)
+            "INSERT INTO Services (service_code, service_name, category, duration, price, description, is_visible, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (code, name, category, duration, price, description, is_visible, is_active)
         )
 
     @staticmethod
-    def update(service_id, name, price, description):
+    def update(service_id, code, name, category, duration, price, description, is_visible, is_active):
         return execute(
-            "UPDATE Services SET service_name=?, price=?, description=? WHERE service_id=?",
-            (name, price, description, service_id)
+            "UPDATE Services SET service_code=?, service_name=?, category=?, duration=?, price=?, description=?, is_visible=?, is_active=? WHERE service_id=?",
+            (code, name, category, duration, price, description, is_visible, is_active, service_id)
         )
 
     @staticmethod
@@ -30,3 +34,12 @@ class ServiceModel:
             "UPDATE Services SET is_active=? WHERE service_id=?",
             (1 if bool(is_active) else 0, service_id)
         )
+    
+    @staticmethod
+    def check_used(service_id):
+        # Check if service is used in invoices
+        invoice = fetch_one("SELECT 1 FROM Invoices WHERE service_id=? LIMIT 1", (service_id,))
+        if invoice:
+            return True
+        return False
+
