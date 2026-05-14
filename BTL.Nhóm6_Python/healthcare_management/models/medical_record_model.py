@@ -4,9 +4,46 @@ from database.db import execute, fetch_all, fetch_one
 
 class MedicalRecordModel:
     VALID_RECORD_STATUSES = {"draft", "finalized"}
+    _schema_checked = False
+
+    @staticmethod
+    def _ensure_schema():
+        if MedicalRecordModel._schema_checked:
+            return
+        MedicalRecordModel._schema_checked = True
+        if DB_TYPE == "mysql":
+            execute("ALTER TABLE MedicalRecords ADD COLUMN record_status VARCHAR(20) DEFAULT 'draft'")
+            execute("ALTER TABLE MedicalRecords ADD COLUMN finalized_at DATETIME NULL")
+            execute("ALTER TABLE MedicalRecords ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+            return
+        execute(
+            """
+            IF COL_LENGTH('dbo.MedicalRecords', 'record_status') IS NULL
+            BEGIN
+                ALTER TABLE dbo.MedicalRecords ADD record_status NVARCHAR(20) NOT NULL CONSTRAINT DF_MedicalRecords_record_status DEFAULT 'draft'
+            END
+            """
+        )
+        execute(
+            """
+            IF COL_LENGTH('dbo.MedicalRecords', 'finalized_at') IS NULL
+            BEGIN
+                ALTER TABLE dbo.MedicalRecords ADD finalized_at DATETIME NULL
+            END
+            """
+        )
+        execute(
+            """
+            IF COL_LENGTH('dbo.MedicalRecords', 'updated_at') IS NULL
+            BEGIN
+                ALTER TABLE dbo.MedicalRecords ADD updated_at DATETIME NULL
+            END
+            """
+        )
 
     @staticmethod
     def get_by_patient(patient_id):
+        MedicalRecordModel._ensure_schema()
         if DB_TYPE == "mysql":
             service_select = "COALESCE(GROUP_CONCAT(DISTINCT s.service_name ORDER BY s.service_name SEPARATOR ', '), '') AS service_names"
         else:
@@ -56,6 +93,7 @@ class MedicalRecordModel:
 
     @staticmethod
     def get_by_appointment(appointment_id):
+        MedicalRecordModel._ensure_schema()
         if DB_TYPE == "mysql":
             query = "SELECT * FROM MedicalRecords WHERE appointment_id=? ORDER BY record_id DESC LIMIT 1"
         else:
@@ -77,6 +115,7 @@ class MedicalRecordModel:
 
     @staticmethod
     def save_draft(patient_id, doctor_id, appointment_id, diagnosis="", treatment="", symptoms="", conclusion="", notes=""):
+        MedicalRecordModel._ensure_schema()
         body = treatment or conclusion or notes or symptoms
         existing = MedicalRecordModel.get_by_appointment(appointment_id)
         if existing:
@@ -100,6 +139,7 @@ class MedicalRecordModel:
 
     @staticmethod
     def finalize(record_id, diagnosis, treatment):
+        MedicalRecordModel._ensure_schema()
         return execute(
             """
             UPDATE MedicalRecords

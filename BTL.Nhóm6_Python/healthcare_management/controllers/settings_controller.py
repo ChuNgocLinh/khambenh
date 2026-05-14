@@ -6,6 +6,8 @@ from pathlib import Path
 from datetime import datetime
 from importlib import import_module
 
+from config import DB_TYPE
+
 
 class SettingsController:
     DISPLAY_OPTION_MAP = {
@@ -147,12 +149,15 @@ class SettingsController:
 
         patient_row = fetch_one(
             """
-            SELECT patient_id, name, phone, email
+            SELECT {top_one} patient_id, name, phone, email
             FROM Patients
             WHERE user_id=?
             ORDER BY patient_id DESC
-            LIMIT 1
-            """,
+            {limit_one}
+            """.format(
+                top_one="" if DB_TYPE == "mysql" else "TOP 1",
+                limit_one="LIMIT 1" if DB_TYPE == "mysql" else "",
+            ),
             (user_id,),
         )
         if not isinstance(patient_row, dict):
@@ -301,12 +306,15 @@ class SettingsController:
 
         patient_data = fetch_one(
             """
-            SELECT patient_id, name, phone, email
+            SELECT {top_one} patient_id, name, phone, email
             FROM Patients
             WHERE user_id=?
             ORDER BY patient_id DESC
-            LIMIT 1
-            """,
+            {limit_one}
+            """.format(
+                top_one="" if DB_TYPE == "mysql" else "TOP 1",
+                limit_one="LIMIT 1" if DB_TYPE == "mysql" else "",
+            ),
             (user_id,),
         ) or {}
 

@@ -1,11 +1,40 @@
+from config import DB_TYPE
 from database.db import execute, fetch_all, fetch_one
 
 
 class PrescriptionModel:
     VALID_STATUSES = {"draft", "issued", "dispensed", "cancelled"}
+    _schema_checked = False
+
+    @staticmethod
+    def _ensure_schema():
+        if PrescriptionModel._schema_checked:
+            return
+        PrescriptionModel._schema_checked = True
+        if DB_TYPE == "mysql":
+            execute("ALTER TABLE Prescriptions ADD COLUMN updated_at DATETIME NULL")
+            execute("ALTER TABLE Prescriptions ADD COLUMN dispensed_at DATETIME NULL")
+            return
+        execute(
+            """
+            IF COL_LENGTH('dbo.Prescriptions', 'updated_at') IS NULL
+            BEGIN
+                ALTER TABLE dbo.Prescriptions ADD updated_at DATETIME NULL
+            END
+            """
+        )
+        execute(
+            """
+            IF COL_LENGTH('dbo.Prescriptions', 'dispensed_at') IS NULL
+            BEGIN
+                ALTER TABLE dbo.Prescriptions ADD dispensed_at DATETIME NULL
+            END
+            """
+        )
 
     @staticmethod
     def get_by_record(record_id):
+        PrescriptionModel._ensure_schema()
         return fetch_all(
             """
             SELECT p.*, m.name
@@ -18,10 +47,12 @@ class PrescriptionModel:
 
     @staticmethod
     def get_by_id(prescription_id):
+        PrescriptionModel._ensure_schema()
         return fetch_one("SELECT * FROM Prescriptions WHERE prescription_id=?", (prescription_id,))
 
     @staticmethod
     def get_by_doctor(doctor_id):
+        PrescriptionModel._ensure_schema()
         return fetch_all(
             """
             SELECT
@@ -46,6 +77,7 @@ class PrescriptionModel:
 
     @staticmethod
     def add(record_id, medicine_id, quantity, status="draft"):
+        PrescriptionModel._ensure_schema()
         return execute(
             """
             INSERT INTO Prescriptions (record_id, medicine_id, quantity, status, updated_at)
@@ -56,6 +88,7 @@ class PrescriptionModel:
 
     @staticmethod
     def update_item(prescription_id, medicine_id, quantity, status):
+        PrescriptionModel._ensure_schema()
         return execute(
             """
             UPDATE Prescriptions
@@ -67,6 +100,7 @@ class PrescriptionModel:
 
     @staticmethod
     def update_status(prescription_id, status):
+        PrescriptionModel._ensure_schema()
         dispensed_sql = ", dispensed_at=CURRENT_TIMESTAMP" if status == "dispensed" else ""
         return execute(
             f"UPDATE Prescriptions SET status=?, updated_at=CURRENT_TIMESTAMP{dispensed_sql} WHERE prescription_id=?",

@@ -10,6 +10,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from controllers.settings_controller import SettingsController
 from controllers.report_controller import ReportController
+from config import DB_TYPE
 
 
 try:
@@ -43,6 +44,47 @@ def _safe_execute(query, params=()):
         return False
 
 
+def _ensure_column(table, column, definition):
+    if DB_TYPE == "mysql":
+        return _safe_execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    table_name = table if "." in table else f"dbo.{table}"
+    return _safe_execute(
+        f"""
+        IF COL_LENGTH('{table_name}', '{column}') IS NULL
+        BEGIN
+            ALTER TABLE {table_name} ADD {column} {definition}
+        END
+        """
+    )
+
+
+def _ensure_admin_runtime_schema():
+    _ensure_column("Users", "deleted_at", "DATETIME NULL")
+    _ensure_column("Patients", "email", "VARCHAR(100) NULL")
+    _ensure_column("Doctors", "email", "VARCHAR(100) NULL")
+    _ensure_column("Doctors", "work_status", "NVARCHAR(50) NULL")
+    _ensure_column("Doctors", "created_at", "DATETIME NULL")
+    _ensure_column("Doctors", "updated_at", "DATETIME NULL")
+    _ensure_column("Services", "service_code", "VARCHAR(30) NULL")
+    _ensure_column("Services", "category", "VARCHAR(100) NULL")
+    _ensure_column("Services", "duration", "INT NULL")
+    _ensure_column("Services", "is_visible", "BIT NULL")
+    _ensure_column("Medicines", "medicine_code", "VARCHAR(30) NULL")
+    _ensure_column("Medicines", "active_ingredient", "VARCHAR(100) NULL")
+    _ensure_column("Medicines", "category", "VARCHAR(100) NULL")
+    _ensure_column("Medicines", "unit", "VARCHAR(30) NULL")
+    _ensure_column("Medicines", "supplier", "VARCHAR(100) NULL")
+    _ensure_column("Medicines", "import_price", "DECIMAL(10,2) NULL")
+    try:
+        from models.notification_model import NotificationModel
+        from models.settings_model import SettingsModel
+
+        NotificationModel.ensure_table_exists()
+        SettingsModel.ensure_table_exists()
+    except Exception:
+        pass
+
+
 def _hash_password(password):
     return hashlib.sha256(str(password or "").encode()).hexdigest()
 
@@ -60,11 +102,11 @@ def _as_float(value):
         return 0.0
 
 
-def _as_int(value):
+def _as_int(value, default=0):
     try:
         return int(value or 0)
     except (TypeError, ValueError):
-        return 0
+        return int(default or 0)
 
 
 def _is_active(row):
@@ -963,14 +1005,17 @@ class AdminHomePage(AdminBasePage):
         self.refresh()
 
     def refresh(self):
+        _ensure_admin_runtime_schema()
         patients = _safe_fetch_all("SELECT * FROM Patients")
         doctors = _safe_fetch_all("SELECT * FROM Doctors")
+        notification_limit = "LIMIT 4" if DB_TYPE == "mysql" else ""
+        notification_top = "" if DB_TYPE == "mysql" else "TOP 4"
         notifications = _safe_fetch_all(
-            """
-            SELECT title, content, created_at
+            f"""
+            SELECT {notification_top} title, content, created_at
             FROM Notifications
             ORDER BY created_at DESC
-            LIMIT 4
+            {notification_limit}
             """
         )
         payments = _safe_fetch_all(
@@ -989,15 +1034,18 @@ class AdminHomePage(AdminBasePage):
             FROM Appointments a
             LEFT JOIN Patients pa ON pa.patient_id = a.patient_id
             LEFT JOIN Invoices i ON i.payment_id = (
-                SELECT p2.payment_id
+                SELECT {top_one} p2.payment_id
                 FROM Payments p2
                 WHERE p2.appointment_id = a.appointment_id
                 ORDER BY p2.payment_date DESC
-                LIMIT 1
+                {limit_one}
             )
             LEFT JOIN Services s ON s.service_id = i.service_id
             ORDER BY a.appointment_date DESC
-            """
+            """.format(
+                top_one="" if DB_TYPE == "mysql" else "TOP 1",
+                limit_one="LIMIT 1" if DB_TYPE == "mysql" else "",
+            )
         )
         prescriptions = _safe_fetch_all("SELECT * FROM Prescriptions")
 
@@ -1273,7 +1321,7 @@ class AccountManagementPage(AdminListPage):
     def load_rows(self):
         self._set_loading(True)
         self.load_error = ""
-        _safe_execute("ALTER TABLE Users ADD COLUMN deleted_at DATETIME NULL")
+        _ensure_admin_runtime_schema()
         try:
             if fetch_all is None:
                 return []
@@ -1941,9 +1989,7 @@ class DoctorManagementPage(AdminListPage):
             btn.setVisible(has_selected)
 
     def _ensure_schema(self):
-        # Keep schema migration out of runtime view logic.
-        # Database schema should be managed via init_db.sql / migrate scripts.
-        return
+        _ensure_admin_runtime_schema()
 
     @staticmethod
     def _normalize_work_status(row):
@@ -1979,6 +2025,7 @@ class DoctorManagementPage(AdminListPage):
     def load_rows(self):
         self._set_loading(True)
         self.load_error = ""
+        self._ensure_schema()
         try:
             rows = _safe_fetch_all(
                 """
@@ -3249,6 +3296,20 @@ class ReportStatsPage(AdminBasePage):
             "group_name": self.group_combo.currentData() or "Tất cả",
             "doctor_name": self.doctor_combo.currentData() or "Tất cả",
         }
+
+    def _sync_doctor_filter(self):
+        current = self.doctor_combo.currentData() if hasattr(self, "doctor_combo") else "Tất cả"
+        doctors = _safe_fetch_all("SELECT name FROM Doctors WHERE COALESCE(is_active, 1)=1 ORDER BY name ASC")
+        self.doctor_combo.blockSignals(True)
+        self.doctor_combo.clear()
+        self.doctor_combo.addItem("Tất cả", "Tất cả")
+        for row in doctors:
+            name = _as_text(row.get("name")).strip()
+            if name:
+                self.doctor_combo.addItem(f"BS. {name}", name)
+        idx = self.doctor_combo.findData(current)
+        self.doctor_combo.setCurrentIndex(max(idx, 0))
+        self.doctor_combo.blockSignals(False)
 
     def refresh(self):
         self._show_loading_state()
@@ -4859,6 +4920,7 @@ class CarePlusAdminDashboard(QtWidgets.QWidget):
         super().__init__(parent)
         self.user_data = user_data or {"role": "admin"}
         self.nav_buttons = []
+        _ensure_admin_runtime_schema()
         self._build_shell()
         self.switch_page(0)
 

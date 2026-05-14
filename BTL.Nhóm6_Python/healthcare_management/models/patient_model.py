@@ -1,9 +1,39 @@
+from config import DB_TYPE
 from database.db import fetch_all, fetch_one, execute
 
 class PatientModel:
+    _schema_checked = False
+
+    @staticmethod
+    def _ensure_schema():
+        if PatientModel._schema_checked:
+            return
+        PatientModel._schema_checked = True
+        columns = {
+            "cccd": "VARCHAR(20) NULL",
+            "email": "VARCHAR(100) NULL",
+            "occupation": "VARCHAR(100) NULL",
+            "intake_notes": "NVARCHAR(500) NULL" if DB_TYPE != "mysql" else "VARCHAR(500) NULL",
+            "patient_type": "VARCHAR(30) NULL",
+            "is_active": "BIT NOT NULL CONSTRAINT DF_Patients_is_active DEFAULT 1" if DB_TYPE != "mysql" else "BOOLEAN DEFAULT TRUE",
+            "created_at": "DATETIME NULL",
+        }
+        for column, definition in columns.items():
+            if DB_TYPE == "mysql":
+                execute(f"ALTER TABLE Patients ADD COLUMN {column} {definition}")
+            else:
+                execute(
+                    f"""
+                    IF COL_LENGTH('dbo.Patients', '{column}') IS NULL
+                    BEGIN
+                        ALTER TABLE dbo.Patients ADD {column} {definition}
+                    END
+                    """
+                )
 
     @staticmethod
     def get_all():
+        PatientModel._ensure_schema()
         return fetch_all(
             """
             SELECT *
@@ -15,6 +45,10 @@ class PatientModel:
 
     @staticmethod
     def get_by_doctor(doctor_id):
+        PatientModel._ensure_schema()
+        from models.medical_record_model import MedicalRecordModel
+
+        MedicalRecordModel._ensure_schema()
         return fetch_all(
             """
             SELECT
@@ -65,6 +99,7 @@ class PatientModel:
 
     @staticmethod
     def get_by_id(patient_id):
+        PatientModel._ensure_schema()
         return fetch_one("SELECT * FROM Patients WHERE patient_id=?", (patient_id,))
 
     @staticmethod
