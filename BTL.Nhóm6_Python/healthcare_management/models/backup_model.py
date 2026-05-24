@@ -3,6 +3,7 @@ from datetime import datetime
 
 from config import DB_TYPE
 from database.db import execute, fetch_all, fetch_one
+from database.sql_utils import limit_clause, pagination_clause, pagination_params, select_top
 
 
 class BackupModel:
@@ -270,14 +271,14 @@ class BackupModel:
         total_row = fetch_one("SELECT COUNT(*) AS total FROM BackupRecords WHERE is_deleted=0") or {"total": 0}
         total = int(total_row.get("total") or 0)
         rows = fetch_all(
-            """
+            f"""
             SELECT *
             FROM BackupRecords
             WHERE is_deleted=0
             ORDER BY created_at DESC, backup_id DESC
-            LIMIT ? OFFSET ?
+            {pagination_clause()}
             """,
-            (limit, offset),
+            pagination_params(limit, offset),
         )
         total_pages = (total + limit - 1) // limit if limit else 1
         return {
@@ -422,12 +423,12 @@ class BackupModel:
         ) or {"total_size": 0, "total_count": 0}
 
         last_backup = fetch_one(
-            """
-            SELECT backup_id, created_at, status, size_bytes
+            f"""
+            SELECT {select_top(1)}backup_id, created_at, status, size_bytes
             FROM BackupRecords
             WHERE is_deleted=0
             ORDER BY created_at DESC, backup_id DESC
-            LIMIT 1
+            {limit_clause(1)}
             """
         )
 

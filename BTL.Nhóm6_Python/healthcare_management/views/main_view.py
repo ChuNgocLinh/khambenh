@@ -4,6 +4,7 @@ from views.dashboard_view import DashboardView, AdminDashboardView
 from views.staff_dashboard_view import StaffDashboardView
 from models.doctor_model import DoctorModel
 from controllers.appointment_controller import AppointmentController
+from controllers.doctor_controller import DoctorController
 from controllers.service_controller import ServiceController
 
 CANONICAL_ROLES = {"admin", "staff", "doctor", "patient"}
@@ -194,11 +195,11 @@ class MainView(QtWidgets.QMainWindow):
         row_service = QtWidgets.QHBoxLayout()
         self.cb_service = QtWidgets.QComboBox()
         self.cb_service.setStyleSheet(combo_style)
-        services = ServiceController.get_all()
+        services = ServiceController.get_visible_active()
         for service in services:
             service_name = str(service.get("service_name", ""))
             if service_name:
-                self.cb_service.addItem(service_name)
+                self.cb_service.addItem(service_name, userData=service.get("service_id"))
         if self.cb_service.count() == 0:
             self.cb_service.addItem("Chưa có dịch vụ")
 
@@ -211,7 +212,7 @@ class MainView(QtWidgets.QMainWindow):
         row_cb = QtWidgets.QHBoxLayout()
         
         self.cb_doc = QtWidgets.QComboBox()
-        docs = DoctorModel.get_all()
+        docs = DoctorController.get_available_for_patient()
         for doc in docs:
             self.cb_doc.addItem(f"BS {doc['name']}", userData=doc["doctor_id"])
         self.cb_doc.setStyleSheet(combo_style)
@@ -232,18 +233,19 @@ class MainView(QtWidgets.QMainWindow):
         row_cb.addWidget(self.cb_doc); row_cb.addWidget(self.de_date)
         bk_v.addLayout(row_cb)
 
-        time_grid = QtWidgets.QHBoxLayout()
-        for t in ["08:00", "09:00", "10:00", "11:00"]:
-            t_btn = QtWidgets.QPushButton(f"{t}\nCòn trống")
-            t_btn.setStyleSheet("background: white; border: 1px solid #eee; border-radius: 10px; color: #333; padding: 10px;")
-            t_btn.clicked.connect(lambda _, selected=t: self.select_time_slot(selected))
-            self._time_buttons.append(t_btn)
-            time_grid.addWidget(t_btn)
-        bk_v.addLayout(time_grid)
+        self.time_grid = QtWidgets.QGridLayout()
+        self.time_grid.setHorizontalSpacing(8)
+        self.time_grid.setVerticalSpacing(8)
+        bk_v.addLayout(self.time_grid)
 
         self.booking_hint = QtWidgets.QLabel("Vui lòng chọn dịch vụ, ngày, bác sĩ và giờ khám.")
         self.booking_hint.setStyleSheet("color: #64748b; font-size: 13px;")
         bk_v.addWidget(self.booking_hint)
+
+        self.cb_service.currentIndexChanged.connect(self.refresh_available_slots)
+        self.cb_doc.currentIndexChanged.connect(self.refresh_available_slots)
+        self.de_date.dateChanged.connect(self.refresh_available_slots)
+        self.refresh_available_slots()
 
         btn_book = QtWidgets.QPushButton("Đặt lịch ngay")
         btn_book.setFixedHeight(50)
@@ -595,6 +597,53 @@ class MainView(QtWidgets.QMainWindow):
         logout_act.triggered.connect(self.logout)
         menu.exec(anchor_btn.mapToGlobal(QtCore.QPoint(0, anchor_btn.height() + 5)))
 
+    def _slot_button_style(self, selected=False, disabled=False):
+        if disabled:
+            return "background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; color: #94a3b8; padding: 10px;"
+        if selected:
+            return "background: #e1f2ee; border: 1px solid #69c0a5; border-radius: 10px; color: #1a2a3a; padding: 10px; font-weight: bold;"
+        return "background: white; border: 1px solid #eee; border-radius: 10px; color: #333; padding: 10px;"
+
+    def _clear_time_grid(self):
+        while self.time_grid.count():
+            item = self.time_grid.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+    def refresh_available_slots(self):
+        if not hasattr(self, "time_grid"):
+            return
+        self.selected_time = None
+        self._time_buttons = []
+        self._clear_time_grid()
+
+        doctor_id = self.cb_doc.currentData()
+        service_id = self.cb_service.currentData()
+        date_value = self.de_date.date().toString("yyyy-MM-dd")
+        result = AppointmentController.get_available_slots(doctor_id, date_value, service_id)
+        slots = result.get("slots", []) if isinstance(result, dict) else []
+        if not slots:
+            disabled = QtWidgets.QPushButton("Chưa có khung giờ")
+            disabled.setEnabled(False)
+            disabled.setStyleSheet(self._slot_button_style(disabled=True))
+            self.time_grid.addWidget(disabled, 0, 0)
+            self.booking_hint.setText(result.get("message", "Không có khung giờ khả dụng.") if isinstance(result, dict) else "Không có khung giờ khả dụng.")
+            return
+
+        for idx, slot in enumerate(slots):
+            time_value = slot.get("time")
+            available = bool(slot.get("available"))
+            button = QtWidgets.QPushButton(f"{time_value}\n{'Còn trống' if available else 'Đã đặt'}")
+            button.setEnabled(available)
+            button.setStyleSheet(self._slot_button_style(disabled=not available))
+            if available:
+                button.clicked.connect(lambda _, selected=time_value: self.select_time_slot(selected))
+            self._time_buttons.append(button)
+            self.time_grid.addWidget(button, idx // 4, idx % 4)
+
+        self.booking_hint.setText("Vui lòng chọn dịch vụ, ngày, bác sĩ và giờ khám.")
+
     def book_appointment(self):
         doc_id = self.cb_doc.currentData()
         service_name = self.cb_service.currentText().strip()
@@ -631,6 +680,8 @@ class MainView(QtWidgets.QMainWindow):
             service_name,
             date,
             self.selected_time,
+            role="patient",
+            user_context=self.user_data,
         )
         if result["status"]:
             QtWidgets.QMessageBox.information(self, "Thành công", result["message"])
@@ -644,13 +695,9 @@ class MainView(QtWidgets.QMainWindow):
         for button in self._time_buttons:
             button_time = button.text().split("\n", maxsplit=1)[0]
             if button_time == time_value:
-                button.setStyleSheet(
-                    "background: #e1f2ee; border: 1px solid #69c0a5; border-radius: 10px; color: #1a2a3a; padding: 10px; font-weight: bold;"
-                )
+                button.setStyleSheet(self._slot_button_style(selected=True))
             else:
-                button.setStyleSheet(
-                    "background: white; border: 1px solid #eee; border-radius: 10px; color: #333; padding: 10px;"
-                )
+                button.setStyleSheet(self._slot_button_style())
         self.booking_hint.setText(f"Đã chọn giờ khám: {time_value}")
 
     def _reset_booking_selection(self):
@@ -658,10 +705,7 @@ class MainView(QtWidgets.QMainWindow):
         self.booking_hint.setText("Vui lòng chọn dịch vụ, ngày, bác sĩ và giờ khám.")
         if self.cb_service.count() > 0:
             self.cb_service.setCurrentIndex(0)
-        for button in self._time_buttons:
-            button.setStyleSheet(
-                "background: white; border: 1px solid #eee; border-radius: 10px; color: #333; padding: 10px;"
-            )
+        self.refresh_available_slots()
 
     def _reload_upcoming_appointments(self):
         if not hasattr(self, "appointment_list_layout"):

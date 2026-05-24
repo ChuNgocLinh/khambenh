@@ -1,7 +1,8 @@
 from models.appointment_model import AppointmentModel
 from models.doctor_model import DoctorModel
 from models.service_model import ServiceModel
-from datetime import datetime
+from models.waiting_queue_model import WaitingQueueModel
+from datetime import datetime, timedelta
 
 
 class AppointmentController:
@@ -35,8 +36,8 @@ class AppointmentController:
             "deny": set(),
         },
         "create": {
-            "allow": {"admin", "staff", "patient"},
-            "deny": {"doctor"},
+            "allow": {"admin", "staff", "doctor", "patient"},
+            "deny": set(),
         },
         "update_time": {
             "allow": {"admin", "staff", "doctor", "patient"},
@@ -186,16 +187,79 @@ class AppointmentController:
 
     @staticmethod
     def _service_exists(service_name):
-        normalized = (service_name or "").strip().lower()
-        if not normalized:
-            return False
+        return AppointmentController._resolve_service(service_name) is not None
 
-        services = ServiceModel.get_all() or []
+    @staticmethod
+    def _resolve_service(service_value):
+        normalized = str(service_value or "").strip()
+        if not normalized:
+            return None
+
+        services = ServiceModel.get_visible_active() or []
         for service in services:
-            current_name = str(service.get("service_name", "")).strip().lower()
-            if current_name == normalized:
-                return True
-        return False
+            if str(service.get("service_id")) == normalized:
+                return service
+            if str(service.get("service_name", "")).strip().lower() == normalized.lower():
+                return service
+        return None
+
+    @staticmethod
+    def _doctor_is_bookable(doctor_id):
+        doctor = DoctorModel.get_by_id(doctor_id)
+        if not doctor:
+            return False
+        if str(doctor.get("is_active", 1)).lower() in {"0", "false", "none"}:
+            return False
+        work_status = str(doctor.get("work_status") or "").strip().lower()
+        if work_status and any(token in work_status for token in ("nghỉ", "nghi", "off", "inactive")):
+            return False
+        return True
+
+    @staticmethod
+    def _default_slot_times():
+        start = datetime.strptime("08:00", "%H:%M")
+        end = datetime.strptime("17:00", "%H:%M")
+        slots = []
+        current = start
+        while current <= end:
+            slots.append(current.strftime("%H:%M"))
+            current += timedelta(minutes=30)
+        return slots
+
+    @staticmethod
+    def get_available_slots(doctor_id, date_str, service_id=None):
+        if not doctor_id or not date_str:
+            return {"status": False, "message": "Thiếu bác sĩ hoặc ngày khám.", "slots": []}
+
+        try:
+            selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return {"status": False, "message": "Ngày khám không đúng định dạng.", "slots": []}
+
+        if not AppointmentController._doctor_is_bookable(doctor_id):
+            return {"status": False, "message": "Bác sĩ không khả dụng.", "slots": []}
+
+        booked_rows = AppointmentModel.get_booked_slots(doctor_id, selected_date.strftime("%Y-%m-%d")) or []
+        booked_times = set()
+        for row in booked_rows:
+            raw_value = row.get("appointment_date")
+            if hasattr(raw_value, "strftime"):
+                booked_times.add(raw_value.strftime("%H:%M"))
+            else:
+                try:
+                    booked_times.add(datetime.fromisoformat(str(raw_value).replace("Z", "")).strftime("%H:%M"))
+                except ValueError:
+                    value = str(raw_value or "")
+                    if len(value) >= 16:
+                        booked_times.add(value[11:16])
+
+        now = datetime.now()
+        slots = []
+        for time_value in AppointmentController._default_slot_times():
+            slot_dt = datetime.combine(selected_date, datetime.strptime(time_value, "%H:%M").time())
+            disabled = time_value in booked_times or slot_dt < now
+            slots.append({"time": time_value, "available": not disabled})
+        return {"status": True, "slots": slots}
 
     # 🔹 LẤY TẤT CẢ LỊCH HẸN
     @staticmethod
@@ -239,7 +303,7 @@ class AppointmentController:
 
     # 🔹 TẠO LỊCH HẸN (TỪ FORM WEB/APP)
     @staticmethod
-    def create(patient_id, doctor_id, date, role=None, user_context=None):
+    def create(patient_id, doctor_id, date, role=None, user_context=None, service_id=None):
         if role is not None:
             allowed, message = AppointmentController.authorize(role, "create", user_context=user_context)
             if not allowed:
@@ -253,10 +317,10 @@ class AppointmentController:
                 if not AppointmentController._is_patient_owner(context_patient_id, patient_id):
                     return AppointmentController._deny("Bạn chỉ có thể tạo lịch hẹn cho chính mình.")
 
-        return AppointmentModel.create(patient_id, doctor_id, date, "pending", "")
+        return AppointmentModel.create(patient_id, doctor_id, date, "pending", "", service_id)
 
     @staticmethod
-    def book_with_validation(patient_id, doctor_id, service_name, date_str, time_str):
+    def book_with_validation(patient_id, doctor_id, service_name, date_str, time_str, role=None, user_context=None):
         required_fields = [patient_id, doctor_id, service_name, date_str, time_str]
         if not all(required_fields):
             return {
@@ -268,6 +332,28 @@ class AppointmentController:
             return {
                 "status": False,
                 "message": "Hiện chưa có dịch vụ khả dụng để đặt lịch.",
+            }
+
+        if role is not None:
+            allowed, message = AppointmentController.authorize(role, "create", user_context=user_context)
+            if not allowed:
+                return AppointmentController._deny(message)
+            if str(role or "").strip().lower() == "patient":
+                context_patient_id = AppointmentController._get_context_value(user_context, "patient_id")
+                if not context_patient_id or not AppointmentController._is_patient_owner(context_patient_id, patient_id):
+                    return AppointmentController._deny("Bạn chỉ có thể tạo lịch hẹn cho chính mình.")
+
+        service = AppointmentController._resolve_service(service_name)
+        if not service:
+            return {
+                "status": False,
+                "message": "Dịch vụ không khả dụng hoặc đã ngừng hiển thị.",
+            }
+
+        if not AppointmentController._doctor_is_bookable(doctor_id):
+            return {
+                "status": False,
+                "message": "Bác sĩ không khả dụng để đặt lịch.",
             }
 
         try:
@@ -290,6 +376,12 @@ class AppointmentController:
             return {
                 "status": False,
                 "message": "Không thể đặt lịch cho ngày trong quá khứ.",
+            }
+
+        if selected_time.strftime("%H:%M") not in AppointmentController._default_slot_times():
+            return {
+                "status": False,
+                "message": "Khung giờ ngoài giờ làm việc hoặc không đúng bước 30 phút.",
             }
 
         appointment_datetime = datetime.combine(selected_date, selected_time)
@@ -320,13 +412,15 @@ class AppointmentController:
                 "message": "Bạn đã có lịch ở khung giờ này. Vui lòng chọn thời gian khác.",
             }
 
-        note = f"Dịch vụ: {service_name}"
+        service_label = service.get("service_name") or service_name
+        note = f"Dịch vụ: {service_label}"
         is_created = AppointmentModel.create(
             patient_id,
             doctor_id,
             appointment_dt_str,
             "pending",
             note,
+            service.get("service_id"),
         )
 
         if not is_created:
@@ -400,6 +494,12 @@ class AppointmentController:
                 "message": "Ngày hoặc giờ không hợp lệ.",
             }
 
+        if selected_time.strftime("%H:%M") not in AppointmentController._default_slot_times():
+            return {
+                "status": False,
+                "message": "Khung giờ ngoài giờ làm việc hoặc không đúng bước 30 phút.",
+            }
+
         appointment_datetime = datetime.combine(selected_date, selected_time)
         appointment_dt_str = appointment_datetime.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -455,8 +555,17 @@ class AppointmentController:
 
         normalized_service = (service_name or "").strip()
         normalized_note = (note or "").strip()
+        service_id = existing.get("service_id")
 
         if normalized_service:
+            service = AppointmentController._resolve_service(normalized_service)
+            if not service:
+                return {
+                    "status": False,
+                    "message": "Dịch vụ không khả dụng hoặc đã ngừng hiển thị.",
+                }
+            service_id = service.get("service_id")
+            normalized_service = service.get("service_name") or normalized_service
             combined_note = f"Dịch vụ: {normalized_service}"
             if normalized_note:
                 combined_note += f" | {normalized_note}"
@@ -470,6 +579,7 @@ class AppointmentController:
             appointment_dt_str,
             status,
             combined_note,
+            service_id,
         )
 
         if not is_updated:
@@ -552,13 +662,23 @@ class AppointmentController:
         return {"status": bool(updated), "message": "Cap nhat lich hen thanh cong."}
 
     @staticmethod
-    def create_with_details(patient_id, doctor_id, date_str, time_str, status, service_name, note):
+    def create_with_details(patient_id, doctor_id, date_str, time_str, status, service_name, note, role=None, user_context=None):
         required_fields = [patient_id, doctor_id, date_str, time_str]
         if not all(required_fields):
             return {
                 "status": False,
                 "message": "Thiếu dữ liệu để tạo lịch hẹn.",
             }
+
+        if role is not None:
+            allowed, message = AppointmentController.authorize(
+                role,
+                "create",
+                user_context=user_context,
+                appointment={"doctor_id": doctor_id, "patient_id": patient_id},
+            )
+            if not allowed:
+                return AppointmentController._deny(message)
 
         if status not in AppointmentController.VALID_STATUSES:
             return {
@@ -573,6 +693,12 @@ class AppointmentController:
             return {
                 "status": False,
                 "message": "Ngày hoặc giờ không hợp lệ.",
+            }
+
+        if selected_time.strftime("%H:%M") not in AppointmentController._default_slot_times():
+            return {
+                "status": False,
+                "message": "Khung giờ ngoài giờ làm việc hoặc không đúng bước 30 phút.",
             }
 
         appointment_datetime = datetime.combine(selected_date, selected_time)
@@ -602,6 +728,13 @@ class AppointmentController:
 
         normalized_service = (service_name or "").strip() or "Khám tổng quát"
         normalized_note = (note or "").strip()
+        service = AppointmentController._resolve_service(normalized_service)
+        if not service:
+            return {
+                "status": False,
+                "message": "Dịch vụ không khả dụng hoặc đã ngừng hiển thị.",
+            }
+        normalized_service = service.get("service_name") or normalized_service
         combined_note = f"Dịch vụ: {normalized_service}"
         if normalized_note:
             combined_note += f" | {normalized_note}"
@@ -612,6 +745,7 @@ class AppointmentController:
             appointment_dt_str,
             status,
             combined_note,
+            service.get("service_id"),
         )
         if not is_created:
             return {
@@ -715,6 +849,13 @@ class AppointmentController:
                 "message": "Không thể xác nhận check-in. Vui lòng thử lại.",
             }
 
+        queue_row = WaitingQueueModel.check_in(
+            patient_id=patient_id,
+            appointment_id=appointment_id,
+            intake_note=combined_note,
+            area="3B",
+        )
+
         return {
             "status": True,
             "message": "Xác nhận tiếp nhận thành công.",
@@ -722,4 +863,5 @@ class AppointmentController:
             "next_status": next_status,
             "intake_time": intake_dt_str,
             "note": combined_note,
+            "queue": queue_row,
         }

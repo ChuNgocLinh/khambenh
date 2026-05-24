@@ -8,6 +8,10 @@ class DoctorController:
     def get_all():
         return DoctorModel.get_all()
 
+    @staticmethod
+    def get_available_for_patient():
+        return DoctorModel.get_available_for_patient()
+
 
     # 🔹 TẠO BÁC SĨ (DÙNG FORM WEB)
     @staticmethod

@@ -510,6 +510,8 @@ class DoctorScheduleView(QtWidgets.QWidget):
                 payload.get("status"),
                 payload.get("service_name") or "Khám tổng quát",
                 payload.get("note"),
+                role="doctor",
+                user_context={"doctor_id": self.doctor_id},
             )
             if not result.get("status"):
                 QtWidgets.QMessageBox.warning(self, "Không thể tạo lịch", result.get("message", "Lỗi không xác định"))
@@ -541,6 +543,8 @@ class DoctorScheduleView(QtWidgets.QWidget):
                 payload.get("status"),
                 payload.get("service_name"),
                 payload.get("note"),
+                role="doctor",
+                user_context={"doctor_id": self.doctor_id},
             )
             if not result.get("status"):
                 QtWidgets.QMessageBox.warning(self, "Không thể cập nhật", result.get("message", "Lỗi không xác định"))

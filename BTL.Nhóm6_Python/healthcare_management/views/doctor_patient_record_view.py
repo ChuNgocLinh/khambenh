@@ -307,6 +307,10 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
             self.appointments = []
             self._set_error(f"Không thể tải lịch hẹn: {exc}")
 
+        if not self.patient:
+            self._render_empty("Không tìm thấy bệnh nhân.")
+            return
+
         if not self._can_current_doctor_view_patient():
             self.records = []
             self.prescriptions = []
@@ -329,10 +333,17 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
         if str(getattr(self, "role", "doctor")).lower() != "doctor":
             return True
         if not self.doctor_id:
+            return False
+        allowed_ids = {
+            str(row.get("patient_id"))
+            for row in (self.patient_options or [])
+            if row.get("patient_id") not in (None, "")
+        }
+        if str(self.patient_id) in allowed_ids:
             return True
         rows = (self.records or []) + (self.appointments or [])
         scoped_rows = [row for row in rows if row.get("doctor_id") not in (None, "")]
-        return not scoped_rows or any(str(row.get("doctor_id")) == str(self.doctor_id) for row in scoped_rows)
+        return any(str(row.get("doctor_id")) == str(self.doctor_id) for row in scoped_rows)
 
     def _render_empty(self, message):
         self.summary_label.setText(message)

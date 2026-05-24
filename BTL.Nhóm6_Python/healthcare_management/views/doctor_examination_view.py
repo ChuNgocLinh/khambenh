@@ -242,6 +242,7 @@ class DoctorExaminationView(QtWidgets.QWidget):
             self.diagnosis_input.setPlainText(str(self.current_record.get("diagnosis") or ""))
             self.treatment_input.setPlainText(str(self.current_record.get("treatment") or ""))
             self.symptoms_input.setPlainText(str(self.current_record.get("symptoms") or ""))
+            self.clinical_input.setPlainText(str(self.current_record.get("conclusion") or ""))
             self.notes_input.setPlainText(str(self.current_record.get("notes") or ""))
             self.status_label.setText(f"Đã tải bản nháp cho lịch #{appointment_id}.")
         else:
@@ -267,9 +268,10 @@ class DoctorExaminationView(QtWidgets.QWidget):
         return result
 
     def finalize_exam(self):
-        if not self.current_record:
-            draft_result = self.save_draft()
-            self.current_record = draft_result.get("record")
+        draft_result = self.save_draft()
+        if not draft_result.get("status"):
+            return draft_result
+        self.current_record = draft_result.get("record")
         if not self.current_record:
             result = {"status": False, "message": "Không có bản ghi khám để hoàn tất."}
             self.status_label.setText(result["message"])
@@ -284,11 +286,22 @@ class DoctorExaminationView(QtWidgets.QWidget):
         return result
 
     def open_prescription_page(self):
+        if not self.current_record or str(self.current_record.get("record_status") or "").lower() != "finalized":
+            result = self.finalize_exam()
+            if not result.get("status"):
+                return result
         parent = self.parent()
         while parent and not hasattr(parent, "switch_page"):
             parent = parent.parent()
         if parent:
+            prescription_page = getattr(parent, "page_prescription", None)
+            if hasattr(prescription_page, "set_record"):
+                prescription_page.set_record(
+                    self.current_record.get("record_id"),
+                    self.current_appointment.get("patient_id") if self.current_appointment else None,
+                )
             parent.switch_page(5)
+        return {"status": True, "message": "Đã chuyển sang màn kê đơn thuốc."}
 
     def cancel_exam(self):
         self._clear_form_inputs()

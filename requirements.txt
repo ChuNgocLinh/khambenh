@@ -1,3 +1,5 @@
 PyQt6==6.5.2
 python-dotenv==1.0.0
 mysql-connector-python==8.0.33
+pytest==8.3.4
+pytest-qt==4.4.0

@@ -39,7 +39,7 @@ class DetailDialog(QtWidgets.QDialog):
         layout.addWidget(close_btn, 0, QtCore.Qt.AlignmentFlag.AlignRight)
 
 # --- TRANG DỊCH VỤ (VIEW MỚI) ---
-class ServicePage(QtWidgets.QWidget):
+class LegacyServiceTablePage(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         layout = QtWidgets.QVBoxLayout(self)
@@ -244,6 +244,24 @@ class ServicePage(QtWidgets.QWidget):
             ("▭", "Thanh toán", "Thanh toán viện phí, dịch vụ\nnhanh chóng", "Thanh toán ngay", "billing", "#f2eaff", "#a855f7"),
             ("☎", "Hỗ trợ khách hàng", "Liên hệ hỗ trợ và giải đáp\nthắc mắc", "Liên hệ ngay", "support", "#fff0f2", "#ef5d76"),
         ]
+        db_services = ServiceController.get_visible_active() or []
+        if db_services:
+            service_cards = []
+            palette = [
+                ("🩺", "#eef3ff", "#5b72f2"),
+                ("⚗", "#f5ebff", "#b35be2"),
+                ("▧", "#eaf9ef", "#4bbd63"),
+                ("💉", "#eaf4ff", "#349adf"),
+                ("▣", "#fff7ed", "#f97316"),
+            ]
+            for idx, service in enumerate(db_services[:12]):
+                icon, bg, fg = palette[idx % len(palette)]
+                name = str(service.get("service_name") or "Dịch vụ").strip()
+                category = str(service.get("category") or "Chưa phân loại").strip()
+                duration = service.get("duration") or 30
+                price = service.get("price") or 0
+                desc = f"{category}\n{duration} phút - {float(price):,.0f} đ".replace(",", ".")
+                service_cards.append((icon, name, desc, "Đặt lịch ngay", "booking", bg, fg))
         for idx, item in enumerate(service_cards):
             service_grid.addWidget(self._build_service_card(*item), idx // 4, idx % 4)
         content_layout.addLayout(service_grid)
@@ -778,7 +796,7 @@ class DoctorPage(QtWidgets.QWidget):
 
     def fetch_doctors(self):
         try:
-            doctors = DoctorController.get_all()
+            doctors = DoctorController.get_available_for_patient()
         except PermissionError:
             self.show_state(
                 "unauthorized",
@@ -815,21 +833,31 @@ class DoctorPage(QtWidgets.QWidget):
             if not specialty:
                 specialty = "Chưa cập nhật"
 
-            hospital = self.facility_by_specialty.get(
-                specialty,
-                "Bệnh viện Đa khoa CarePlus",
+            hospital = (
+                doctor.get("hospital")
+                or doctor.get("facility")
+                or doctor.get("workplace")
+                or "Chưa cập nhật"
             )
-
-            experience_years = 6 + (doctor_id_int % 11)
-            rating = round(min(4.9, 4.3 + ((doctor_id_int + index) % 7) * 0.1), 1)
-            reviews = 20 + doctor_id_int * 13 + index * 4
+            try:
+                experience_years = int(doctor.get("experience_years") or doctor.get("experience") or 0)
+            except (TypeError, ValueError):
+                experience_years = 0
+            try:
+                rating = float(doctor.get("rating")) if doctor.get("rating") is not None else None
+            except (TypeError, ValueError):
+                rating = None
+            try:
+                reviews = int(doctor.get("reviews") or doctor.get("review_count") or 0)
+            except (TypeError, ValueError):
+                reviews = 0
 
             decorated.append(
                 {
                     **doctor,
                     "specialty": specialty,
                     "experience_years": experience_years,
-                    "experience_label": f"{experience_years} năm KN",
+                    "experience_label": f"{experience_years} năm KN" if experience_years else "Chưa cập nhật",
                     "rating": rating,
                     "reviews": reviews,
                     "hospital": hospital,
@@ -956,7 +984,7 @@ class DoctorPage(QtWidgets.QWidget):
         if sort_key == "newest":
             filtered.sort(key=lambda doctor: doctor.get("order", 0), reverse=True)
         elif sort_key == "rating":
-            filtered.sort(key=lambda doctor: doctor.get("rating", 0), reverse=True)
+            filtered.sort(key=lambda doctor: doctor.get("rating") or 0, reverse=True)
         elif sort_key == "reviews":
             filtered.sort(key=lambda doctor: doctor.get("reviews", 0), reverse=True)
         elif sort_key == "experience":
@@ -1101,9 +1129,9 @@ class DoctorPage(QtWidgets.QWidget):
         hospital.setWordWrap(True)
         layout.addWidget(hospital)
 
-        rating_btn = QtWidgets.QPushButton(
-            f"⭐ {doctor.get('rating', 0)} ({doctor.get('reviews', 0)} đánh giá)"
-        )
+        rating = doctor.get("rating")
+        rating_text = f"⭐ {rating:.1f} ({doctor.get('reviews', 0)} đánh giá)" if rating else "⭐ Chưa cập nhật"
+        rating_btn = QtWidgets.QPushButton(rating_text)
         rating_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         rating_btn.setStyleSheet(
             "QPushButton { text-align: left; border: none; padding: 0;"
@@ -1155,11 +1183,18 @@ class DoctorPage(QtWidgets.QWidget):
 
     def open_doctor_profile(self, doctor, open_reviews=False):
         if open_reviews:
+            rating = doctor.get("rating")
+            review_message = (
+                f"BS. {doctor.get('name', '')} hiện có {doctor.get('reviews', 0)} đánh giá, điểm trung bình {rating:.1f} sao."
+                if rating
+                else f"BS. {doctor.get('name', '')} chưa có dữ liệu đánh giá."
+            )
             QtWidgets.QMessageBox.information(
                 self,
                 "Đánh giá bác sĩ",
-                f"BS. {doctor.get('name', '')} hiện có {doctor.get('reviews', 0)} đánh giá, điểm trung bình {doctor.get('rating', 0)} sao.",
+                review_message,
             )
+            return
 
         if callable(self.on_open_doctor_profile):
             self.on_open_doctor_profile(doctor)
@@ -1338,6 +1373,7 @@ class HistoryPage(QtWidgets.QWidget):
     def __init__(self, patient_id):
         super().__init__()
         self.patient_id = patient_id
+        self.patient_data = {}
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(40, 20, 40, 20)
         
@@ -1423,6 +1459,7 @@ class ProfilePage(QtWidgets.QWidget):
         from models.patient_model import PatientModel
         p = PatientModel.get_by_id(self.patient_id)
         if p:
+            self.patient_data = dict(p)
             self.name_input.setText(str(p.get("name", "")))
             self.phone_input.setText(str(p.get("phone", "")))
             self.address_input.setText(str(p.get("address", "")))
@@ -1431,19 +1468,24 @@ class ProfilePage(QtWidgets.QWidget):
                 self.dob_input.setDate(QtCore.QDate.fromString(str(p.get("dob")), "yyyy-MM-dd"))
                 
     def save_data(self):
-        from models.patient_model import PatientModel
-        success = PatientModel.update(
-            self.patient_id,
-            self.name_input.text(),
-            self.dob_input.date().toString("yyyy-MM-dd"),
-            self.gender_input.currentText(),
-            self.phone_input.text(),
-            self.address_input.text()
+        from controllers.patient_controller import PatientController
+
+        payload = dict(self.patient_data or {})
+        payload.update(
+            {
+                "name": self.name_input.text().strip(),
+                "dob": self.dob_input.date().toString("yyyy-MM-dd"),
+                "gender": self.gender_input.currentText(),
+                "phone": self.phone_input.text().strip(),
+                "address": self.address_input.text().strip(),
+            }
         )
-        if success:
+        result = PatientController.update_with_status(self.patient_id, payload)
+        if result.get("status"):
+            self.patient_data.update(payload)
             QtWidgets.QMessageBox.information(self, "Thành công", "Đã cập nhật thông tin cá nhân!")
         else:
-            QtWidgets.QMessageBox.warning(self, "Thất bại", "Không thể cập nhật thông tin. Vui lòng thử lại.")
+            QtWidgets.QMessageBox.warning(self, "Thất bại", result.get("message") or "Không thể cập nhật thông tin. Vui lòng thử lại.")
 
 # --- TRANG CHỦ (GIỮ NGUYÊN NỘI DUNG CỦA BẠN) ---
 class HomePage(QtWidgets.QWidget):

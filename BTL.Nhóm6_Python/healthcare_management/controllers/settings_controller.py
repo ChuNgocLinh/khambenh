@@ -320,12 +320,15 @@ class SettingsController:
 
         doctor_data = fetch_one(
             """
-            SELECT doctor_id, name, specialty, phone, email
+            SELECT {top_one} doctor_id, name, specialty, phone, email
             FROM Doctors
             WHERE user_id=?
             ORDER BY doctor_id DESC
-            LIMIT 1
-            """,
+            {limit_one}
+            """.format(
+                top_one="" if DB_TYPE == "mysql" else "TOP 1",
+                limit_one="LIMIT 1" if DB_TYPE == "mysql" else "",
+            ),
             (user_id,),
         ) or {}
 
@@ -640,8 +643,7 @@ class SettingsController:
 
     @staticmethod
     def ensure_backup_seed_data():
-        BackupModel = import_module("models.backup_model").BackupModel
-        return BackupModel.seed_sample_data()
+        return False
 
     @staticmethod
     def change_password(user_id, current_password, new_password, confirm_password):

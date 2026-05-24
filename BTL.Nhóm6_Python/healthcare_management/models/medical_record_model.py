@@ -1,5 +1,6 @@
 from config import DB_TYPE
 from database.db import execute, fetch_all, fetch_one
+from database.sql_utils import string_agg
 
 
 class MedicalRecordModel:
@@ -15,6 +16,9 @@ class MedicalRecordModel:
             execute("ALTER TABLE MedicalRecords ADD COLUMN record_status VARCHAR(20) DEFAULT 'draft'")
             execute("ALTER TABLE MedicalRecords ADD COLUMN finalized_at DATETIME NULL")
             execute("ALTER TABLE MedicalRecords ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+            execute("ALTER TABLE MedicalRecords ADD COLUMN symptoms TEXT NULL")
+            execute("ALTER TABLE MedicalRecords ADD COLUMN conclusion TEXT NULL")
+            execute("ALTER TABLE MedicalRecords ADD COLUMN notes TEXT NULL")
             return
         execute(
             """
@@ -40,14 +44,35 @@ class MedicalRecordModel:
             END
             """
         )
+        execute(
+            """
+            IF COL_LENGTH('dbo.MedicalRecords', 'symptoms') IS NULL
+            BEGIN
+                ALTER TABLE dbo.MedicalRecords ADD symptoms NVARCHAR(MAX) NULL
+            END
+            """
+        )
+        execute(
+            """
+            IF COL_LENGTH('dbo.MedicalRecords', 'conclusion') IS NULL
+            BEGIN
+                ALTER TABLE dbo.MedicalRecords ADD conclusion NVARCHAR(MAX) NULL
+            END
+            """
+        )
+        execute(
+            """
+            IF COL_LENGTH('dbo.MedicalRecords', 'notes') IS NULL
+            BEGIN
+                ALTER TABLE dbo.MedicalRecords ADD notes NVARCHAR(MAX) NULL
+            END
+            """
+        )
 
     @staticmethod
     def get_by_patient(patient_id):
         MedicalRecordModel._ensure_schema()
-        if DB_TYPE == "mysql":
-            service_select = "COALESCE(GROUP_CONCAT(DISTINCT s.service_name ORDER BY s.service_name SEPARATOR ', '), '') AS service_names"
-        else:
-            service_select = "COALESCE(STRING_AGG(CAST(s.service_name AS NVARCHAR(MAX)), ', '), '') AS service_names"
+        service_names = string_agg("COALESCE(invoice_service.service_name, appointment_service.service_name)")
 
         return fetch_all(
             f"""
@@ -58,13 +83,14 @@ class MedicalRecordModel:
                 a.appointment_date,
                 a.status AS appointment_status,
                 a.note,
-                {service_select}
+                {service_names} AS service_names
             FROM MedicalRecords mr
             LEFT JOIN Doctors d ON d.doctor_id = mr.doctor_id
             LEFT JOIN Appointments a ON a.appointment_id = mr.appointment_id
+            LEFT JOIN Services appointment_service ON appointment_service.service_id = a.service_id
             LEFT JOIN Payments pay ON pay.appointment_id = a.appointment_id
             LEFT JOIN Invoices i ON i.payment_id = pay.payment_id
-            LEFT JOIN Services s ON s.service_id = i.service_id
+            LEFT JOIN Services invoice_service ON invoice_service.service_id = i.service_id
             WHERE mr.patient_id=?
             GROUP BY
                 mr.record_id,
@@ -73,6 +99,9 @@ class MedicalRecordModel:
                 mr.appointment_id,
                 mr.diagnosis,
                 mr.treatment,
+                mr.symptoms,
+                mr.conclusion,
+                mr.notes,
                 mr.record_status,
                 mr.finalized_at,
                 mr.updated_at,
@@ -122,19 +151,20 @@ class MedicalRecordModel:
             return execute(
                 """
                 UPDATE MedicalRecords
-                SET diagnosis=?, treatment=?, record_status='draft', updated_at=CURRENT_TIMESTAMP
+                SET diagnosis=?, treatment=?, symptoms=?, conclusion=?, notes=?,
+                    record_status='draft', updated_at=CURRENT_TIMESTAMP
                 WHERE record_id=?
                 """,
-                (diagnosis, body, existing.get("record_id")),
+                (diagnosis, treatment or body, symptoms, conclusion, notes, existing.get("record_id")),
             )
 
         return execute(
             """
             INSERT INTO MedicalRecords
-                (patient_id, doctor_id, appointment_id, diagnosis, treatment, record_status, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'draft', CURRENT_TIMESTAMP)
+                (patient_id, doctor_id, appointment_id, diagnosis, treatment, symptoms, conclusion, notes, record_status, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', CURRENT_TIMESTAMP)
             """,
-            (patient_id, doctor_id, appointment_id, diagnosis, body),
+            (patient_id, doctor_id, appointment_id, diagnosis, treatment or body, symptoms, conclusion, notes),
         )
 
     @staticmethod

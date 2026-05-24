@@ -69,6 +69,7 @@ def _ensure_admin_runtime_schema():
     _ensure_column("Services", "category", "VARCHAR(100) NULL")
     _ensure_column("Services", "duration", "INT NULL")
     _ensure_column("Services", "is_visible", "BIT NULL")
+    _ensure_column("Appointments", "service_id", "INT NULL")
     _ensure_column("Medicines", "medicine_code", "VARCHAR(30) NULL")
     _ensure_column("Medicines", "active_ingredient", "VARCHAR(100) NULL")
     _ensure_column("Medicines", "category", "VARCHAR(100) NULL")
@@ -83,6 +84,66 @@ def _ensure_admin_runtime_schema():
         SettingsModel.ensure_table_exists()
     except Exception:
         pass
+    if DB_TYPE == "mysql":
+        _safe_execute(
+            """
+            CREATE TABLE IF NOT EXISTS rbac_roles (
+                role_id INT AUTO_INCREMENT PRIMARY KEY,
+                role_key VARCHAR(50) NOT NULL UNIQUE,
+                display_name VARCHAR(100) NOT NULL,
+                description VARCHAR(255),
+                color_kind VARCHAR(20) DEFAULT 'neutral',
+                is_system BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE
+            )
+            """
+        )
+        _safe_execute(
+            """
+            CREATE TABLE IF NOT EXISTS rbac_user_role_assignments (
+                assignment_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                role_id INT NOT NULL,
+                assigned_by_user_id INT NULL,
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN DEFAULT TRUE,
+                UNIQUE KEY uq_rbac_user_role_active (user_id, role_id)
+            )
+            """
+        )
+    else:
+        _safe_execute(
+            """
+            IF OBJECT_ID('dbo.rbac_roles', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.rbac_roles (
+                    role_id INT IDENTITY(1,1) PRIMARY KEY,
+                    role_key NVARCHAR(50) NOT NULL UNIQUE,
+                    display_name NVARCHAR(100) NOT NULL,
+                    description NVARCHAR(255) NULL,
+                    color_kind NVARCHAR(20) DEFAULT N'neutral',
+                    is_system BIT DEFAULT 0,
+                    is_active BIT DEFAULT 1
+                )
+            END
+            """
+        )
+        _safe_execute(
+            """
+            IF OBJECT_ID('dbo.rbac_user_role_assignments', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.rbac_user_role_assignments (
+                    assignment_id INT IDENTITY(1,1) PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    role_id INT NOT NULL,
+                    assigned_by_user_id INT NULL,
+                    assigned_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+                    is_active BIT DEFAULT 1,
+                    CONSTRAINT uq_rbac_user_role_active UNIQUE (user_id, role_id)
+                )
+            END
+            """
+        )
 
 
 def _hash_password(password):
@@ -244,6 +305,117 @@ def _db_role(role):
 def _role_label(role):
     key = _as_text(role).lower().strip()
     return ROLE_LABELS.get(key, _as_text(role).title())
+
+
+def _sync_user_rbac_role(user_id, role_key, actor_user_id=None):
+    if not user_id:
+        return False
+    normalized_role = _as_text(role_key).lower().strip()
+    if not normalized_role:
+        return False
+
+    if DB_TYPE == "mysql":
+        _safe_execute(
+            """
+            CREATE TABLE IF NOT EXISTS rbac_roles (
+                role_id INT AUTO_INCREMENT PRIMARY KEY,
+                role_key VARCHAR(50) NOT NULL UNIQUE,
+                display_name VARCHAR(100) NOT NULL,
+                description VARCHAR(255),
+                color_kind VARCHAR(20) DEFAULT 'neutral',
+                is_system BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE
+            )
+            """
+        )
+        _safe_execute(
+            """
+            CREATE TABLE IF NOT EXISTS rbac_user_role_assignments (
+                assignment_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                role_id INT NOT NULL,
+                assigned_by_user_id INT NULL,
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN DEFAULT TRUE,
+                UNIQUE KEY uq_rbac_user_role_active (user_id, role_id)
+            )
+            """
+        )
+    else:
+        _safe_execute(
+            """
+            IF OBJECT_ID('dbo.rbac_roles', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.rbac_roles (
+                    role_id INT IDENTITY(1,1) PRIMARY KEY,
+                    role_key NVARCHAR(50) NOT NULL UNIQUE,
+                    display_name NVARCHAR(100) NOT NULL,
+                    description NVARCHAR(255) NULL,
+                    color_kind NVARCHAR(20) DEFAULT N'neutral',
+                    is_system BIT DEFAULT 0,
+                    is_active BIT DEFAULT 1
+                )
+            END
+            """
+        )
+        _safe_execute(
+            """
+            IF OBJECT_ID('dbo.rbac_user_role_assignments', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.rbac_user_role_assignments (
+                    assignment_id INT IDENTITY(1,1) PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    role_id INT NOT NULL,
+                    assigned_by_user_id INT NULL,
+                    assigned_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+                    is_active BIT DEFAULT 1,
+                    CONSTRAINT uq_rbac_user_role_active UNIQUE (user_id, role_id)
+                )
+            END
+            """
+        )
+
+    _safe_execute(
+        """
+        INSERT INTO rbac_roles (role_key, display_name, description, color_kind, is_system, is_active)
+        SELECT ?, ?, ?, ?, ?, 1
+        WHERE NOT EXISTS (SELECT 1 FROM rbac_roles WHERE role_key=?)
+        """,
+        (
+            normalized_role,
+            _role_label(normalized_role),
+            _role_label(normalized_role),
+            ROLE_KIND.get(normalized_role, "neutral"),
+            1 if normalized_role in {"admin", "doctor", "staff", "patient"} else 0,
+            normalized_role,
+        ),
+    )
+    role_rows = _safe_fetch_all("SELECT role_id FROM rbac_roles WHERE role_key=?", (normalized_role,))
+    if not role_rows:
+        return False
+    role_id = role_rows[0].get("role_id")
+
+    _safe_execute("UPDATE rbac_user_role_assignments SET is_active=0 WHERE user_id=?", (user_id,))
+    existing = _safe_fetch_all(
+        "SELECT assignment_id FROM rbac_user_role_assignments WHERE user_id=? AND role_id=?",
+        (user_id, role_id),
+    )
+    if existing:
+        return _safe_execute(
+            """
+            UPDATE rbac_user_role_assignments
+            SET is_active=1, assigned_by_user_id=?, assigned_at=CURRENT_TIMESTAMP
+            WHERE user_id=? AND role_id=?
+            """,
+            (actor_user_id, user_id, role_id),
+        )
+    return _safe_execute(
+        """
+        INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
+        VALUES (?, ?, ?, 1)
+        """,
+        (user_id, role_id, actor_user_id),
+    )
 
 
 class LineChartWidget(QtWidgets.QWidget):
@@ -650,7 +822,8 @@ class AdminBasePage(QtWidgets.QWidget):
                 padding: 5px 4px;
                 border-bottom: 1px solid #f1f5f9;
             }}
-            QScrollBar {{ width: 0px; height: 0px; }}
+            QScrollBar:vertical {{ width: 10px; }}
+            QScrollBar:horizontal {{ height: 10px; }}
         """)
 
     def _show_info(self, title, message):
@@ -726,9 +899,9 @@ class AdminListPage(AdminBasePage):
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         self.table.setWordWrap(False)
-        self.table.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
-        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.table.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.MinimumExpanding)
+        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.setAlternatingRowColors(False)
         self.table.setSelectionBehavior(QtWidgets.QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QtWidgets.QTableWidget.EditTrigger.NoEditTriggers)
@@ -756,7 +929,8 @@ class AdminListPage(AdminBasePage):
                 padding: 5px 4px;
                 border-bottom: 1px solid #f1f5f9;
             }
-            QScrollBar { width: 0px; height: 0px; }
+            QScrollBar:vertical { width: 10px; }
+            QScrollBar:horizontal { height: 10px; }
         """)
         table_layout.addWidget(self.table)
 
@@ -871,7 +1045,8 @@ class AdminListPage(AdminBasePage):
             self.table.setRowHeight(row, max(self.table.rowHeight(row), 44))
         self._apply_column_widths()
         target_rows = max(len(visible), min(self.page_size, 10))
-        self.table.setFixedHeight(42 + target_rows * 44 + 4)
+        self.table.setMinimumHeight(42 + min(target_rows, 8) * 44 + 4)
+        self.table.setMaximumHeight(42 + max(target_rows, 8) * 44 + 80)
 
     def _apply_column_widths(self):
         column_count = self.table.columnCount()
@@ -1020,19 +1195,21 @@ class AdminHomePage(AdminBasePage):
         )
         payments = _safe_fetch_all(
             """
-            SELECT p.*, s.service_name
+            SELECT p.*, COALESCE(invoice_service.service_name, appointment_service.service_name) AS service_name
             FROM Payments p
             LEFT JOIN Appointments a ON a.appointment_id = p.appointment_id
+            LEFT JOIN Services appointment_service ON appointment_service.service_id = a.service_id
             LEFT JOIN Invoices i ON i.payment_id = p.payment_id
-            LEFT JOIN Services s ON s.service_id = i.service_id
+            LEFT JOIN Services invoice_service ON invoice_service.service_id = i.service_id
             ORDER BY p.payment_date DESC
             """
         )
         appointments = _safe_fetch_all(
             """
-            SELECT a.*, pa.name AS patient_name, s.service_name AS service
+            SELECT a.*, pa.name AS patient_name, COALESCE(appointment_service.service_name, s.service_name) AS service
             FROM Appointments a
             LEFT JOIN Patients pa ON pa.patient_id = a.patient_id
+            LEFT JOIN Services appointment_service ON appointment_service.service_id = a.service_id
             LEFT JOIN Invoices i ON i.payment_id = (
                 SELECT {top_one} p2.payment_id
                 FROM Payments p2
@@ -1292,7 +1469,7 @@ class AccountManagementPage(AdminListPage):
 
     def _reset_and_refresh(self):
         self.current_page = 1
-        self.selected_doctor_ids.clear()
+        self.selected_user_ids.clear()
         self.refresh()
 
     def _set_loading(self, loading):
@@ -1346,6 +1523,24 @@ class AccountManagementPage(AdminListPage):
                 ORDER BY u.user_id DESC
                 """
             ) or []
+            role_rows = _safe_fetch_all(
+                """
+                SELECT ura.user_id, r.role_key
+                FROM rbac_user_role_assignments ura
+                JOIN rbac_roles r ON r.role_id = ura.role_id
+                WHERE COALESCE(ura.is_active, 1) = 1
+                  AND COALESCE(r.is_active, 1) = 1
+                """
+            )
+            effective_by_user = {}
+            for role_row in role_rows:
+                effective_by_user.setdefault(role_row.get("user_id"), []).append(_as_text(role_row.get("role_key")).lower().strip())
+            for row in rows:
+                effective_roles = [role for role in effective_by_user.get(row.get("user_id"), []) if role]
+                row["effective_roles"] = effective_roles
+                preferred = next((role for role in effective_roles if role in {"receptionist", "accountant", "nurse"}), None)
+                if preferred:
+                    row["role"] = preferred
             return rows
         except Exception as exc:
             self.load_error = f"Lỗi tải dữ liệu: {exc}"
@@ -1355,7 +1550,12 @@ class AccountManagementPage(AdminListPage):
 
     def accept_row(self, row):
         selected_role = self.role_filter.currentData()
-        role_ok = selected_role == "all" or _db_role(row.get("role")) == _db_role(selected_role)
+        if selected_role == "all":
+            role_ok = True
+        elif selected_role in {"receptionist", "accountant", "nurse"}:
+            role_ok = _as_text(row.get("role")).lower().strip() == selected_role
+        else:
+            role_ok = _db_role(row.get("role")) == _db_role(selected_role)
         deleted = bool(row.get("deleted_at"))
         status = "deleted" if deleted else ("active" if _is_active(row) else "locked")
         status_ok = self.status_filter.currentData() == "all" or status == self.status_filter.currentData()
@@ -1469,7 +1669,8 @@ class AccountManagementPage(AdminListPage):
             self.table.setRowHeight(row, max(self.table.rowHeight(row), 44))
         self._apply_column_widths()
         target_rows = max(len(visible), min(self.page_size, 10))
-        self.table.setFixedHeight(42 + target_rows * 44 + 4)
+        self.table.setMinimumHeight(42 + min(target_rows, 8) * 44 + 4)
+        self.table.setMaximumHeight(42 + max(target_rows, 8) * 44 + 80)
 
         self._setup_header_checkbox()
         self._sync_header_checkbox()
@@ -1582,6 +1783,8 @@ class AccountManagementPage(AdminListPage):
             user = _safe_fetch_all("SELECT user_id FROM Users WHERE username=?", (data["username"],))
             user_id = user[0].get("user_id") if user else None
             role = data.get("role")
+            if user_id:
+                _sync_user_rbac_role(user_id, role, self.user_data.get("user_id"))
             if role == "doctor" and user_id:
                 _safe_execute(
                     "INSERT INTO Doctors (name, specialty, phone, email, user_id, is_active) VALUES (?, ?, ?, ?, ?, ?)",
@@ -1618,11 +1821,13 @@ class AccountManagementPage(AdminListPage):
             (values["username"], _db_role(values["role"]), values["is_active"], item.get("user_id")),
         )
         if ok and values.get("role") == "doctor":
+            _sync_user_rbac_role(item.get("user_id"), values.get("role"), self.user_data.get("user_id"))
             _safe_execute(
                 "UPDATE Doctors SET name=?, phone=?, email=?, is_active=? WHERE user_id=?",
                 (values.get("full_name") or values.get("username"), values.get("phone"), values.get("email"), values.get("is_active"), item.get("user_id")),
             )
         elif ok:
+            _sync_user_rbac_role(item.get("user_id"), values.get("role"), self.user_data.get("user_id"))
             _safe_execute(
                 "UPDATE Patients SET name=?, phone=?, email=?, is_active=? WHERE user_id=?",
                 (values.get("full_name") or values.get("username"), values.get("phone"), values.get("email"), values.get("is_active"), item.get("user_id")),
@@ -1729,9 +1934,11 @@ class AccountManagementPage(AdminListPage):
         if not ok:
             return
         role_map = {label: value for label, value in ACCOUNT_ROLE_OPTIONS}
-        role = _db_role(role_map.get(role_label))
+        selected_role = role_map.get(role_label)
+        role = _db_role(selected_role)
         for row in selected:
             _safe_execute("UPDATE Users SET role=? WHERE user_id=?", (role, row.get("user_id")))
+            _sync_user_rbac_role(row.get("user_id"), selected_role, self.user_data.get("user_id"))
         self._show_info("Gán vai trò", "Đã cập nhật vai trò cho các tài khoản đã chọn.")
         self.refresh()
 
@@ -2218,7 +2425,8 @@ class DoctorManagementPage(AdminListPage):
             self.table.setRowHeight(row, max(self.table.rowHeight(row), 44))
         self._apply_column_widths()
         target_rows = max(len(visible), min(self.page_size, 10))
-        self.table.setFixedHeight(42 + target_rows * 44 + 4)
+        self.table.setMinimumHeight(42 + min(target_rows, 8) * 44 + 4)
+        self.table.setMaximumHeight(42 + max(target_rows, 8) * 44 + 80)
         self._setup_header_checkbox()
         self._sync_header_checkbox()
         self._sync_bulk_ui()
@@ -2952,8 +3160,9 @@ class PaymentManagementPage(AdminListPage):
             self.table_card.show()
 
     def _add_filters(self, layout):
-        self.from_date_filter = QtWidgets.QDateEdit(QtCore.QDate(2026, 5, 1))
-        self.to_date_filter = QtWidgets.QDateEdit(QtCore.QDate(2026, 5, 24))
+        today = date.today()
+        self.from_date_filter = QtWidgets.QDateEdit(QtCore.QDate(today.year, today.month, 1))
+        self.to_date_filter = QtWidgets.QDateEdit(QtCore.QDate(today.year, today.month, today.day))
         for date_filter in [self.from_date_filter, self.to_date_filter]:
             date_filter.setCalendarPopup(True)
             date_filter.setDisplayFormat("dd/MM/yyyy")
@@ -2976,18 +3185,15 @@ class PaymentManagementPage(AdminListPage):
         super()._add_toolbar_buttons(layout)
 
     def load_rows(self):
-        return _safe_fetch_all(
-            """
-            SELECT p.*, pa.name AS patient_name, a.appointment_date,
-                   COALESCE(s.service_name, CONCAT('Lịch hẹn #', p.appointment_id)) AS service_name
-            FROM Payments p
-            LEFT JOIN Patients pa ON pa.patient_id = p.patient_id
-            LEFT JOIN Appointments a ON a.appointment_id = p.appointment_id
-            LEFT JOIN Invoices i ON i.payment_id = p.payment_id
-            LEFT JOIN Services s ON s.service_id = i.service_id
-            ORDER BY p.payment_date DESC
-            """
-        )
+        try:
+            from controllers.payment_controller import PaymentController
+
+            rows = PaymentController.get_enriched_all() or []
+            for row in rows:
+                row["service_name"] = row.get("service_names") or row.get("service_name")
+            return rows
+        except Exception:
+            return []
 
     def accept_row(self, row):
         parsed = _parse_date(row.get("payment_date"))
@@ -3056,7 +3262,11 @@ class PaymentManagementPage(AdminListPage):
         patients = _safe_fetch_all("SELECT patient_id, name FROM Patients ORDER BY name")
         patient_opts = [(f"{p.get('name')} (ID: {p.get('patient_id')})", p.get("patient_id")) for p in patients] if patients else [("Không có bệnh nhân", 0)]
         
-        appointments = _safe_fetch_all("SELECT appointment_id, appointment_date FROM Appointments ORDER BY appointment_date DESC LIMIT 100")
+        appointments = _safe_fetch_all(
+            "SELECT TOP 100 appointment_id, appointment_date FROM Appointments ORDER BY appointment_date DESC"
+            if DB_TYPE != "mysql"
+            else "SELECT appointment_id, appointment_date FROM Appointments ORDER BY appointment_date DESC LIMIT 100"
+        )
         appt_opts = [(f"Lịch hẹn #{a.get('appointment_id')} ({_format_date(a.get('appointment_date'))})", a.get("appointment_id")) for a in appointments] if appointments else [("Không có lịch hẹn", 0)]
         
         fields = [
@@ -3247,10 +3457,10 @@ class ReportStatsPage(AdminBasePage):
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(["Mã giao dịch", "Bệnh nhân", "Dịch vụ/Thuốc", "Số tiền", "Phương thức", "Trạng thái", "Ngày thanh toán"])
         self._style_table(self.table, 12)
-        self.table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.table.setFixedHeight(42 + 3 * 38)
+        self.table.setMinimumHeight(42 + 3 * 38)
         table_card = self._card()
         table_layout = QtWidgets.QVBoxLayout(table_card)
         table_layout.setContentsMargins(16, 16, 16, 16)
@@ -3469,6 +3679,99 @@ class RolePermissionPage(AdminBasePage):
         self.refresh()
 
     def _ensure_rbac_schema(self):
+        if DB_TYPE != "mysql":
+            statements = [
+                """
+                IF OBJECT_ID('dbo.rbac_roles', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.rbac_roles (
+                        role_id INT IDENTITY(1,1) PRIMARY KEY,
+                        role_key NVARCHAR(50) NOT NULL UNIQUE,
+                        display_name NVARCHAR(100) NOT NULL,
+                        description NVARCHAR(255) NULL,
+                        color_kind NVARCHAR(20) DEFAULT N'neutral',
+                        is_system BIT DEFAULT 0,
+                        is_active BIT DEFAULT 1,
+                        created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+                        updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
+                    )
+                END
+                """,
+                """
+                IF OBJECT_ID('dbo.rbac_permission_groups', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.rbac_permission_groups (
+                        group_id INT IDENTITY(1,1) PRIMARY KEY,
+                        group_key NVARCHAR(100) NOT NULL UNIQUE,
+                        display_name NVARCHAR(150) NOT NULL,
+                        description NVARCHAR(255) NULL,
+                        sort_order INT DEFAULT 0,
+                        is_active BIT DEFAULT 1,
+                        created_at DATETIME2 DEFAULT SYSUTCDATETIME()
+                    )
+                END
+                """,
+                """
+                IF OBJECT_ID('dbo.rbac_permissions', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.rbac_permissions (
+                        permission_id INT IDENTITY(1,1) PRIMARY KEY,
+                        group_id INT NOT NULL,
+                        permission_key NVARCHAR(120) NOT NULL UNIQUE,
+                        display_name NVARCHAR(150) NOT NULL,
+                        description NVARCHAR(255) NULL,
+                        is_sensitive BIT DEFAULT 0,
+                        is_active BIT DEFAULT 1,
+                        created_at DATETIME2 DEFAULT SYSUTCDATETIME()
+                    )
+                END
+                """,
+                """
+                IF OBJECT_ID('dbo.rbac_role_permissions', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.rbac_role_permissions (
+                        role_id INT NOT NULL,
+                        permission_id INT NOT NULL,
+                        allowed BIT DEFAULT 1,
+                        granted_by_user_id INT NULL,
+                        granted_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+                        PRIMARY KEY (role_id, permission_id)
+                    )
+                END
+                """,
+                """
+                IF OBJECT_ID('dbo.rbac_user_role_assignments', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.rbac_user_role_assignments (
+                        assignment_id INT IDENTITY(1,1) PRIMARY KEY,
+                        user_id INT NOT NULL,
+                        role_id INT NOT NULL,
+                        assigned_by_user_id INT NULL,
+                        assigned_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+                        is_active BIT DEFAULT 1,
+                        CONSTRAINT uq_rbac_user_role_active UNIQUE (user_id, role_id)
+                    )
+                END
+                """,
+                """
+                IF OBJECT_ID('dbo.rbac_audit_logs', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.rbac_audit_logs (
+                        audit_id INT IDENTITY(1,1) PRIMARY KEY,
+                        actor_user_id INT NULL,
+                        action_key NVARCHAR(100) NOT NULL,
+                        target_type NVARCHAR(50) NOT NULL,
+                        target_id NVARCHAR(100) NOT NULL,
+                        details NVARCHAR(MAX) NULL,
+                        created_at DATETIME2 DEFAULT SYSUTCDATETIME()
+                    )
+                END
+                """,
+            ]
+            for stmt in statements:
+                _safe_execute(stmt)
+            return
+
         statements = [
             """
             CREATE TABLE IF NOT EXISTS rbac_roles (
@@ -3554,6 +3857,11 @@ class RolePermissionPage(AdminBasePage):
             _safe_execute(stmt)
 
     def _seed_rbac_defaults(self):
+        admin_user_subquery = (
+            "SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1"
+            if DB_TYPE == "mysql"
+            else "SELECT TOP 1 user_id FROM Users WHERE role='admin' ORDER BY user_id ASC"
+        )
         role_seed = [
             ("admin", "Quản trị viên", "Toàn quyền hệ thống", "success", 1, 1),
             ("doctor", "Bác sĩ", "Quản lý chuyên môn", "info", 1, 1),
@@ -3647,10 +3955,10 @@ class RolePermissionPage(AdminBasePage):
             )
 
         _safe_execute(
-            """
+            f"""
             INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
             SELECT r.role_id, p.permission_id, 1,
-                   (SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1)
+                   ({admin_user_subquery})
             FROM rbac_roles r
             JOIN rbac_permissions p ON 1=1
             WHERE r.role_key='admin'
@@ -3677,7 +3985,7 @@ class RolePermissionPage(AdminBasePage):
                     f"""
                     INSERT INTO rbac_role_permissions (role_id, permission_id, allowed, granted_by_user_id)
                     SELECT r.role_id, p.permission_id, 1,
-                           (SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1)
+                           ({admin_user_subquery})
                     FROM rbac_roles r
                     JOIN rbac_permissions p ON p.permission_key {comparator} ?
                     WHERE r.role_key=?
@@ -3690,10 +3998,10 @@ class RolePermissionPage(AdminBasePage):
                 )
 
         _safe_execute(
-            """
+            f"""
             INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
             SELECT u.user_id, r.role_id,
-                   (SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1),
+                   ({admin_user_subquery}),
                    1
             FROM Users u
             JOIN rbac_roles r ON r.role_key = CASE
@@ -3712,10 +4020,10 @@ class RolePermissionPage(AdminBasePage):
 
         for username, role_key in [("staff1", "receptionist"), ("quan.do", "accountant"), ("dung.bui", "nurse")]:
             _safe_execute(
-                """
+                f"""
                 INSERT INTO rbac_user_role_assignments (user_id, role_id, assigned_by_user_id, is_active)
                 SELECT u.user_id, r.role_id,
-                       (SELECT user_id FROM Users WHERE role='admin' ORDER BY user_id ASC LIMIT 1),
+                       ({admin_user_subquery}),
                        1
                 FROM Users u
                 JOIN rbac_roles r ON r.role_key=?
@@ -3811,10 +4119,10 @@ class RolePermissionPage(AdminBasePage):
         self.permission_table.setHorizontalHeaderLabels(["Nhóm quyền", "Danh sách quyền", "Mô tả", "Trạng thái"])
         self._style_table(self.permission_table, 12)
         self.permission_table.setWordWrap(True)
-        self.permission_table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.permission_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.permission_table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.permission_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.permission_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.permission_table.setFixedHeight(560)
+        self.permission_table.setMinimumHeight(360)
         right_layout.addWidget(self.permission_table)
         main.addWidget(right, 2)
         self.content_layout.addLayout(main)
@@ -3994,7 +4302,7 @@ class RolePermissionPage(AdminBasePage):
                 self.permission_table.setCellWidget(table_row, 3, self._badge(status_text, status_kind))
                 self.permission_table.setRowHeight(table_row, 50 if index == 0 else 34)
                 table_row += 1
-        self.permission_table.setFixedHeight(min(560, 42 + row_count * 34 + len(rows) * 16))
+            self.permission_table.setMinimumHeight(min(560, 42 + row_count * 34 + len(rows) * 16))
 
     def _selected_role_row(self):
         return next((item for item in self.role_rows if item.get("role_id") == self.selected_role_id), None)
@@ -4294,14 +4602,10 @@ class BackupManagementPage(AdminBasePage):
         self._last_summary = {}
         self._last_items = []
         self._build()
-        self._ensure_seed_data()
         self.refresh()
 
     def _ensure_seed_data(self):
-        try:
-            SettingsController.ensure_backup_seed_data()
-        except Exception:
-            pass
+        return False
 
     def _build(self):
         self.stats_row = QtWidgets.QHBoxLayout()
@@ -4347,10 +4651,10 @@ class BackupManagementPage(AdminBasePage):
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(["Thời gian", "Loại", "Dung lượng", "Người tạo", "Trạng thái", "Thao tác"])
         self._style_table(self.table, 12)
-        self.table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.table.setFixedHeight(42 + 7 * 44)
+        self.table.setMinimumHeight(42 + 5 * 44)
         history_layout.addWidget(self.table)
 
         pager = QtWidgets.QHBoxLayout()
@@ -4464,7 +4768,7 @@ class BackupManagementPage(AdminBasePage):
         if not user_id:
             return False
         rows = _safe_fetch_all(
-            """
+            f"""
             SELECT rp.allowed
             FROM rbac_user_role_assignments ura
             JOIN rbac_role_permissions rp ON rp.role_id = ura.role_id
@@ -4472,7 +4776,7 @@ class BackupManagementPage(AdminBasePage):
             WHERE ura.user_id=?
               AND ura.is_active=1
               AND p.permission_key=?
-            LIMIT 1
+            {"LIMIT 1" if DB_TYPE == "mysql" else ""}
             """,
             (user_id, permission_key),
         )

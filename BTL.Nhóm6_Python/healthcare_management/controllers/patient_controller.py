@@ -61,6 +61,28 @@ class PatientController:
         return None
 
     @staticmethod
+    def find_by_identifier(identifier):
+        value = str(identifier or "").strip()
+        if not value:
+            return None
+
+        upper_value = value.upper()
+        if upper_value.startswith("BN"):
+            numeric_part = upper_value[2:].lstrip("0") or "0"
+            if numeric_part.isdigit():
+                return PatientModel.get_by_id(int(numeric_part))
+
+        if value.isdigit():
+            patient = PatientModel.get_by_id(int(value))
+            if patient:
+                return patient
+
+        patient = PatientModel.get_by_cccd(value)
+        if patient:
+            return patient
+        return PatientModel.get_by_phone(value)
+
+    @staticmethod
     def _find_duplicate_by_keys(cccd=None, phone=None):
         normalized_cccd = str(cccd or "").strip()
         normalized_phone = str(phone or "").strip()

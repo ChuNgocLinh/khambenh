@@ -11,6 +11,7 @@ from controllers.service_controller import ServiceController
 from controllers.payment_controller import PaymentController
 from controllers.report_controller import ReportController
 from controllers.settings_controller import SettingsController
+from controllers.waiting_queue_controller import WaitingQueueController
 
 
 class StaffServiceDonutChart(QtWidgets.QWidget):
@@ -324,12 +325,15 @@ class StaffDashboardView(QtWidgets.QWidget):
         page_layout.setContentsMargins(0, 0, 0, 0)
         page_layout.setSpacing(14)
 
+        dashboard_data = self._build_staff_dashboard_snapshot()
+        kpis = dashboard_data.get("kpis", {})
+
         kpi_row = QtWidgets.QHBoxLayout()
         kpi_row.setSpacing(20)
-        kpi_row.addWidget(self._build_kpi_card("Bệnh nhân hôm nay", "24", "↑ 12% so với hôm qua", "#1fb873", "#e7f8ef", "👥"))
-        kpi_row.addWidget(self._build_kpi_card("Lịch hẹn hôm nay", "15", "↑ 8% so với hôm qua", "#2563eb", "#eaf2ff", "📅"))
-        kpi_row.addWidget(self._build_kpi_card("Hóa đơn chờ thanh toán", "6", "Tổng tiền: 12.450.000 đ", "#f97316", "#fff3e4", "🧾"))
-        kpi_row.addWidget(self._build_kpi_card("Đã thanh toán hôm nay", "9", "Tổng tiền: 18.750.000 đ", "#6d48d8", "#f0eaff", "✓"))
+        kpi_row.addWidget(self._build_kpi_card("Bệnh nhân hôm nay", kpis.get("patients_today", "0"), kpis.get("patients_note", "Từ dữ liệu tiếp nhận"), "#1fb873", "#e7f8ef", "👥"))
+        kpi_row.addWidget(self._build_kpi_card("Lịch hẹn hôm nay", kpis.get("appointments_today", "0"), kpis.get("appointments_note", "Từ lịch hẹn DB"), "#2563eb", "#eaf2ff", "📅"))
+        kpi_row.addWidget(self._build_kpi_card("Hóa đơn chờ thanh toán", kpis.get("unpaid_count", "0"), kpis.get("unpaid_note", "Tổng tiền: 0 đ"), "#f97316", "#fff3e4", "🧾"))
+        kpi_row.addWidget(self._build_kpi_card("Đã thanh toán hôm nay", kpis.get("paid_today_count", "0"), kpis.get("paid_today_note", "Tổng tiền: 0 đ"), "#6d48d8", "#f0eaff", "✓"))
         page_layout.addLayout(kpi_row)
 
         first_row = QtWidgets.QHBoxLayout()
@@ -337,7 +341,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         appointments_card = self._build_section_card("Lịch hẹn hôm nay")
         appointments_layout = appointments_card.layout()
 
-        table = QtWidgets.QTableWidget(5, 6)
+        appointment_rows = dashboard_data.get("appointments") or [("--", "Chưa có lịch hẹn hôm nay", "Chưa cập nhật", "Chưa cập nhật", "Trống")]
+        table = QtWidgets.QTableWidget(len(appointment_rows), 6)
         table.setHorizontalHeaderLabels(["Giờ hẹn", "Bệnh nhân", "Dịch vụ", "Bác sĩ", "Trạng thái", "Thao tác"])
         table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
@@ -354,14 +359,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; color: #0f172a; font-weight: 600; }"
         )
 
-        sample_rows = [
-            ("08:00", "Trần Văn Nam\nNam - 35 tuổi", "Khám tổng quát", "BS. Minh", "Đã xác nhận"),
-            ("09:00", "Lê Thị Hoa\nNữ - 29 tuổi", "Tư vấn sức khỏe", "BS. Minh", "Đang chờ"),
-            ("10:00", "Nguyễn Hoàng Anh\nNam - 42 tuổi", "Khám tim mạch", "BS. Hường", "Đã xác nhận"),
-            ("10:30", "Phạm Minh Đức\nNam - 31 tuổi", "Khám nhi", "BS. Hường", "Đang khám"),
-            ("11:00", "Vũ Thị Mai\nNữ - 28 tuổi", "Khám tổng quát", "BS. Minh", "Đã hoàn tất"),
-        ]
-        for r, row in enumerate(sample_rows):
+        for r, row in enumerate(appointment_rows):
             table.setRowHeight(r, 54)
             for c, value in enumerate(row):
                 table.setItem(r, c, QtWidgets.QTableWidgetItem(value))
@@ -402,26 +400,23 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         waiting_card = self._build_section_card("Bệnh nhân chờ tiếp nhận")
         waiting_layout = waiting_card.layout()
-        waiting_layout.addWidget(self._build_patient_waiting_row("Nguyễn Văn Hùng", "Nam - 35 tuổi", "07:45"))
-        waiting_layout.addWidget(self._build_patient_waiting_row("Đỗ Thị Phương", "Nữ - 28 tuổi", "07:50"))
-        waiting_layout.addWidget(self._build_patient_waiting_row("Lý Minh Tuấn", "Nam - 42 tuổi", "07:55"))
+        waiting_rows = dashboard_data.get("waiting") or []
+        if waiting_rows:
+            for item in waiting_rows:
+                waiting_layout.addWidget(self._build_patient_waiting_row(item.get("name", "Chưa cập nhật"), item.get("detail", ""), item.get("time", "--:--")))
+        else:
+            empty_waiting = QtWidgets.QLabel("Chưa có bệnh nhân chờ tiếp nhận")
+            empty_waiting.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 700;")
+            waiting_layout.addWidget(empty_waiting)
 
         notices_card = self._build_section_card("Thông báo")
         notices_layout = notices_card.layout()
-        notices_layout.addWidget(self._build_notice_row("🔔", "Có 3 lịch hẹn mới cần xác nhận", "5 phút trước", "#f59e0b"))
-        notices_layout.addWidget(self._build_notice_row("💵", "Hóa đơn #HD000125 chưa thanh toán", "20 phút trước", "#1fb873"))
-        notices_layout.addWidget(self._build_notice_row("📅", "Lịch khám 10:30 sắp bắt đầu", "25 phút trước", "#2563eb"))
-        notices_layout.addWidget(self._build_notice_row("👤", "Bệnh nhân Nguyễn Hoàng Anh đến sớm 10p", "40 phút trước", "#6d48d8"))
+        for notice in dashboard_data.get("notices") or []:
+            notices_layout.addWidget(self._build_notice_row(notice.get("icon", "🔔"), notice.get("text", ""), notice.get("time", "Hiện tại"), notice.get("color", "#2563eb")))
 
         services_card = self._build_section_card("Thống kê dịch vụ")
         services_layout = services_card.layout()
-        service_data = [
-            ("Khám tổng quát", 45, "#45c2a5"),
-            ("Tư vấn sức khỏe", 25, "#2563eb"),
-            ("Khám tim mạch", 15, "#f59e0b"),
-            ("Khám nhi", 10, "#8b5cf6"),
-            ("Khác", 5, "#94a3b8"),
-        ]
+        service_data = dashboard_data.get("service_data") or [("Chưa có dữ liệu", 100, "#94a3b8")]
         services_body = QtWidgets.QHBoxLayout()
         services_body.setSpacing(10)
         services_body.addWidget(StaffServiceDonutChart(service_data), 1)
@@ -464,6 +459,138 @@ class StaffDashboardView(QtWidgets.QWidget):
         todo_layout.addLayout(checklist_grid)
         page_layout.addWidget(todo_card)
         return page
+
+    def _build_staff_dashboard_snapshot(self):
+        today = QtCore.QDate.currentDate()
+        today_iso = today.toString("yyyy-MM-dd")
+        appointments = []
+        try:
+            appointments = AppointmentController.get_all_for_role("staff", self.user_data) or []
+        except Exception:
+            appointments = []
+        if isinstance(appointments, dict):
+            appointments = appointments.get("data") or []
+
+        today_appointments = []
+        for appt in appointments:
+            appointment_date = str(appt.get("appointment_date") or appt.get("date") or "").strip()
+            if appointment_date and not appointment_date.startswith(today_iso):
+                continue
+            time_text = str(appt.get("appointment_time") or "").strip()
+            if not time_text and len(appointment_date) >= 16:
+                time_text = appointment_date[11:16]
+            patient_name = self._staff_display_text(appt.get("patient_name") or "Chưa cập nhật")
+            phone = str(appt.get("patient_phone") or appt.get("phone") or "").strip()
+            patient_label = patient_name if not phone else f"{patient_name}\n{phone}"
+            service_name = self._staff_display_text(appt.get("service_name") or appt.get("service_names") or "Chưa cập nhật")
+            doctor_name = self._staff_display_text(appt.get("doctor_name") or "Chưa cập nhật")
+            status_text = self._staff_dashboard_status_text(appt.get("status"))
+            today_appointments.append((time_text or "--:--", patient_label, service_name, doctor_name, status_text))
+
+        payments = []
+        try:
+            payments = PaymentController.get_enriched_all() or []
+        except Exception:
+            payments = []
+
+        waiting = []
+        try:
+            waiting_rows = WaitingQueueController.get_waiting("3B") or []
+        except Exception:
+            waiting_rows = []
+        for row in waiting_rows[:3]:
+            created_at = str(row.get("created_at") or row.get("appointment_date") or "").strip()
+            time_text = created_at[11:16] if len(created_at) >= 16 else "--:--"
+            detail = str(row.get("patient_phone") or row.get("queue_no") or "").strip()
+            waiting.append({
+                "name": self._staff_display_text(row.get("patient_name") or "Chưa cập nhật"),
+                "detail": detail,
+                "time": time_text,
+            })
+
+        unpaid = [bill for bill in payments if self._staff_bill_status_key(bill) == "unpaid"]
+        paid_today = []
+        for bill in payments:
+            bill_date = self._parse_staff_date(bill.get("payment_date") or bill.get("appointment_date"))
+            if self._staff_bill_status_key(bill) == "paid" and bill_date == today.toPyDate():
+                paid_today.append(bill)
+
+        patient_keys = set()
+        for appt in appointments:
+            appointment_date = str(appt.get("appointment_date") or "").strip()
+            if appointment_date and not appointment_date.startswith(today_iso):
+                continue
+            patient_keys.add(appt.get("patient_id") or appt.get("patient_name"))
+
+        service_counts = {}
+        for row in today_appointments:
+            name = row[2] or "Chưa cập nhật"
+            service_counts[name] = service_counts.get(name, 0) + 1
+        service_data = self._build_staff_dashboard_service_data(service_counts)
+
+        notices = []
+        pending_count = sum(1 for row in today_appointments if row[4] in {"Đang chờ", "Chờ xác nhận"})
+        if pending_count:
+            notices.append({"icon": "🔔", "text": f"Có {pending_count} lịch hẹn cần xác nhận", "time": "Hôm nay", "color": "#f59e0b"})
+        if unpaid:
+            notices.append({"icon": "💵", "text": f"Có {len(unpaid)} hóa đơn chờ thanh toán", "time": "Hôm nay", "color": "#1fb873"})
+        if today_appointments:
+            notices.append({"icon": "📅", "text": f"Lịch khám gần nhất lúc {today_appointments[0][0]}", "time": "Hôm nay", "color": "#2563eb"})
+        if waiting:
+            notices.append({"icon": "👤", "text": f"Có {len(waiting_rows)} bệnh nhân trong hàng chờ", "time": "Hiện tại", "color": "#6d48d8"})
+        if not notices:
+            notices.append({"icon": "🔔", "text": "Không có thông báo nghiệp vụ mới", "time": "Hiện tại", "color": "#94a3b8"})
+
+        return {
+            "kpis": {
+                "patients_today": str(len([key for key in patient_keys if key])),
+                "patients_note": "Từ lịch hẹn hôm nay",
+                "appointments_today": str(len(today_appointments)),
+                "appointments_note": "Từ lịch hẹn DB",
+                "unpaid_count": str(len(unpaid)),
+                "unpaid_note": f"Tổng tiền: {self._format_staff_money(sum(float(bill.get('total_amount') or 0) for bill in unpaid))}",
+                "paid_today_count": str(len(paid_today)),
+                "paid_today_note": f"Tổng tiền: {self._format_staff_money(sum(float(bill.get('total_amount') or 0) for bill in paid_today))}",
+            },
+            "appointments": today_appointments[:5],
+            "waiting": waiting,
+            "notices": notices[:4],
+            "service_data": service_data,
+        }
+
+    def _staff_dashboard_status_text(self, status):
+        raw = str(status or "").strip()
+        normalized = raw.lower()
+        mapping = {
+            "pending": "Đang chờ",
+            "waiting": "Đang chờ",
+            "confirmed": "Đã xác nhận",
+            "checked_in": "Đang chờ",
+            "in_progress": "Đang khám",
+            "examining": "Đang khám",
+            "completed": "Đã hoàn tất",
+            "done": "Đã hoàn tất",
+            "cancelled": "Đã hủy",
+            "canceled": "Đã hủy",
+        }
+        return mapping.get(normalized, self._staff_display_text(raw or "Đang chờ"))
+
+    def _build_staff_dashboard_service_data(self, service_counts):
+        if not service_counts:
+            return [("Chưa có dữ liệu", 100, "#94a3b8")]
+        colors = ["#45c2a5", "#2563eb", "#f59e0b", "#8b5cf6", "#94a3b8"]
+        total = sum(service_counts.values()) or 1
+        sorted_items = sorted(service_counts.items(), key=lambda item: item[1], reverse=True)
+        rows = []
+        other_count = 0
+        for index, (name, count) in enumerate(sorted_items):
+            if index >= 4:
+                other_count += count
+                continue
+            rows.append((self._staff_display_text(name), max(1, round(count * 100 / total)), colors[index]))
+        if other_count:
+            rows.append(("Khác", max(1, round(other_count * 100 / total)), colors[-1]))
+        return rows
 
     def _build_placeholder_page(self, title):
         page = QtWidgets.QFrame()
@@ -3006,7 +3133,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             return
 
         try:
-            patient = PatientController.find_by_cccd_or_phone(cccd=cccd, phone=phone)
+            patient = PatientController.find_by_identifier(cccd or phone)
         except Exception:
             self._set_intake_feedback(
                 "Tra cứu bị gián đoạn tạm thời. Vui lòng kiểm tra kết nối dữ liệu và thử lại.",
@@ -3115,7 +3242,7 @@ class StaffDashboardView(QtWidgets.QWidget):
                     is_error=True,
                 )
                 return
-            self.intake_selected_patient = PatientController.find_by_cccd_or_phone(cccd=cccd, phone=phone)
+            self.intake_selected_patient = PatientController.find_by_identifier(cccd or phone)
             if self.intake_selected_patient:
                 self.shared_selected_patient_id = self.intake_selected_patient.get("patient_id")
             self._set_intake_feedback(result.get("message") or "Cập nhật hồ sơ bệnh nhân thành công.", is_error=False)
@@ -3250,19 +3377,11 @@ class StaffDashboardView(QtWidgets.QWidget):
             return
 
         waiting_widget.clear()
-        appointments = AppointmentController.get_all() or []
-        queue_rows = []
-        for appt in appointments:
-            status = str(appt.get("status") or "").lower().strip()
-            if status not in {"confirmed", "in_progress"}:
-                continue
-            queue_rows.append(appt)
-
-        queue_rows.sort(key=lambda row: str(row.get("appointment_date") or ""))
+        queue_rows = WaitingQueueController.get_waiting("3B") or []
         for appt in queue_rows[:20]:
-            service_text = self._extract_service_name_from_note(str(appt.get("note") or ""))
+            service_text = self._extract_service_name_from_note(str(appt.get("intake_note") or ""))
             waiting_widget.addItem(
-                f"#{appt.get('appointment_id', '')} - {appt.get('patient_name', '(chưa rõ bệnh nhân)')} | {appt.get('appointment_date', 'Không rõ giờ')} | {service_text}"
+                f"#{appt.get('queue_no') or appt.get('appointment_id', '')} - {appt.get('patient_name', '(chưa rõ bệnh nhân)')} | {appt.get('created_at', appt.get('appointment_date', 'Không rõ giờ'))} | {service_text}"
             )
 
     def _refresh_staff_waiting_pipeline(self):
@@ -4344,10 +4463,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             self._set_staff_patient_info_hint(result.get("message") or "Không thể tạo bệnh nhân mới.")
             return
         self._refresh_staff_patient_table()
-        latest_patient = PatientController.find_by_cccd_or_phone(
-            cccd=payload["cccd"],
-            phone=payload["phone"],
-        )
+        latest_patient = PatientController.find_by_identifier(payload["cccd"] or payload["phone"])
         if latest_patient:
             self._select_staff_patient_by_id(latest_patient.get("patient_id"))
         self._set_staff_patient_info_hint("Đã thêm bệnh nhân mới vào cơ sở dữ liệu.")
@@ -7797,37 +7913,20 @@ class StaffDashboardView(QtWidgets.QWidget):
         return card
 
     def _build_staff_billing_catalog(self):
-        sample = [
-            (128, "Nguyễn Văn Hùng", 850000, "unpaid", "0987 654 321", 35),
-            (127, "Trần Thị Mai", 650000, "unpaid", "0912 345 678", 28),
-            (126, "Lê Văn Nam", 1200000, "unpaid", "0908 111 222", 42),
-            (125, "Phạm Thị Lan", 1500000, "paid", "0933 222 111", 31),
-            (124, "Hoàng Anh Tuấn", 700000, "paid", "0977 333 444", 39),
-            (123, "Vũ Thị Hương", 1350000, "unpaid", "0966 444 555", 46),
-            (122, "Đỗ Minh Quân", 950000, "paid", "0955 555 666", 30),
-            (121, "Nguyễn Thị Hoa", 600000, "cancelled", "0944 666 777", 52),
-            (120, "Bùi Văn Dũng", 1100000, "unpaid", "0933 777 888", 44),
-            (119, "Trương Thị Kiều", 800000, "refunded", "0922 888 999", 27),
-        ]
-        rows = []
         try:
-            rows = PaymentController.get_all() or []
+            rows = PaymentController.get_enriched_all() or []
         except Exception:
             rows = []
         catalog = []
-        for idx, row in enumerate(rows):
+        for row in rows:
             item = dict(row)
-            sid, name, amount, status, phone, age = sample[idx % len(sample)]
-            item.setdefault("patient_name", name)
-            item.setdefault("patient_phone", phone)
-            item.setdefault("patient_age", age)
-            item.setdefault("patient_address", "123 Đường Lê Lợi, P.1, Q.1, TP.HCM")
+            item["service_name"] = item.get("service_names") or item.get("service_name")
+            item.setdefault("patient_name", "Chưa cập nhật")
+            item.setdefault("patient_phone", "")
+            item.setdefault("patient_age", "")
+            item.setdefault("patient_address", "")
             item.setdefault("staff_name", self.username)
             catalog.append(item)
-        seen = {str(x.get("payment_id")) for x in catalog}
-        for sid, name, amount, status, phone, age in sample:
-            if str(sid) not in seen:
-                catalog.append({"payment_id": sid, "patient_name": name, "patient_phone": phone, "patient_age": age, "patient_address": "123 Đường Lê Lợi, P.1, Q.1, TP.HCM", "payment_date": "23/05/2026 08:15", "total_amount": amount, "status": status, "staff_name": "Nguyễn Thị Lan"})
         return catalog
 
     def _staff_bill_status_key(self, bill):
@@ -7850,10 +7949,17 @@ class StaffDashboardView(QtWidgets.QWidget):
             self.staff_billing_rows = self._build_staff_billing_catalog()
         keyword = str(self.staff_bill_search_input.text() or "").strip().lower() if hasattr(self, "staff_bill_search_input") else ""
         active_tab = getattr(self, "staff_bill_active_tab", "all")
+        from_date = self.staff_bill_from_date.date().toPyDate() if hasattr(self, "staff_bill_from_date") else None
+        to_date = self.staff_bill_to_date.date().toPyDate() if hasattr(self, "staff_bill_to_date") else None
         filtered = []
         for bill in self.staff_billing_rows:
             haystack = f"{self._staff_bill_code(bill)} {bill.get('patient_name', '')} {self._staff_bill_status_text(bill)}".lower()
+            bill_date = self._parse_staff_date(bill.get("payment_date") or bill.get("appointment_date"))
             if active_tab != "all" and self._staff_bill_status_key(bill) != active_tab:
+                continue
+            if bill_date and from_date and bill_date < from_date:
+                continue
+            if bill_date and to_date and bill_date > to_date:
                 continue
             if keyword and keyword not in haystack:
                 continue
@@ -7874,6 +7980,12 @@ class StaffDashboardView(QtWidgets.QWidget):
             self._update_staff_bill_detail(filtered[0])
         else:
             self._reset_staff_bill_detail()
+
+    def _parse_staff_date(self, value):
+        parsed = self._parse_staff_billing_datetime(value)
+        if parsed and parsed.isValid():
+            return parsed.date().toPyDate()
+        return None
 
     def _staff_bill_code(self, bill):
         try:
@@ -8580,24 +8692,6 @@ class StaffDashboardView(QtWidgets.QWidget):
         return page
 
     def _build_staff_service_catalog(self):
-        sample_services = [
-            {"service_id": "sample-1", "service_name": "Khám tổng quát", "category": "Khám bệnh", "price": 300000, "duration": 30, "description": "Khám sức khỏe tổng quát, đánh giá các chỉ số cơ bản và tư vấn hướng điều trị.", "is_active": True},
-            {"service_id": "sample-2", "service_name": "Khám tim mạch", "category": "Khám chuyên khoa", "price": 400000, "duration": 30, "description": "Khám chuyên khoa tim mạch, đo huyết áp, điện tim và tư vấn theo tình trạng bệnh.", "is_active": True},
-            {"service_id": "sample-3", "service_name": "Khám nhi khoa", "category": "Khám chuyên khoa", "price": 350000, "duration": 25, "description": "Khám và tư vấn sức khỏe cho trẻ em.", "is_active": True},
-            {"service_id": "sample-4", "service_name": "Khám tai mũi họng", "category": "Khám chuyên khoa", "price": 320000, "duration": 25, "description": "Khám tai mũi họng, nội soi khi cần và kê đơn điều trị.", "is_active": True},
-            {"service_id": "sample-5", "service_name": "Khám răng hàm mặt", "category": "Khám chuyên khoa", "price": 250000, "duration": 20, "description": "Kiểm tra răng miệng, tư vấn chăm sóc và điều trị cơ bản.", "is_active": True},
-            {"service_id": "sample-6", "service_name": "Siêu âm tổng quát", "category": "Chẩn đoán hình ảnh", "price": 450000, "duration": 20, "description": "Siêu âm ổ bụng tổng quát, hỗ trợ chẩn đoán nhanh.", "is_active": True},
-            {"service_id": "sample-7", "service_name": "Siêu âm tim", "category": "Chẩn đoán hình ảnh", "price": 600000, "duration": 30, "description": "Siêu âm tim, đánh giá cấu trúc và chức năng tim.", "is_active": True},
-            {"service_id": "sample-8", "service_name": "Xét nghiệm máu tổng quát", "category": "Xét nghiệm", "price": 180000, "duration": 15, "description": "Xét nghiệm công thức máu và các chỉ số cơ bản.", "is_active": True},
-            {"service_id": "sample-9", "service_name": "Xét nghiệm đường huyết", "category": "Xét nghiệm", "price": 90000, "duration": 10, "description": "Kiểm tra đường huyết nhanh.", "is_active": True},
-            {"service_id": "sample-10", "service_name": "X-quang phổi", "category": "Chẩn đoán hình ảnh", "price": 120000, "duration": 15, "description": "Chụp X-quang phổi hỗ trợ chẩn đoán hô hấp.", "is_active": False},
-        ]
-        sample_packages = [
-            {"service_id": "package-1", "service_name": "Gói khám tổng quát", "category": "Gói khám", "price": 1200000, "duration": 90, "description": "Gói kiểm tra sức khỏe định kỳ gồm khám tổng quát, xét nghiệm máu và siêu âm.", "is_active": True, "is_package": True},
-            {"service_id": "package-2", "service_name": "Gói khám doanh nghiệp", "category": "Gói khám", "price": 950000, "duration": 75, "description": "Gói khám sức khỏe cho nhân viên doanh nghiệp.", "is_active": True, "is_package": True},
-            {"service_id": "package-3", "service_name": "Gói tim mạch nâng cao", "category": "Gói khám", "price": 1500000, "duration": 100, "description": "Gói khám chuyên sâu tim mạch kèm siêu âm tim và xét nghiệm cần thiết.", "is_active": True, "is_package": True},
-        ]
-
         rows = []
         try:
             rows = ServiceController.get_all() or []
@@ -8618,10 +8712,6 @@ class StaffDashboardView(QtWidgets.QWidget):
             service["is_package"] = "gói" in service["service_name"].lower()
             catalog.append(service)
             seen_names.add(service["service_name"].lower())
-
-        for item in sample_services + sample_packages:
-            if item["service_name"].lower() not in seen_names:
-                catalog.append(dict(item))
         return catalog
 
     def _build_staff_service_kpi_card(self, icon, title, value, note, bg_color, fg_color):
@@ -8963,18 +9053,19 @@ class StaffDashboardView(QtWidgets.QWidget):
             }
             try:
                 if service and isinstance(service.get("service_id"), int):
-                    ServiceController.update(service["service_id"], data)
-                elif service and str(service.get("service_id", "")).startswith(("sample-", "package-")):
-                    service.update({"service_name": data["name"], "price": data["price"], "description": data["description"], "category": data["category"], "duration": data["duration"]})
+                    ok = ServiceController.update(service["service_id"], data)
+                elif service:
+                    self._set_staff_service_feedback("Không thể cập nhật dịch vụ chưa có trong CSDL.", is_error=True)
+                    return
                 else:
-                    ServiceController.create(data)
-                    self.staff_service_rows = self._build_staff_service_catalog()
+                    ok = ServiceController.create(data)
+                if not ok:
+                    self._set_staff_service_feedback("Không lưu được dịch vụ vào CSDL.", is_error=True)
+                    return
+                self.staff_service_rows = self._build_staff_service_catalog()
             except Exception as exc:
-                if service:
-                    service.update({"service_name": data["name"], "price": data["price"], "description": data["description"], "category": data["category"], "duration": data["duration"]})
-                else:
-                    self.staff_service_rows.insert(0, {"service_id": f"local-{len(self.staff_service_rows) + 1}", "service_name": data["name"], "price": data["price"], "description": data["description"], "category": data["category"], "duration": data["duration"], "is_active": True, "is_package": data["category"] == "Gói khám"})
-                self._set_staff_service_feedback(f"Lưu trên giao diện vì chưa ghi được CSDL: {exc}", is_error=True)
+                self._set_staff_service_feedback(f"Không lưu được dịch vụ vào CSDL: {exc}", is_error=True)
+                return
             dialog.accept()
             self._refresh_staff_service_lookup()
 

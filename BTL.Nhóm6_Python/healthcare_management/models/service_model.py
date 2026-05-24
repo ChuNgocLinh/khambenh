@@ -1,10 +1,23 @@
 from database.db import fetch_all, fetch_one, execute
+from database.sql_utils import select_top
 
 class ServiceModel:
 
     @staticmethod
     def get_all():
         return fetch_all("SELECT * FROM Services ORDER BY service_id DESC")
+
+    @staticmethod
+    def get_visible_active():
+        return fetch_all(
+            """
+            SELECT *
+            FROM Services
+            WHERE COALESCE(is_visible, 1) = 1
+              AND COALESCE(is_active, 1) = 1
+            ORDER BY category ASC, service_name ASC, service_id ASC
+            """
+        )
 
     @staticmethod
     def get_by_id(service_id):
@@ -37,9 +50,7 @@ class ServiceModel:
     
     @staticmethod
     def check_used(service_id):
-        # Check if service is used in invoices
-        invoice = fetch_one("SELECT 1 FROM Invoices WHERE service_id=? LIMIT 1", (service_id,))
+        invoice = fetch_one(f"SELECT {select_top(1)}1 FROM Invoices WHERE service_id=?", (service_id,))
         if invoice:
             return True
         return False
-

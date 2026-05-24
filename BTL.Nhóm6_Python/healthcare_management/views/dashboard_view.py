@@ -485,14 +485,11 @@ class DashboardView(QtWidgets.QWidget):
                    pr.prescription_id, pr.quantity,
                    m.name AS medicine_name,
                    m.description AS medicine_description,
-                   CASE
-                       WHEN a.note IS NULL OR a.note = '' THEN 'Khám tổng quát'
-                       WHEN a.note LIKE 'Dịch vụ:%' THEN TRIM(SUBSTRING(a.note, 9))
-                       ELSE a.note
-                   END AS visit_type
+                   COALESCE(appointment_service.service_name, NULLIF(a.note, ''), 'Khám tổng quát') AS visit_type
             FROM MedicalRecords mr
             JOIN Patients p ON p.patient_id = mr.patient_id
             LEFT JOIN Appointments a ON a.appointment_id = mr.appointment_id
+            LEFT JOIN Services appointment_service ON appointment_service.service_id = a.service_id
             LEFT JOIN Prescriptions pr ON pr.record_id = mr.record_id
             LEFT JOIN Medicines m ON m.medicine_id = pr.medicine_id
             WHERE mr.doctor_id = ?
@@ -658,6 +655,30 @@ class DashboardView(QtWidgets.QWidget):
                 widget.deleteLater()
             elif child_layout is not None:
                 self._clear_layout(child_layout)
+
+        doctor_id = self.user_data.get("doctor_id")
+        self.dashboard_data = self._build_doctor_dashboard_data(doctor_id) if doctor_id else {}
+        self.page_dashboard_layout.addWidget(self._build_dashboard_filter_bar())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_kpi_row())
+        quick_row = QtWidgets.QHBoxLayout()
+        quick_row.addStretch()
+        view_all_appts = QtWidgets.QPushButton("Xem tất cả lịch hẹn >")
+        view_all_appts.setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;")
+        view_all_appts.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+        view_all_appts.clicked.connect(lambda checked=False: self.switch_page(1))
+        quick_row.addWidget(view_all_appts)
+        self.page_dashboard_layout.addLayout(quick_row)
+        self.page_dashboard_layout.addLayout(self._build_dashboard_analytics_row())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_trend_row())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_distribution_row())
+        self.page_dashboard_layout.addLayout(self._build_dashboard_summary_row())
+        updated_at = self.dashboard_data.get("updated_at")
+        if updated_at:
+            footer = QtWidgets.QLabel(f"Cập nhật từ CSDL lúc {updated_at}")
+            footer.setStyleSheet("font-size: 12px; color: #64748b; padding: 4px;")
+            self.page_dashboard_layout.addWidget(footer, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        self.page_dashboard_layout.addStretch()
+        return
 
         # MAIN HORIZONTAL LAYOUT
         main_h_layout = QtWidgets.QHBoxLayout()

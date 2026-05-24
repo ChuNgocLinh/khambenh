@@ -54,6 +54,7 @@ UI_CONFIG = {
 ROLES = {
     "ADMIN": "admin",
     "DOCTOR": "doctor",
+    "STAFF": "staff",
     "PATIENT": "patient"
 }
 

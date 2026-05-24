@@ -10,11 +10,11 @@ class ServiceManagementPage(AdminListPage):
     
     def __init__(self, user_data=None, parent=None):
         self.selected_service_ids = set()
-        super().__init__(user_data, parent)
         self.total_services = 0
         self.active_services = 0
         self.paused_services = 0
         self.discontinued_services = 0
+        super().__init__(user_data, parent)
 
     def _add_filters(self, layout):
         self.category_filter = self._combo([

@@ -2306,6 +2306,8 @@ class DoctorAppointmentView(BaseDoctorView):
             payload.get("status"),
             payload.get("service_name") or "Khám tổng quát",
             payload.get("note"),
+            role="doctor",
+            user_context={"doctor_id": self.doctor_id},
         )
 
         if not result.get("status"):
@@ -2335,6 +2337,8 @@ class DoctorAppointmentView(BaseDoctorView):
             payload.get("status"),
             payload.get("service_name"),
             payload.get("note"),
+            role="doctor",
+            user_context={"doctor_id": self.doctor_id},
         )
 
         if not result.get("status"):
@@ -3214,6 +3218,7 @@ class PrescriptionView(QtWidgets.QWidget):
         self.all_rows = []
         self.filtered_rows = []
         self.active_tab = "all"
+        self.context_record_id = None
         self.last_message = ""
         self.setStyleSheet(f"background: {PAGE_BG};")
 
@@ -3545,10 +3550,32 @@ class PrescriptionView(QtWidgets.QWidget):
         self.message_label.setText(message)
 
     def create_prescription(self):
-        self._set_message("Mở màn khám bệnh để tạo đơn thuốc mới từ hồ sơ khám.")
-        dashboard = self._find_dashboard()
-        if dashboard:
-            dashboard.switch_page(3)
+        if not self.context_record_id:
+            self._set_message("Mở màn khám bệnh để tạo đơn thuốc mới từ hồ sơ khám.")
+            dashboard = self._find_dashboard()
+            if dashboard:
+                dashboard.switch_page(3)
+            return {"status": True, "message": self.last_message}
+
+        dialog = PrescriptionDialog(self.context_record_id, self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            self._set_message("Đã hủy tạo đơn thuốc.")
+            return {"status": False, "message": self.last_message}
+
+        data = dialog.get_data()
+        created = PrescriptionController.add(data["record_id"], data["medicine_id"], data["quantity"])
+        if not created:
+            self._set_message("Không thể lưu đơn thuốc vào CSDL.")
+            return {"status": False, "message": self.last_message}
+        self._set_message(f"Đã tạo đơn thuốc cho hồ sơ #{data['record_id']}.")
+        self.load_data()
+        return {"status": True, "message": self.last_message}
+
+    def set_record(self, record_id, patient_id=None):
+        self.context_record_id = record_id
+        self._set_message(f"Sẵn sàng kê đơn cho hồ sơ #{record_id}.")
+        if patient_id:
+            self.search_input.setText("")
         return {"status": True, "message": self.last_message}
 
     def _activate_quick_filter(self, tab):
