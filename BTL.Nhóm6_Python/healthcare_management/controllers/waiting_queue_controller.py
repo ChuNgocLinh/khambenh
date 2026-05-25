@@ -1,9 +1,10 @@
 from models.waiting_queue_model import WaitingQueueModel
+from config import DEFAULT_QUEUE_AREA
 
 
 class WaitingQueueController:
     @staticmethod
-    def check_in(patient_id, appointment_id=None, intake_note="", area="3B"):
+    def check_in(patient_id, appointment_id=None, intake_note="", area=DEFAULT_QUEUE_AREA):
         if not patient_id:
             return {"status": False, "message": "Thiếu bệnh nhân để check-in."}
         row = WaitingQueueModel.check_in(
@@ -17,5 +18,5 @@ class WaitingQueueController:
         return {"status": True, "message": "Đã check-in hàng chờ.", "data": row}
 
     @staticmethod
-    def get_waiting(area="3B"):
+    def get_waiting(area=DEFAULT_QUEUE_AREA):
         return WaitingQueueModel.get_waiting(area=area)

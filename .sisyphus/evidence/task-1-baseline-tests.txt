@@ -1,0 +1,9 @@
+Task 1 Evidence: Baseline Smoke Tests
+Date: 2026-05-25 13:27
+Status: PASS
+
+test_appointment_rbac.py: 6 passed in 0.05s
+test_doctor_dashboard_routing.py: 2 passed in 0.66s
+
+Warnings: sipPyTypeDict() deprecation warnings (non-blocking)
+All tests passed successfully.

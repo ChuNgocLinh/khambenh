@@ -18,7 +18,10 @@ class PatientController:
         return PatientModel.get_by_doctor(doctor_id)
 
     @staticmethod
-    def get_by_id(patient_id):
+    def get_by_id(patient_id, user_context=None):
+        if user_context is not None:
+            from controllers.scoping_helper import enforce_patient_scope
+            enforce_patient_scope(patient_id, user_context)
         return PatientModel.get_by_id(patient_id)
 
     @staticmethod
@@ -129,7 +132,10 @@ class PatientController:
         return PatientController._create_status(True, "Tạo hồ sơ bệnh nhân thành công.")
 
     @staticmethod
-    def update_with_status(patient_id, form):
+    def update_with_status(patient_id, form, user_context=None):
+        if user_context is not None:
+            from controllers.scoping_helper import enforce_patient_scope
+            enforce_patient_scope(patient_id, user_context)
         payload = PatientController._normalize_form(form)
 
         duplicate, duplicate_by = PatientController._find_duplicate_by_keys(
@@ -169,9 +175,18 @@ class PatientController:
 
     # 🔹 CẬP NHẬT
     @staticmethod
-    def update(patient_id, form):
+    def update(patient_id, form, user_context=None):
         # Backward-compatible return for existing callers expecting boolean.
-        return PatientController.update_with_status(patient_id, form).get("status", False)
+        return PatientController.update_with_status(patient_id, form, user_context).get("status", False)
+
+    # 🔹 LẤY LỊCH SỬ KHÁM BỆNH (BẢO VỆ BỞI USER_CONTEXT)
+    @staticmethod
+    def get_medical_history(patient_id, user_context=None):
+        if user_context is not None:
+            from controllers.scoping_helper import enforce_patient_scope
+            enforce_patient_scope(patient_id, user_context)
+        from models.medical_record_model import MedicalRecordModel
+        return MedicalRecordModel.get_by_patient(patient_id)
 
     # 🔹 XÓA
     @staticmethod

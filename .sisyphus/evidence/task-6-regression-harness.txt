@@ -1,0 +1,5 @@
+Regression harness verification:
+- Created the regression test suite `BTL.Nhóm6_Python/tests/test_regression_guardrails.py`.
+- Running the suite results in: `1 failed, 5 passed`.
+- The failures occur exactly as expected on `test_direct_db_access_guard`, identifying the target views that still import `database.db`.
+- Mocked scaffold tests (`test_patient_idor_prevention`, `test_admin_reset_password_temporary`, `test_last_active_admin_protection`, `test_backup_restore_validation`, `test_slot_unification`) all pass successfully.

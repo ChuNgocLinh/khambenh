@@ -41,6 +41,77 @@ class MainView(QtWidgets.QMainWindow):
         self.main_layout.setSpacing(0)
 
         self._route_role_view()
+        
+        # Check force change password
+        if self.user_data.get("force_change_password"):
+            QtCore.QTimer.singleShot(100, self.force_password_change_dialog)
+
+    def force_password_change_dialog(self):
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Yêu cầu đổi mật khẩu")
+        dialog.setMinimumWidth(400)
+        dialog.setModal(True)
+        # Prevent closing by clicking outside or pressing Escape without changing
+        dialog.setWindowFlags(dialog.windowFlags() | QtCore.Qt.WindowType.CustomizeWindowHint)
+        dialog.setWindowFlags(dialog.windowFlags() & ~QtCore.Qt.WindowType.WindowCloseButtonHint)
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+        
+        info_label = QtWidgets.QLabel("Mật khẩu của bạn đã được reset. Vui lòng đổi mật khẩu mới để tiếp tục sử dụng hệ thống.")
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #b45309; background: #fffbeb; padding: 10px; border: 1px solid #fef3c7; border-radius: 8px;")
+        layout.addWidget(info_label)
+
+        form = QtWidgets.QFormLayout()
+        current_pwd_input = QtWidgets.QLineEdit()
+        current_pwd_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+        new_pwd_input = QtWidgets.QLineEdit()
+        new_pwd_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+        confirm_pwd_input = QtWidgets.QLineEdit()
+        confirm_pwd_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+
+        form.addRow("Mật khẩu hiện tại/tạm thời:", current_pwd_input)
+        form.addRow("Mật khẩu mới:", new_pwd_input)
+        form.addRow("Xác nhận mật khẩu mới:", confirm_pwd_input)
+        layout.addLayout(form)
+
+        btn_layout = QtWidgets.QHBoxLayout()
+        exit_btn = QtWidgets.QPushButton("Thoát ứng dụng")
+        exit_btn.setStyleSheet("background: #f1f5f9; color: #475569; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        submit_btn = QtWidgets.QPushButton("Đổi mật khẩu")
+        submit_btn.setStyleSheet("background: #69c0a5; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+
+        btn_layout.addWidget(exit_btn)
+        btn_layout.addWidget(submit_btn)
+        layout.addLayout(btn_layout)
+
+        def on_exit():
+            dialog.reject()
+            self.logout()
+
+        def on_submit():
+            curr = current_pwd_input.text().strip()
+            new_p = new_pwd_input.text().strip()
+            conf = confirm_pwd_input.text().strip()
+            if not curr or not new_p or not conf:
+                QtWidgets.QMessageBox.warning(dialog, "Lỗi", "Vui lòng nhập đầy đủ thông tin!")
+                return
+            from controllers.settings_controller import SettingsController
+            success, msg = SettingsController.change_password(self.user_data.get("user_id"), curr, new_p, conf)
+            if success:
+                QtWidgets.QMessageBox.information(dialog, "Thành công", "Đổi mật khẩu thành công! Bạn có thể tiếp tục sử dụng hệ thống.")
+                self.user_data["force_change_password"] = 0
+                dialog.accept()
+            else:
+                QtWidgets.QMessageBox.warning(dialog, "Thất bại", msg)
+
+        exit_btn.clicked.connect(on_exit)
+        submit_btn.clicked.connect(on_submit)
+        
+        # Override close event of the dialog to prevent closing
+        dialog.closeEvent = lambda event: event.ignore()
+        
+        dialog.exec()
 
     def _route_role_view(self):
         if self.role == "admin":
@@ -347,8 +418,8 @@ class MainView(QtWidgets.QMainWindow):
             2,
         )
         self.page_news = create_page_with_navbar(NewsPage(), 3)
-        self.page_history = create_page_with_navbar(HistoryPage(self.user_data.get("patient_id")), 0)
-        self.page_profile = create_page_with_navbar(ProfilePage(self.user_data.get("patient_id")), 0)
+        self.page_history = create_page_with_navbar(HistoryPage(self.user_data.get("patient_id"), user_context=self.user_data), 0)
+        self.page_profile = create_page_with_navbar(ProfilePage(self.user_data.get("patient_id"), user_context=self.user_data), 0)
 
         self.patient_stack.addWidget(self.page_service)  # Index 1
         self.patient_stack.addWidget(self.page_doctor)   # Index 2

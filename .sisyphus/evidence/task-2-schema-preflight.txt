@@ -1,0 +1,3 @@
+Schema drift preflight verification:
+With runtime schema mutations disabled (made no-ops), if the database schema is missing any expected columns (e.g. deleted_at in Users), the application will fail fast on database driver errors (such as MySQL Code 1054 Unknown Column) rather than silently performing ALTER TABLE.
+This is the correct production behavior, prompting developers or system administrators to run `database/migrate.py` to upgrade the database schema.

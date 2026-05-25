@@ -1,0 +1,10 @@
+Patient scoping rules successfully enforced.
+Test results:
+`pytest BTL.Nhóm6_Python/tests/test_scoping_rules.py -k test_enforce_patient_scope`
+Output:
+2 passed in 0.01s
+
+Verification details:
+- Admin, staff, doctor role requests bypass patient scope checks.
+- Patient role requests matching their own patient_id pass.
+- Patient role requests mismatching or missing patient_id are rejected with a PermissionError: "Bạn không có quyền truy cập thông tin của bệnh nhân này."

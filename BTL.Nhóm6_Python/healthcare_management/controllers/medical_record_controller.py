@@ -46,16 +46,25 @@ class MedicalRecordController:
         diagnosis = str(diagnosis or "").strip()
         treatment = str(treatment or "").strip()
         if not diagnosis:
-            return {"status": False, "message": "Vui long nhap chan doan truoc khi hoan tat."}
+            return {"status": False, "message": "Vui lòng nhập chẩn đoán trước khi hoàn tất."}
         if not treatment:
-            return {"status": False, "message": "Vui long nhap huong dieu tri truoc khi hoan tat."}
+            return {"status": False, "message": "Vui lòng nhập hướng điều trị trước khi hoàn tất."}
 
         saved = MedicalRecordModel.finalize(record_id, diagnosis, treatment)
         if saved and appointment_id:
             from controllers.appointment_controller import AppointmentController
 
-            AppointmentController.update_status(appointment_id, "done")
+            ok = AppointmentController.update_status(appointment_id, "done")
+            if not ok:
+                return {
+                    "status": True,
+                    "message": "Hồ sơ bệnh án đã được hoàn tất nhưng không thể cập nhật trạng thái lịch khám. Vui lòng tự cập nhật trạng thái lịch khám."
+                }
         return {
             "status": bool(saved),
-            "message": "Da hoan tat ca kham." if saved else "Khong the hoan tat ca kham.",
+            "message": "Đã hoàn tất ca khám." if saved else "Không thể hoàn tất ca khám.",
         }
+
+    @staticmethod
+    def get_by_doctor(doctor_id):
+        return MedicalRecordModel.get_by_doctor(doctor_id)

@@ -1,0 +1,19 @@
+Task 1 Evidence: Baseline DB Setup
+Date: 2026-05-25 13:26
+Status: PASS
+
+Docker Compose: healthcare_mysql container running
+DB Type: MySQL 8.0
+Port: 3307
+Database: HealthcareDB
+Auth: root@% using mysql_native_password
+
+Migration Result:
+- [role-migrate] before: admin=2, doctor=3, patient=1, staff=7
+- [role-migrate] migrated_to_staff: 0
+- [role-migrate] after: admin=2, doctor=3, patient=1, staff=7
+- Exit code: 0
+
+Key metrics:
+- Users: 13
+- Tables: 19

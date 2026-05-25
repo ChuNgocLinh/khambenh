@@ -1,0 +1,11 @@
+Doctor scoping rules successfully enforced.
+Test results:
+`pytest BTL.Nhóm6_Python/tests/test_scoping_rules.py -k test_enforce_doctor_scope`
+Output:
+2 passed in 0.01s
+
+Verification details:
+- Admin, staff role requests bypass doctor scope checks.
+- Doctor role requests matching their own doctor_id pass.
+- Doctor role requests mismatching or missing doctor_id are rejected with a PermissionError: "Bạn không có quyền thao tác cho bác sĩ này."
+- Patient role requests are rejected when attempting doctor operations.

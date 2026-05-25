@@ -125,3 +125,57 @@ def test_examination_cancel_action_returns_to_schedule(monkeypatch):
     assert "hủy" in result["message"].lower()
     assert view.diagnosis_input.toPlainText() == ""
     assert view.treatment_input.toPlainText() == ""
+
+
+def test_vitals_validation(monkeypatch):
+    _app()
+    from views.doctor_examination_view import DoctorExaminationView
+
+    monkeypatch.setattr(
+        "views.doctor_examination_view.AppointmentController.get_by_doctor",
+        lambda doctor_id: [{
+            "appointment_id": 5,
+            "patient_id": 3,
+            "doctor_id": 1,
+            "appointment_date": "2026-05-11 09:00:00",
+            "status": "in_progress",
+            "patient_name": "Tran Thi B",
+        }],
+    )
+    monkeypatch.setattr(
+        "views.doctor_examination_view.MedicalRecordController.get_by_appointment",
+        lambda appointment_id: None,
+    )
+
+    view = DoctorExaminationView(1)
+    view.current_appointment = {
+        "appointment_id": 5,
+        "patient_id": 3,
+        "doctor_id": 1,
+    }
+
+    # 1. Invalid pulse
+    view.pulse_input.setText("invalid_pulse")
+    ok, err = view.validate_vitals()
+    assert ok is False
+    assert "Mạch" in err
+
+    # 2. Invalid blood pressure
+    view.pulse_input.setText("80")
+    view.bp_input.setText("120") # Missing slash
+    ok, err = view.validate_vitals()
+    assert ok is False
+    assert "Huyết áp" in err
+
+    # 3. Invalid temperature
+    view.bp_input.setText("120/80")
+    view.temp_input.setText("50.0") # Too high
+    ok, err = view.validate_vitals()
+    assert ok is False
+    assert "Nhiệt độ" in err
+
+    # 4. Valid values
+    view.temp_input.setText("37.2")
+    ok, err = view.validate_vitals()
+    assert ok is True
+

@@ -1,0 +1,4 @@
+Critical operation error logging verification:
+- In `PaymentModel.get_enriched_all` (`models/payment_model.py`), any exception during schema assurance is caught, logged to stderr with a traceback, and handled.
+- In `SettingsController.restore_from_backup` (`controllers/settings_controller.py`), JSON parsing and backup file read errors are logged to stderr with a traceback before returning a descriptive error message: "Không thể đọc dữ liệu bản sao lưu."
+- Safely wrapper methods in `views/admin_management_views.py` (`_safe_fetch_all`, `_safe_execute`) also log database driver exceptions to stderr with tracebacks to prevent silent query failures.

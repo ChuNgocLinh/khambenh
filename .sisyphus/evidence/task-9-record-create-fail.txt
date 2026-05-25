@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+PyQt6 6.5.2 -- Qt runtime 6.11.0 -- Qt compiled 6.5.2
+rootdir: /home/cuong-tmi04/code/khambenh/BTL.Nhóm6_Python
+configfile: pytest.ini
+plugins: qt-4.5.0
+collecting ... collected 4 items / 3 deselected / 1 selected
+
+BTL.Nhóm6_Python/tests/test_doctor_examination_workflow.py::test_examination_finalize_validation_message PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/test_doctor_examination_workflow.py::test_examination_finalize_validation_message
+  /home/cuong-tmi04/code/khambenh/BTL.Nhóm6_Python/healthcare_management/views/doctor_examination_view.py:10: DeprecationWarning: sipPyTypeDict() is deprecated, the extension module should use sipPyTypeDictRef() instead
+    super().__init__(parent)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 1 passed, 3 deselected, 1 warning in 0.09s ==================

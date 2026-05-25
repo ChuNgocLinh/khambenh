@@ -121,3 +121,17 @@ class MedicalRecordModel:
             """,
             (diagnosis, treatment, record_id),
         )
+
+    @staticmethod
+    def get_by_doctor(doctor_id):
+        MedicalRecordModel._ensure_schema()
+        return fetch_all(
+            """
+            SELECT r.*, p.name AS patient_name
+            FROM MedicalRecords r
+            JOIN Patients p ON r.patient_id = p.patient_id
+            WHERE r.doctor_id = ?
+            ORDER BY r.created_at DESC, r.record_id DESC
+            """,
+            (doctor_id,),
+        )

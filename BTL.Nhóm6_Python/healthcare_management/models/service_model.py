@@ -39,6 +39,8 @@ class ServiceModel:
 
     @staticmethod
     def delete(service_id):
+        if ServiceModel.check_used(service_id):
+            return ServiceModel.set_active(service_id, False)
         return execute("DELETE FROM Services WHERE service_id=?", (service_id,))
 
     @staticmethod

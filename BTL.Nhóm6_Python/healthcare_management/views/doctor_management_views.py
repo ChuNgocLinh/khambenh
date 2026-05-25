@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 from datetime import date, datetime
 from PyQt6 import QtWidgets, QtCore, QtGui, QtPrintSupport
 from controllers.medical_record_controller import MedicalRecordController
@@ -517,11 +517,8 @@ class MedicalRecordView(BaseDoctorView):
         self.load_data()
 
     def load_data(self):
-        # We need to get all records for this doctor. The model currently gets by patient.
-        # So we fetch all appointments for doctor, then get records. 
-        # For simplicity, we just fetch all appointments and their records or use a direct query.
-        from database.db import fetch_all
-        records = fetch_all("SELECT r.*, p.name as patient_name FROM MedicalRecords r JOIN Patients p ON r.patient_id = p.patient_id WHERE r.doctor_id = ?", (self.doctor_id,))
+        from controllers.medical_record_controller import MedicalRecordController
+        records = MedicalRecordController.get_by_doctor(self.doctor_id)
         
         query = self.search_input.text().lower()
         if query:

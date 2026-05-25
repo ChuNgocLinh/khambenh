@@ -1,0 +1,3 @@
+Slot unification check:
+- View (`views/patient_view.py`) and Controller (`controllers/appointment_controller.py`) now both source the available slot times from `DEFAULT_SLOTS` in `config.py`.
+- No mismatch exists because `AppointmentController._default_slot_times()` directly returns `DEFAULT_SLOTS` from `config.py`, and the patient view HomePage dynamically queries this function and builds a QGridLayout of the buttons.

@@ -6,10 +6,14 @@ try:
 except Exception:  # pragma: no cover - fallback for direct script imports.
     from models.report_model import ReportModel
 
+from controllers.scoping_helper import enforce_admin_or_staff
+
 
 class ReportController:
     @staticmethod
-    def get_core_totals():
+    def get_core_totals(user_context=None):
+        if user_context is not None:
+            enforce_admin_or_staff(user_context)
         payload = ReportModel.get_report_payload(range_days=0)
         summary = payload.get("summary", {})
         if not isinstance(summary, dict):
@@ -26,7 +30,9 @@ class ReportController:
         }
 
     @staticmethod
-    def get_filter_options():
+    def get_filter_options(user_context=None):
+        if user_context is not None:
+            enforce_admin_or_staff(user_context)
         doctors = ReportModel.get_active_doctors()
         groups = ReportModel.get_service_groups()
         return {
@@ -50,7 +56,9 @@ class ReportController:
         }
 
     @staticmethod
-    def get_report_stats(range_days=30, group_name="Tất cả", doctor_name="Tất cả"):
+    def get_report_stats(range_days=30, group_name="Tất cả", doctor_name="Tất cả", user_context=None):
+        if user_context is not None:
+            enforce_admin_or_staff(user_context)
         return ReportModel.get_report_payload(
             range_days=range_days,
             group_name=group_name,

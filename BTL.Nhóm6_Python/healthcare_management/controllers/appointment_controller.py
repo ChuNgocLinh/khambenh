@@ -3,7 +3,7 @@ from models.doctor_model import DoctorModel
 from models.service_model import ServiceModel
 from models.waiting_queue_model import WaitingQueueModel
 from datetime import datetime, timedelta
-from config import DEFAULT_SLOTS
+from config import DEFAULT_SLOTS, DEFAULT_QUEUE_AREA
 
 
 class AppointmentController:
@@ -847,7 +847,7 @@ class AppointmentController:
             patient_id=patient_id,
             appointment_id=appointment_id,
             intake_note=combined_note,
-            area="3B",
+            area=DEFAULT_QUEUE_AREA,
         )
 
         return {

@@ -12,15 +12,7 @@ class PaymentModel:
         """)
 
     @staticmethod
-    def get_enriched_all(status=None, date_from=None, date_to=None):
-        try:
-            from models.appointment_model import AppointmentModel
-
-            AppointmentModel._ensure_schema()
-        except Exception as e:
-            import sys, traceback
-            print(f"[payment_model] Error loading appointment schema: {e}", file=sys.stderr)
-            traceback.print_exc()
+    def get_enriched_all(status=None, date_from=None, date_to=None, patient_id=None):
 
         service_names = string_agg("COALESCE(invoice_service.service_name, appointment_service.service_name)")
         query = f"""
@@ -57,6 +49,9 @@ class PaymentModel:
         if date_to:
             query += " AND p.payment_date < ?"
             params.append(date_to)
+        if patient_id:
+            query += " AND p.patient_id = ?"
+            params.append(patient_id)
         query += """
             GROUP BY
                 p.payment_id,

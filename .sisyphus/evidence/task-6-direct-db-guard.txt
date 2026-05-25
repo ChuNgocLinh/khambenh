@@ -1,0 +1,7 @@
+Direct DB access guard verification:
+- Running `pytest BTL.Nhóm6_Python/tests/test_regression_guardrails.py -k test_direct_db_access_guard` fails and correctly lists all violating views:
+  - `admin_management_views.py`
+  - `doctor_management_views.py`
+  - `patient_view.py`
+  - `staff_dashboard_view.py`
+- This ensures that if any developer adds a direct database query to these views in the future, the test suite will immediately catch the regression.

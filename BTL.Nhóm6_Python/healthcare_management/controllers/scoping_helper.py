@@ -42,3 +42,14 @@ def enforce_doctor_scope(doctor_id, user_context):
         pass
     else:
         raise PermissionError("Vai trò không hợp lệ.")
+
+
+def enforce_admin_or_staff(user_context):
+    """
+    Chỉ cho phép vai trò admin hoặc staff. Các vai trò khác (như patient, doctor) bị chặn.
+    """
+    if not user_context:
+        raise PermissionError("Yêu cầu thông tin xác thực (user_context).")
+    role = get_context_value(user_context, "role")
+    if role not in {"admin", "staff"}:
+        raise PermissionError("Quyền truy cập bị từ chối. Chỉ dành cho Admin hoặc Staff.")

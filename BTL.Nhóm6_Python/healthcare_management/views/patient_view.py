@@ -1,7 +1,6 @@
 from PyQt6 import QtWidgets, QtCore
 from controllers.service_controller import ServiceController
 from controllers.doctor_controller import DoctorController
-from database.db import fetch_all
 
 
 class DetailDialog(QtWidgets.QDialog):
@@ -1370,9 +1369,10 @@ class NewsPage(QtWidgets.QWidget):
 
 # --- TRANG LỊCH SỬ KHÁM ---
 class HistoryPage(QtWidgets.QWidget):
-    def __init__(self, patient_id):
+    def __init__(self, patient_id, user_context=None):
         super().__init__()
         self.patient_id = patient_id
+        self.user_context = user_context
         self.patient_data = {}
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(40, 20, 40, 20)
@@ -1393,13 +1393,8 @@ class HistoryPage(QtWidgets.QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         
-        records = fetch_all("""
-            SELECT r.*, d.name as doctor_name
-            FROM MedicalRecords r
-            JOIN Doctors d ON r.doctor_id = d.doctor_id
-            WHERE r.patient_id = ?
-            ORDER BY r.created_at DESC
-        """, (self.patient_id,))
+        from controllers.patient_controller import PatientController
+        records = PatientController.get_medical_history(self.patient_id, self.user_context)
         
         self.table.setRowCount(len(records))
         for i, r in enumerate(records):
@@ -1414,9 +1409,10 @@ class HistoryPage(QtWidgets.QWidget):
 
 # --- TRANG HỒ SƠ CÁ NHÂN ---
 class ProfilePage(QtWidgets.QWidget):
-    def __init__(self, patient_id):
+    def __init__(self, patient_id, user_context=None):
         super().__init__()
         self.patient_id = patient_id
+        self.user_context = user_context
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(40, 20, 40, 20)
         
@@ -1456,8 +1452,8 @@ class ProfilePage(QtWidgets.QWidget):
         layout.addStretch()
         
     def load_data(self):
-        from models.patient_model import PatientModel
-        p = PatientModel.get_by_id(self.patient_id)
+        from controllers.patient_controller import PatientController
+        p = PatientController.get_by_id(self.patient_id, self.user_context)
         if p:
             self.patient_data = dict(p)
             self.name_input.setText(str(p.get("name", "")))
@@ -1480,7 +1476,7 @@ class ProfilePage(QtWidgets.QWidget):
                 "address": self.address_input.text().strip(),
             }
         )
-        result = PatientController.update_with_status(self.patient_id, payload)
+        result = PatientController.update_with_status(self.patient_id, payload, self.user_context)
         if result.get("status"):
             self.patient_data.update(payload)
             QtWidgets.QMessageBox.information(self, "Thành công", "Đã cập nhật thông tin cá nhân!")

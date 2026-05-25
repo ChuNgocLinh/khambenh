@@ -570,16 +570,60 @@ class SettingsController:
             traceback.print_exc()
             return False, "Không thể đọc dữ liệu bản sao lưu."
 
+        # Strict JSON payload validation
+        if not isinstance(payload, dict):
+            return False, "Dữ liệu bản sao lưu không hợp lệ."
+        if "user_id" not in payload:
+            return False, "Dữ liệu bản sao lưu thiếu thông tin người dùng."
+
         source_user_id = int(payload.get("user_id") or 0)
         if source_user_id != int(user_id or 0):
             return False, "Chỉ được khôi phục bản sao lưu của chính tài khoản hiện tại."
 
-        if create_backup_before_restore:
-            SettingsController.backup_now(user_id, "local")
+        settings_payload = payload.get("settings")
+        if settings_payload is not None:
+            if not isinstance(settings_payload, dict):
+                return False, "Cấu hình cài đặt trong bản sao lưu không hợp lệ."
+            # Validate settings values if present
+            theme_mode = settings_payload.get("theme_mode")
+            if theme_mode and theme_mode not in {"Sáng", "Tối"}:
+                return False, "Cấu hình giao diện (theme_mode) không hợp lệ."
+            font_size = settings_payload.get("font_size")
+            if font_size and font_size not in {"Nhỏ", "Trung bình", "Lớn"}:
+                return False, "Cấu hình cỡ chữ (font_size) không hợp lệ."
+            display_density = settings_payload.get("display_density")
+            if display_density and display_density not in {"Thoải mái", "Gọn"}:
+                return False, "Cấu hình độ giãn (display_density) không hợp lệ."
+            language = settings_payload.get("language")
+            if language and language not in {"Tiếng Việt", "English"}:
+                return False, "Cấu hình ngôn ngữ (language) không hợp lệ."
+            backup_mode = settings_payload.get("backup_mode")
+            if backup_mode and backup_mode not in {"cloud", "local"}:
+                return False, "Cấu hình chế độ sao lưu (backup_mode) không hợp lệ."
+            gender = settings_payload.get("gender")
+            if gender and gender not in {"Nam", "Nữ"}:
+                return False, "Cấu hình giới tính (gender) không hợp lệ."
+            dob = settings_payload.get("dob")
+            if dob:
+                try:
+                    datetime.strptime(str(dob), "%Y-%m-%d")
+                except ValueError:
+                    return False, "Ngày sinh trong bản sao lưu không hợp lệ."
 
-        settings_payload = payload.get("settings") if isinstance(payload, dict) else {}
-        if not isinstance(settings_payload, dict):
-            settings_payload = {}
+        profile = payload.get("profile")
+        if profile is not None:
+            if not isinstance(profile, dict):
+                return False, "Thông tin hồ sơ trong bản sao lưu không hợp lệ."
+        
+        profile_type = str(payload.get("profile_type") or "").lower()
+        if profile_type and profile_type not in {"doctor", "patient"}:
+            return False, "Loại tài khoản trong bản sao lưu không hợp lệ."
+
+        if create_backup_before_restore:
+            ok, res = SettingsController.backup_now(user_id, "local")
+            if not ok:
+                return False, f"Sao lưu dự phòng trước khi khôi phục thất bại: {res}"
+
         settings_fields = {
             "gender": settings_payload.get("gender"),
             "dob": settings_payload.get("dob"),
@@ -594,55 +638,156 @@ class SettingsController:
             "language": settings_payload.get("language") or "Tiếng Việt",
             "backup_mode": settings_payload.get("backup_mode") or "cloud",
         }
-        SettingsModel.get_or_create_by_user_id(user_id)
-        if not SettingsModel.update_fields(user_id, settings_fields):
-            return False, "Không thể khôi phục phần cài đặt người dùng."
 
-        profile = payload.get("profile") if isinstance(payload, dict) else {}
-        profile_type = str(payload.get("profile_type") or "patient").lower()
-        if profile_type == "doctor":
-            doctor_payload = profile.get("doctor") if isinstance(profile, dict) else {}
-            if isinstance(doctor_payload, dict) and doctor_payload.get("doctor_id"):
-                execute(
-                    """
-                    UPDATE Doctors
-                    SET name=?, specialty=?, phone=?, email=?
-                    WHERE doctor_id=?
-                    """,
+        conn = db_module.connect()
+        if not conn:
+            return False, "Không thể kết nối cơ sở dữ liệu để khôi phục."
+
+        cursor = conn.cursor()
+        try:
+            if DB_TYPE == "mysql":
+                conn.autocommit = False
+            else:
+                conn.autocommit = False
+
+            # Ensure row in UserSettings exists
+            check_q = "SELECT COUNT(*) AS cnt FROM UserSettings WHERE user_id=?"
+            if DB_TYPE == "mysql":
+                check_q = check_q.replace('?', '%s')
+            cursor.execute(check_q, (user_id,))
+            row = cursor.fetchone()
+            cnt = row[0] if isinstance(row, tuple) else (row.get("cnt") if isinstance(row, dict) else row[0])
+
+            if cnt == 0:
+                defaults = SettingsModel.DEFAULTS
+                insert_query = """
+                INSERT INTO UserSettings (
+                    user_id, gender, dob, address, avatar_path,
+                    notify_new_appointment, notify_reminder, notify_system,
+                    theme_mode, font_size, display_density, language,
+                    backup_mode, last_backup_at, last_sync_at, work_schedule
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                if DB_TYPE == "mysql":
+                    insert_query = insert_query.replace('?', '%s')
+                cursor.execute(
+                    insert_query,
                     (
-                        doctor_payload.get("name"),
-                        doctor_payload.get("specialty"),
-                        doctor_payload.get("phone"),
-                        doctor_payload.get("email"),
-                        doctor_payload.get("doctor_id"),
-                    ),
-                )
-        else:
-            patient_payload = profile.get("patient") if isinstance(profile, dict) else {}
-            if isinstance(patient_payload, dict) and patient_payload.get("patient_id"):
-                execute(
-                    """
-                    UPDATE Patients
-                    SET name=?, phone=?, email=?
-                    WHERE patient_id=?
-                    """,
-                    (
-                        patient_payload.get("name"),
-                        patient_payload.get("phone"),
-                        patient_payload.get("email"),
-                        patient_payload.get("patient_id"),
-                    ),
+                        user_id,
+                        defaults["gender"],
+                        defaults["dob"],
+                        defaults["address"],
+                        defaults["avatar_path"],
+                        defaults["notify_new_appointment"],
+                        defaults["notify_reminder"],
+                        defaults["notify_system"],
+                        defaults["theme_mode"],
+                        defaults["font_size"],
+                        defaults["display_density"],
+                        defaults["language"],
+                        defaults["backup_mode"],
+                        defaults["last_backup_at"],
+                        defaults["last_sync_at"],
+                        defaults["work_schedule"],
+                    )
                 )
 
-        BackupModel.add_restore_request(
-            backup_id=backup_id,
-            requested_by_user_id=user_id,
-            confirm_text=confirm_text,
-            create_backup_before_restore=create_backup_before_restore,
-            status="success",
-            message="Khôi phục dữ liệu từ bản sao lưu thành công.",
-        )
-        return True, "Khôi phục dữ liệu thành công."
+            # Update UserSettings fields
+            settings_fields["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            set_clause = ", ".join(f"{key}=?" for key in settings_fields.keys())
+            update_query = f"UPDATE UserSettings SET {set_clause} WHERE user_id=?"
+            if DB_TYPE == "mysql":
+                update_query = update_query.replace('?', '%s')
+            params = list(settings_fields.values()) + [user_id]
+            cursor.execute(update_query, tuple(params))
+
+            # Update Doctors/Patients profile
+            if profile_type == "doctor":
+                doctor_payload = profile.get("doctor") if isinstance(profile, dict) else {}
+                if isinstance(doctor_payload, dict) and doctor_payload.get("doctor_id"):
+                    update_doc_query = """
+                        UPDATE Doctors
+                        SET name=?, specialty=?, phone=?, email=?
+                        WHERE doctor_id=?
+                    """
+                    if DB_TYPE == "mysql":
+                        update_doc_query = update_doc_query.replace('?', '%s')
+                    cursor.execute(
+                        update_doc_query,
+                        (
+                            doctor_payload.get("name"),
+                            doctor_payload.get("specialty"),
+                            doctor_payload.get("phone"),
+                            doctor_payload.get("email"),
+                            doctor_payload.get("doctor_id"),
+                        ),
+                    )
+            else:
+                patient_payload = profile.get("patient") if isinstance(profile, dict) else {}
+                if isinstance(patient_payload, dict) and patient_payload.get("patient_id"):
+                    update_pat_query = """
+                        UPDATE Patients
+                        SET name=?, phone=?, email=?
+                        WHERE patient_id=?
+                    """
+                    if DB_TYPE == "mysql":
+                        update_pat_query = update_pat_query.replace('?', '%s')
+                    cursor.execute(
+                        update_pat_query,
+                        (
+                            patient_payload.get("name"),
+                            patient_payload.get("phone"),
+                            patient_payload.get("email"),
+                            patient_payload.get("patient_id"),
+                        ),
+                    )
+
+            # Insert success restore log in the same transaction
+            insert_req_query = """
+                INSERT INTO BackupRestoreRequests (
+                    backup_id, requested_by_user_id, confirm_text,
+                    create_backup_before_restore, status, restore_message,
+                    requested_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            if DB_TYPE == "mysql":
+                insert_req_query = insert_req_query.replace('?', '%s')
+            cursor.execute(
+                insert_req_query,
+                (
+                    backup_id,
+                    user_id,
+                    confirm_text,
+                    bool(create_backup_before_restore),
+                    "success",
+                    "Khôi phục dữ liệu từ bản sao lưu thành công.",
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                )
+            )
+
+            conn.commit()
+            return True, "Khôi phục dữ liệu thành công."
+        except Exception as ex:
+            conn.rollback()
+            import sys
+            print(f"[settings_controller] Rollback during restore: {ex}", file=sys.stderr)
+            try:
+                # Log failure request to DB in a separate operation
+                BackupModel.add_restore_request(
+                    backup_id=backup_id,
+                    requested_by_user_id=user_id,
+                    confirm_text=confirm_text,
+                    create_backup_before_restore=create_backup_before_restore,
+                    status="failed",
+                    message=f"Lỗi trong quá trình khôi phục: {ex}",
+                )
+            except Exception as e_log:
+                print(f"[settings_controller] Failed to log restore failure: {e_log}", file=sys.stderr)
+            return False, f"Lỗi trong quá trình khôi phục: {ex}"
+        finally:
+            cursor.close()
+            conn.close()
 
     @staticmethod
     def ensure_backup_seed_data():

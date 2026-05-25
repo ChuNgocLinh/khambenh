@@ -114,7 +114,7 @@ class UserModel:
         UserModel._ensure_auth_schema()
         hashed_password = UserModel.hash_password(password)
         query = """
-            SELECT user_id, username, password, role, COALESCE(is_active, 1) AS is_active, deleted_at
+            SELECT user_id, username, password, role, COALESCE(is_active, 1) AS is_active, deleted_at, COALESCE(force_change_password, 0) AS force_change_password
             FROM Users
             WHERE username=?
               AND password=?
@@ -134,9 +134,11 @@ class UserModel:
                 "role": row[3],
                 "is_active": row[4] if len(row) > 4 else 1,
                 "deleted_at": row[5] if len(row) > 5 else None,
+                "force_change_password": row[6] if len(row) > 6 else 0,
             }
         elif isinstance(row, dict):
-            user_data = row
+            user_data = dict(row)
+            user_data["force_change_password"] = row.get("force_change_password", 0)
         else:
             return None
 
@@ -224,4 +226,54 @@ class UserModel:
             return False
 
         new_hash = UserModel.hash_password(new_password)
-        return execute("UPDATE Users SET password=? WHERE user_id=?", (new_hash, user_id))
+        return execute("UPDATE Users SET password=?, force_change_password=0 WHERE user_id=?", (new_hash, user_id))
+
+    @staticmethod
+    def reset_password(user_id, new_password=None):
+        if new_password is None:
+            new_password = "TemporaryPassword123"
+        hashed = UserModel.hash_password(new_password)
+        return bool(execute("UPDATE Users SET password=?, force_change_password=? WHERE user_id=?", (hashed, True, user_id)))
+
+    @staticmethod
+    def disable_user(user_id, role=None):
+        if not role:
+            u = fetch_one("SELECT role FROM Users WHERE user_id=?", (user_id,))
+            if u:
+                role = u.get("role")
+
+        if role == "admin":
+            # Count active admins
+            res = fetch_one("SELECT COUNT(*) as active_admins FROM Users WHERE role='admin' AND COALESCE(is_active, 1)=1 AND deleted_at IS NULL")
+            active_admins = res.get("active_admins", 0) if res else 0
+            if active_admins <= 1:
+                this_admin = fetch_one("SELECT is_active, deleted_at FROM Users WHERE user_id=?", (user_id,))
+                if this_admin and this_admin.get("is_active", 1) == 1 and not this_admin.get("deleted_at"):
+                    return False, "Không thể vô hiệu hóa quản trị viên hoạt động cuối cùng."
+
+        ok = execute("UPDATE Users SET is_active=0 WHERE user_id=?", (user_id,))
+        if ok:
+            return True, "Thao tác thành công."
+        return False, "Không thể cập nhật trạng thái."
+
+    @staticmethod
+    def delete_user(user_id, role=None):
+        if not role:
+            u = fetch_one("SELECT role FROM Users WHERE user_id=?", (user_id,))
+            if u:
+                role = u.get("role")
+
+        if role == "admin":
+            res = fetch_one("SELECT COUNT(*) as active_admins FROM Users WHERE role='admin' AND COALESCE(is_active, 1)=1 AND deleted_at IS NULL")
+            active_admins = res.get("active_admins", 0) if res else 0
+            if active_admins <= 1:
+                this_admin = fetch_one("SELECT is_active, deleted_at FROM Users WHERE user_id=?", (user_id,))
+                if this_admin and this_admin.get("is_active", 1) == 1 and not this_admin.get("deleted_at"):
+                    return False, "Không thể xóa quản trị viên hoạt động cuối cùng."
+
+        import datetime
+        deleted_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ok = execute("UPDATE Users SET is_active=0, deleted_at=? WHERE user_id=?", (deleted_time, user_id))
+        if ok:
+            return True, "Thành công."
+        return False, "Thất bại."

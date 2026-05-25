@@ -2595,13 +2595,14 @@ class DashboardView(QtWidgets.QWidget):
         section_title_security.setStyleSheet(section_title_style)
         security_layout.addWidget(section_title_security)
 
-        self._settings_username_input = QtWidgets.QLineEdit("bsminh")
+        self._settings_username_input = QtWidgets.QLineEdit(str(self.user_data.get("username", "")))
         self._settings_username_input.setStyleSheet(input_style)
         security_layout.addWidget(build_field("Tên đăng nhập", self._settings_username_input))
 
         password_row = QtWidgets.QHBoxLayout()
         password_row.setSpacing(12)
-        self._settings_password_input = QtWidgets.QLineEdit("12345678")
+        self._settings_password_input = QtWidgets.QLineEdit()
+        self._settings_password_input.setPlaceholderText("••••••••")
         self._settings_password_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
         self._settings_password_input.setStyleSheet(input_style)
         password_row.addWidget(build_field("Mật khẩu", self._settings_password_input), 1)

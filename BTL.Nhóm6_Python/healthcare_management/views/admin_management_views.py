@@ -13,41 +13,12 @@ from controllers.report_controller import ReportController
 from config import DB_TYPE
 
 
-try:
-    from database.db import execute, fetch_all
-except Exception:  # pragma: no cover - import guard for isolated UI previews.
-    execute = None
-    fetch_all = None
-
+from database.view_db_helper import _safe_fetch_all, _safe_execute
 
 CAREPLUS_GREEN = "#00a651"
 TEXT_DARK = "#0f172a"
 TEXT_MUTED = "#64748b"
 PAGE_BG = "#f8fafc"
-
-
-def _safe_fetch_all(query, params=()):
-    if fetch_all is None:
-        return []
-    try:
-        return fetch_all(query, params) or []
-    except Exception as e:
-        import sys, traceback
-        print(f"[admin_views] _safe_fetch_all error executing '{query}': {e}", file=sys.stderr)
-        traceback.print_exc()
-        return []
-
-
-def _safe_execute(query, params=()):
-    if execute is None:
-        return False
-    try:
-        return bool(execute(query, params))
-    except Exception as e:
-        import sys, traceback
-        print(f"[admin_views] _safe_execute error executing '{query}': {e}", file=sys.stderr)
-        traceback.print_exc()
-        return False
 
 
 def _ensure_column(table, column, definition):
@@ -1703,11 +1674,6 @@ class AccountManagementPage(AdminListPage):
             self._show_info("Trạng thái", "Tài khoản đã xóa mềm, không thể khóa/mở khóa trực tiếp.")
             return
         new_state = 0 if _is_active(item) else 1
-        if item.get("role") == "admin" and new_state == 0:
-            active_admins = sum(1 for row in self.rows if row.get("role") == "admin" and _is_active(row))
-            if active_admins <= 1:
-                self._show_info("Bảo vệ Admin", "Không thể khóa admin hoạt động cuối cùng.")
-                return
         if new_state == 0:
             reason, ok_reason = QtWidgets.QInputDialog.getText(self, "Khóa tài khoản", "Nhập lý do khóa:")
             if not ok_reason:
@@ -1717,33 +1683,44 @@ class AccountManagementPage(AdminListPage):
                 return
         if not self._confirm("Cập nhật trạng thái", "Bạn có chắc muốn cập nhật trạng thái tài khoản này?"):
             return
-        ok = _safe_execute("UPDATE Users SET is_active=? WHERE user_id=?", (new_state, item.get("user_id")))
-        self._show_info("Tài khoản", "Khóa/Mở khóa tài khoản thành công" if ok else "Không thể cập nhật trạng thái.")
+        
+        from models.user_model import UserModel
+        if new_state == 0:
+            ok, msg = UserModel.disable_user(item.get("user_id"), item.get("role"))
+        else:
+            ok = _safe_execute("UPDATE Users SET is_active=1 WHERE user_id=?", (item.get("user_id"),))
+            msg = "Thao tác thành công." if ok else "Không thể mở khóa tài khoản."
+            
+        self._show_info("Tài khoản", msg if ok else f"Không thể cập nhật trạng thái: {msg}")
         self.refresh()
 
     def soft_delete_account(self, item):
         if item.get("user_id") == self.user_data.get("user_id"):
             self._show_info("Xóa tài khoản", "Không thể xóa chính tài khoản đang đăng nhập.")
             return
-        if item.get("role") == "admin":
-            active_admins = sum(1 for row in self.rows if row.get("role") == "admin" and not row.get("deleted_at"))
-            if active_admins <= 1:
-                self._show_info("Xóa tài khoản", "Không thể xóa quản trị viên cuối cùng.")
-                return
         if not self._confirm("Xóa tài khoản", "Bạn có chắc chắn muốn xóa tài khoản này không?"):
             return
-        ok = _safe_execute(
-            "UPDATE Users SET is_active=0, deleted_at=? WHERE user_id=?",
-            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), item.get("user_id")),
-        )
-        self._show_info("Xóa tài khoản", "Xóa tài khoản thành công" if ok else "Không thể xóa tài khoản.")
+        from models.user_model import UserModel
+        ok, msg = UserModel.delete_user(item.get("user_id"), item.get("role"))
+        self._show_info("Xóa tài khoản", "Xóa tài khoản thành công" if ok else f"Không thể xóa tài khoản: {msg}")
         self.refresh()
 
     def reset_password(self, item):
-        if not self._confirm("Reset mật khẩu", f"Reset mật khẩu tài khoản {item.get('username')} về 123456?"):
+        import secrets
+        import string
+        from models.user_model import UserModel
+        
+        alphabet = string.ascii_letters + string.digits
+        temp_pwd = "".join(secrets.choice(alphabet) for _ in range(8))
+        
+        if not self._confirm("Reset mật khẩu", f"Bạn có chắc muốn reset mật khẩu tài khoản {item.get('username')}?\n(Mật khẩu tạm thời mới sẽ được sinh ngẫu nhiên)"):
             return
-        ok = _safe_execute("UPDATE Users SET password=? WHERE user_id=?", (_hash_password("123456"), item.get("user_id")))
-        self._show_info("Reset mật khẩu", "Mật khẩu mới là 123456." if ok else "Không thể reset mật khẩu.")
+            
+        ok = UserModel.reset_password(item.get("user_id"), temp_pwd)
+        if ok:
+            self._show_info("Reset mật khẩu thành công", f"Mật khẩu tạm thời mới là: {temp_pwd}\nVui lòng gửi mật khẩu này cho người dùng. Họ sẽ bắt buộc phải đổi mật khẩu ở lần đăng nhập tiếp theo.")
+        else:
+            self._show_info("Lỗi", "Không thể reset mật khẩu.")
 
     def _selected_rows(self):
         selected = [row for row in self.rows if row.get("user_id") in self.selected_user_ids]
@@ -1754,17 +1731,30 @@ class AccountManagementPage(AdminListPage):
         if not selected:
             self._show_info("Thao tác hàng loạt", "Vui lòng chọn ít nhất 1 tài khoản.")
             return
-        if new_state == 0:
-            active_admins = sum(1 for row in self.rows if row.get("role") == "admin" and _is_active(row) and not row.get("deleted_at"))
-            selected_active_admins = sum(1 for row in selected if row.get("role") == "admin" and _is_active(row) and not row.get("deleted_at"))
-            if active_admins - selected_active_admins <= 0:
-                self._show_info("Bảo vệ Admin", "Không thể khóa tất cả quản trị viên hoạt động.")
-                return
         if not self._confirm("Thao tác hàng loạt", "Xác nhận cập nhật trạng thái cho các tài khoản đã chọn?"):
             return
+        
+        from models.user_model import UserModel
+        success_count = 0
+        fail_msgs = []
         for row in selected:
-            _safe_execute("UPDATE Users SET is_active=? WHERE user_id=?", (new_state, row.get("user_id")))
-        self._show_info("Thao tác hàng loạt", "Đã cập nhật trạng thái các tài khoản đã chọn.")
+            if new_state == 0:
+                ok, msg = UserModel.disable_user(row.get("user_id"), row.get("role"))
+                if ok:
+                    success_count += 1
+                else:
+                    fail_msgs.append(f"{row.get('username')}: {msg}")
+            else:
+                ok = _safe_execute("UPDATE Users SET is_active=1 WHERE user_id=?", (row.get("user_id"),))
+                if ok:
+                    success_count += 1
+                else:
+                    fail_msgs.append(f"{row.get('username')}: Lỗi mở khóa")
+                    
+        message = f"Đã cập nhật trạng thái {success_count}/{len(selected)} tài khoản."
+        if fail_msgs:
+            message += "\nChi tiết lỗi:\n" + "\n".join(fail_msgs)
+        self._show_info("Thao tác hàng loạt", message)
         self.refresh()
 
     def _bulk_soft_delete(self):
@@ -1779,12 +1769,21 @@ class AccountManagementPage(AdminListPage):
             return
         if not self._confirm("Xóa hàng loạt", "Bạn có chắc chắn muốn xóa mềm các tài khoản đã chọn?"):
             return
+            
+        from models.user_model import UserModel
+        success_count = 0
+        fail_msgs = []
         for row in selected:
-            _safe_execute(
-                "UPDATE Users SET is_active=0, deleted_at=? WHERE user_id=?",
-                (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), row.get("user_id")),
-            )
-        self._show_info("Xóa hàng loạt", "Đã xóa mềm các tài khoản đã chọn.")
+            ok, msg = UserModel.delete_user(row.get("user_id"), row.get("role"))
+            if ok:
+                success_count += 1
+            else:
+                fail_msgs.append(f"{row.get('username')}: {msg}")
+                
+        message = f"Đã xóa mềm {success_count}/{len(selected)} tài khoản."
+        if fail_msgs:
+            message += "\nChi tiết lỗi:\n" + "\n".join(fail_msgs)
+        self._show_info("Xóa hàng loạt", message)
         self.refresh()
 
     def _bulk_assign_role(self):

@@ -1,0 +1,11 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+PyQt6 6.5.2 -- Qt runtime 6.11.0 -- Qt compiled 6.5.2
+rootdir: /home/cuong-tmi04/code/khambenh/BTL.Nhóm6_Python
+configfile: pytest.ini
+plugins: qt-4.5.0
+collecting ...
+collected 8 items / 7 deselected / 1 selected
+BTL.Nhóm6_Python/tests/test_regression_guardrails.py::test_service_delete_soft_disable PASSED [100%]
+======================= 1 passed, 7 deselected in 0.04s ========================

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from config import DB_TYPE
+from config import DB_TYPE, DEFAULT_QUEUE_AREA
 from database.db import execute, fetch_all, fetch_one
 from database.sql_utils import by_date_filter
 
@@ -52,7 +52,7 @@ class WaitingQueueModel:
         )
 
     @staticmethod
-    def _next_queue_no(area="3B"):
+    def _next_queue_no(area=DEFAULT_QUEUE_AREA):
         WaitingQueueModel.ensure_schema()
         today = datetime.now().strftime("%Y-%m-%d")
         row = fetch_one(
@@ -67,7 +67,7 @@ class WaitingQueueModel:
         return f"{area}-{int(row.get('total') or 0) + 1:03d}"
 
     @staticmethod
-    def check_in(patient_id, appointment_id=None, intake_note="", area="3B"):
+    def check_in(patient_id, appointment_id=None, intake_note="", area=DEFAULT_QUEUE_AREA):
         WaitingQueueModel.ensure_schema()
         existing = None
         if appointment_id:
@@ -106,7 +106,7 @@ class WaitingQueueModel:
         return fetch_one("SELECT * FROM WaitingQueue WHERE queue_no=? AND queue_area=?", (queue_no, area))
 
     @staticmethod
-    def get_waiting(area="3B"):
+    def get_waiting(area=DEFAULT_QUEUE_AREA):
         WaitingQueueModel.ensure_schema()
         return fetch_all(
             """

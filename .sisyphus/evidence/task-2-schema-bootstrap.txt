@@ -1,0 +1,9 @@
+DB bootstrap via migrate.py completed successfully.
+Running command: PYTHONPATH=BTL.Nhóm6_Python/healthcare_management python3 BTL.Nhóm6_Python/healthcare_management/database/migrate.py
+Output:
+[schema-migrate] Schema migrations completed successfully.
+[role-migrate] before: admin=2, doctor=3, patient=1, staff=7
+[role-migrate] migrated_to_staff: 0
+[role-migrate] after: admin=2, doctor=3, patient=1, staff=7
+
+All runtime schema mutations (`_ensure_schema`, `_ensure_auth_schema`, `_ensure_admin_runtime_schema`, etc.) have been replaced with no-ops, so the application runtime will no longer attempt ALTER TABLE / CREATE TABLE operations.

@@ -239,7 +239,7 @@ class BackupModel:
     @staticmethod
     def update_settings(fields, updated_by_user_id=None):
         BackupModel.ensure_tables_exist()
-        allowed = {
+        allowed_list = [
             "storage_location",
             "storage_path",
             "auto_backup",
@@ -251,14 +251,26 @@ class BackupModel:
             "schedule_time",
             "schedule_frequency",
             "encryption_enabled",
-        }
-        safe_fields = {k: v for k, v in (fields or {}).items() if k in allowed}
-        if not safe_fields:
+            "updated_by_user_id",
+        ]
+        safe_fields = {k: v for k, v in (fields or {}).items() if k in allowed_list}
+        if not safe_fields and not updated_by_user_id:
             return False
         if updated_by_user_id:
             safe_fields["updated_by_user_id"] = updated_by_user_id
-        set_clause = ", ".join(f"{key}=?" for key in safe_fields.keys())
-        params = list(safe_fields.values()) + [1]
+        
+        clauses = []
+        params = []
+        for key in allowed_list:
+            if key in safe_fields:
+                clauses.append(f"{key}=?")
+                params.append(safe_fields[key])
+        
+        if not clauses:
+            return False
+            
+        set_clause = ", ".join(clauses)
+        params.append(1)
         return execute(f"UPDATE BackupSettings SET {set_clause} WHERE setting_id=?", tuple(params))
 
     @staticmethod
@@ -371,11 +383,20 @@ class BackupModel:
         BackupModel.ensure_tables_exist()
         if not job_id or not fields:
             return False
-        safe_fields = {k: v for k, v in fields.items() if k in {"status", "progress", "message", "backup_id", "finished_at"}}
+        allowed_list = ["status", "progress", "message", "backup_id", "finished_at"]
+        safe_fields = {k: v for k, v in fields.items() if k in allowed_list}
         if not safe_fields:
             return False
-        set_clause = ", ".join(f"{key}=?" for key in safe_fields.keys())
-        params = list(safe_fields.values()) + [job_id]
+            
+        clauses = []
+        params = []
+        for key in allowed_list:
+            if key in safe_fields:
+                clauses.append(f"{key}=?")
+                params.append(safe_fields[key])
+                
+        set_clause = ", ".join(clauses)
+        params.append(job_id)
         return execute(f"UPDATE BackupJobs SET {set_clause} WHERE job_id=?", tuple(params))
 
     @staticmethod

@@ -51,3 +51,49 @@ def test_enforce_doctor_scope_failure():
     # Patient is not allowed doctor actions
     with pytest.raises(PermissionError):
         enforce_doctor_scope(6, {"role": "patient", "patient_id": 1})
+
+
+def test_patient_controller_scoping(monkeypatch):
+    from controllers.patient_controller import PatientController
+    
+    # Mock models
+    class MockPatientModel:
+        @staticmethod
+        def get_by_id(patient_id):
+            return {"patient_id": patient_id, "name": "Test Patient"}
+
+        @staticmethod
+        def update(patient_id, *args):
+            return True
+
+    class MockMedicalRecordModel:
+        @staticmethod
+        def get_by_patient(patient_id):
+            return [{"record_id": 1, "patient_id": patient_id}]
+
+    monkeypatch.setattr("controllers.patient_controller.PatientModel", MockPatientModel)
+    monkeypatch.setattr("models.medical_record_model.MedicalRecordModel", MockMedicalRecordModel)
+
+    # 1. Success cases with matching patient_id
+    user_ctx = {"role": "patient", "patient_id": 1}
+    patient = PatientController.get_by_id(1, user_context=user_ctx)
+    assert patient["patient_id"] == 1
+
+    records = PatientController.get_medical_history(1, user_context=user_ctx)
+    assert len(records) == 1
+    assert records[0]["patient_id"] == 1
+
+    update_res = PatientController.update_with_status(1, {"name": "New Name"}, user_context=user_ctx)
+    assert update_res["status"] is True
+
+    # 2. Failure cases (IDOR prevention) with mismatched patient_id
+    user_ctx_bad = {"role": "patient", "patient_id": 2}
+    with pytest.raises(PermissionError):
+        PatientController.get_by_id(1, user_context=user_ctx_bad)
+
+    with pytest.raises(PermissionError):
+        PatientController.get_medical_history(1, user_context=user_ctx_bad)
+
+    with pytest.raises(PermissionError):
+        PatientController.update_with_status(1, {"name": "New Name"}, user_context=user_ctx_bad)
+

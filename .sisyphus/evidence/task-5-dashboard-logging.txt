@@ -1,0 +1,3 @@
+Dashboard error logging verification:
+- Broad silent exceptions caught in `_build_staff_dashboard_snapshot` in `views/staff_dashboard_view.py` and `_load_settings_data` in `views/dashboard_view.py` have been replaced.
+- If a dependency/controller raises an exception, the exception detail is printed to `sys.stderr` and its traceback is displayed, while the dashboard safely falls back to a clean state without crashing.

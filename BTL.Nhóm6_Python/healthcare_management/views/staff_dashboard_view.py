@@ -9090,8 +9090,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         service_id = service.get("service_id")
         try:
             if isinstance(service_id, int):
-                from database.db import execute
-                execute("UPDATE Services SET is_active=? WHERE service_id=?", (1 if new_state else 0, service_id))
+                from controllers.service_controller import ServiceController
+                ServiceController.set_active(service_id, 1 if new_state else 0)
             service["is_active"] = new_state
             self._set_staff_service_feedback("Đã cập nhật trạng thái dịch vụ.", is_error=False)
         except Exception as exc:

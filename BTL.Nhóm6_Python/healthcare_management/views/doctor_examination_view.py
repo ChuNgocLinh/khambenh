@@ -248,11 +248,72 @@ class DoctorExaminationView(QtWidgets.QWidget):
         else:
             self.status_label.setText(f"Sẵn sàng khám lịch #{appointment_id}.")
 
+    def validate_vitals(self):
+        pulse = self.pulse_input.text().strip()
+        bp = self.bp_input.text().strip()
+        temp = self.temp_input.text().strip()
+        breath = self.breath_input.text().strip()
+        weight = self.weight_input.text().strip()
+        height = self.height_input.text().strip()
+
+        if pulse:
+            try:
+                val = int(pulse)
+                if val <= 0 or val > 300:
+                    raise ValueError()
+            except ValueError:
+                return False, "Mạch phải là số nguyên dương hợp lệ (30 - 300)."
+
+        if bp:
+            import re
+            if not re.match(r"^\d+/\d+$", bp):
+                return False, "Huyết áp phải có định dạng dạng tâm thu/tâm trương (ví dụ: 120/80)."
+
+        if temp:
+            try:
+                val = float(temp)
+                if val < 30.0 or val > 45.0:
+                    raise ValueError()
+            except ValueError:
+                return False, "Nhiệt độ phải là số hợp lệ (30.0 - 45.0 °C)."
+
+        if breath:
+            try:
+                val = int(breath)
+                if val <= 0 or val > 100:
+                    raise ValueError()
+            except ValueError:
+                return False, "Nhịp thở phải là số nguyên dương hợp lệ (10 - 100)."
+
+        if weight:
+            try:
+                val = float(weight)
+                if val <= 0 or val > 500:
+                    raise ValueError()
+            except ValueError:
+                return False, "Cân nặng phải là số dương hợp lệ (kg)."
+
+        if height:
+            try:
+                val = float(height)
+                if val <= 0 or val > 300:
+                    raise ValueError()
+            except ValueError:
+                return False, "Chiều cao phải là số dương hợp lệ (cm)."
+
+        return True, ""
+
     def save_draft(self):
         if not self.current_appointment:
             result = {"status": False, "message": "Không có lịch hẹn để lưu."}
             self.status_label.setText(result["message"])
             return result
+        
+        ok_vitals, err_msg = self.validate_vitals()
+        if not ok_vitals:
+            self.status_label.setText(err_msg)
+            return {"status": False, "message": err_msg}
+
         result = MedicalRecordController.save_draft(
             self.current_appointment.get("patient_id"),
             self.doctor_id,
