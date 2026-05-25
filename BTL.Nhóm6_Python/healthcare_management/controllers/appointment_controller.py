@@ -3,6 +3,7 @@ from models.doctor_model import DoctorModel
 from models.service_model import ServiceModel
 from models.waiting_queue_model import WaitingQueueModel
 from datetime import datetime, timedelta
+from config import DEFAULT_SLOTS
 
 
 class AppointmentController:
@@ -217,14 +218,7 @@ class AppointmentController:
 
     @staticmethod
     def _default_slot_times():
-        start = datetime.strptime("08:00", "%H:%M")
-        end = datetime.strptime("17:00", "%H:%M")
-        slots = []
-        current = start
-        while current <= end:
-            slots.append(current.strftime("%H:%M"))
-            current += timedelta(minutes=30)
-        return slots
+        return DEFAULT_SLOTS
 
     @staticmethod
     def get_available_slots(doctor_id, date_str, service_id=None):

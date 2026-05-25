@@ -1532,15 +1532,18 @@ class HomePage(QtWidgets.QWidget):
         row.addWidget(self.date)
         card_layout.addLayout(row)
 
-        time_layout = QtWidgets.QHBoxLayout()
+        time_layout = QtWidgets.QGridLayout()
         self.buttons = []
-        for t in ["08:00", "09:00", "10:00", "11:00"]:
+        from controllers.appointment_controller import AppointmentController
+        for idx, t in enumerate(AppointmentController._default_slot_times()):
             btn = QtWidgets.QPushButton(t)
             btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, b=btn: self.parent_view.select_time(b, self))
             btn.setStyleSheet("QPushButton { background:#f1f5f9; border-radius:8px; padding:12px; font-weight: bold; border: none; } QPushButton:hover { background: #e2e8f0; }")
             self.buttons.append(btn)
-            time_layout.addWidget(btn)
+            row_idx = idx // 4
+            col_idx = idx % 4
+            time_layout.addWidget(btn, row_idx, col_idx)
         card_layout.addLayout(time_layout)
 
         book = QtWidgets.QPushButton("Đặt lịch ngay")
