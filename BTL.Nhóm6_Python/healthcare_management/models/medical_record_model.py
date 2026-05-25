@@ -9,65 +9,7 @@ class MedicalRecordModel:
 
     @staticmethod
     def _ensure_schema():
-        if MedicalRecordModel._schema_checked:
-            return
-        MedicalRecordModel._schema_checked = True
-        if DB_TYPE == "mysql":
-            execute("ALTER TABLE MedicalRecords ADD COLUMN record_status VARCHAR(20) DEFAULT 'draft'")
-            execute("ALTER TABLE MedicalRecords ADD COLUMN finalized_at DATETIME NULL")
-            execute("ALTER TABLE MedicalRecords ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
-            execute("ALTER TABLE MedicalRecords ADD COLUMN symptoms TEXT NULL")
-            execute("ALTER TABLE MedicalRecords ADD COLUMN conclusion TEXT NULL")
-            execute("ALTER TABLE MedicalRecords ADD COLUMN notes TEXT NULL")
-            return
-        execute(
-            """
-            IF COL_LENGTH('dbo.MedicalRecords', 'record_status') IS NULL
-            BEGIN
-                ALTER TABLE dbo.MedicalRecords ADD record_status NVARCHAR(20) NOT NULL CONSTRAINT DF_MedicalRecords_record_status DEFAULT 'draft'
-            END
-            """
-        )
-        execute(
-            """
-            IF COL_LENGTH('dbo.MedicalRecords', 'finalized_at') IS NULL
-            BEGIN
-                ALTER TABLE dbo.MedicalRecords ADD finalized_at DATETIME NULL
-            END
-            """
-        )
-        execute(
-            """
-            IF COL_LENGTH('dbo.MedicalRecords', 'updated_at') IS NULL
-            BEGIN
-                ALTER TABLE dbo.MedicalRecords ADD updated_at DATETIME NULL
-            END
-            """
-        )
-        execute(
-            """
-            IF COL_LENGTH('dbo.MedicalRecords', 'symptoms') IS NULL
-            BEGIN
-                ALTER TABLE dbo.MedicalRecords ADD symptoms NVARCHAR(MAX) NULL
-            END
-            """
-        )
-        execute(
-            """
-            IF COL_LENGTH('dbo.MedicalRecords', 'conclusion') IS NULL
-            BEGIN
-                ALTER TABLE dbo.MedicalRecords ADD conclusion NVARCHAR(MAX) NULL
-            END
-            """
-        )
-        execute(
-            """
-            IF COL_LENGTH('dbo.MedicalRecords', 'notes') IS NULL
-            BEGIN
-                ALTER TABLE dbo.MedicalRecords ADD notes NVARCHAR(MAX) NULL
-            END
-            """
-        )
+        pass
 
     @staticmethod
     def get_by_patient(patient_id):

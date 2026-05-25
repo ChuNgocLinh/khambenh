@@ -7,20 +7,7 @@ class AppointmentModel:
 
     @staticmethod
     def _ensure_schema():
-        if AppointmentModel._schema_checked:
-            return
-        AppointmentModel._schema_checked = True
-        if DB_TYPE == "mysql":
-            execute("ALTER TABLE Appointments ADD COLUMN service_id INT NULL")
-            return
-        execute(
-            """
-            IF COL_LENGTH('dbo.Appointments', 'service_id') IS NULL
-            BEGIN
-                ALTER TABLE dbo.Appointments ADD service_id INT NULL
-            END
-            """
-        )
+        pass
 
     @staticmethod
     def _build_role_scoped_query(base_conditions, date_mode=None, date_value=None, search=None, doctor_id=None, service_name=None, status=None):

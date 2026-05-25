@@ -128,5 +128,167 @@ def migrate_legacy_staff_roles():
         conn.close()
 
 
+def run_schema_migrations():
+    conn = connect()
+    if not conn:
+        raise RuntimeError("Không thể kết nối database")
+    cursor = conn.cursor()
+    try:
+        # Helper to check if column exists
+        def column_exists(table, column):
+            cursor.execute(
+                f"SELECT COUNT(*) FROM information_schema.COLUMNS "
+                f"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table}' AND COLUMN_NAME = '{column}'"
+            )
+            row = cursor.fetchone()
+            return row and int(row[0]) > 0
+
+        # Helper to check if table exists
+        def table_exists(table):
+            cursor.execute(
+                f"SELECT COUNT(*) FROM information_schema.TABLES "
+                f"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table}'"
+            )
+            row = cursor.fetchone()
+            return row and int(row[0]) > 0
+
+        # Check and create RBAC tables if missing
+        if not table_exists("rbac_roles"):
+            cursor.execute(
+                """
+                CREATE TABLE rbac_roles (
+                    role_id INT AUTO_INCREMENT PRIMARY KEY,
+                    role_key VARCHAR(50) NOT NULL UNIQUE,
+                    display_name VARCHAR(100) NOT NULL,
+                    description VARCHAR(255),
+                    color_kind VARCHAR(20) DEFAULT 'neutral',
+                    is_system BOOLEAN DEFAULT FALSE,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+                """
+            )
+        if not table_exists("rbac_permission_groups"):
+            cursor.execute(
+                """
+                CREATE TABLE rbac_permission_groups (
+                    group_id INT AUTO_INCREMENT PRIMARY KEY,
+                    group_key VARCHAR(100) NOT NULL UNIQUE,
+                    display_name VARCHAR(150) NOT NULL,
+                    description VARCHAR(255),
+                    sort_order INT DEFAULT 0,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        if not table_exists("rbac_permissions"):
+            cursor.execute(
+                """
+                CREATE TABLE rbac_permissions (
+                    permission_id INT AUTO_INCREMENT PRIMARY KEY,
+                    group_id INT NOT NULL,
+                    permission_key VARCHAR(120) NOT NULL UNIQUE,
+                    display_name VARCHAR(150) NOT NULL,
+                    description VARCHAR(255),
+                    is_sensitive BOOLEAN DEFAULT FALSE,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (group_id) REFERENCES rbac_permission_groups(group_id)
+                )
+                """
+            )
+        if not table_exists("rbac_role_permissions"):
+            cursor.execute(
+                """
+                CREATE TABLE rbac_role_permissions (
+                    role_id INT NOT NULL,
+                    permission_id INT NOT NULL,
+                    allowed BOOLEAN DEFAULT TRUE,
+                    granted_by_user_id INT NULL,
+                    granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (role_id, permission_id),
+                    FOREIGN KEY (role_id) REFERENCES rbac_roles(role_id),
+                    FOREIGN KEY (permission_id) REFERENCES rbac_permissions(permission_id),
+                    FOREIGN KEY (granted_by_user_id) REFERENCES Users(user_id)
+                )
+                """
+            )
+        if not table_exists("rbac_user_role_assignments"):
+            cursor.execute(
+                """
+                CREATE TABLE rbac_user_role_assignments (
+                    assignment_id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    role_id INT NOT NULL,
+                    assigned_by_user_id INT NULL,
+                    assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    UNIQUE KEY uq_rbac_user_role_active (user_id, role_id),
+                    FOREIGN KEY (user_id) REFERENCES Users(user_id),
+                    FOREIGN KEY (role_id) REFERENCES rbac_roles(role_id),
+                    FOREIGN KEY (assigned_by_user_id) REFERENCES Users(user_id)
+                )
+                """
+            )
+        if not table_exists("rbac_audit_logs"):
+            cursor.execute(
+                """
+                CREATE TABLE rbac_audit_logs (
+                    audit_id INT AUTO_INCREMENT PRIMARY KEY,
+                    actor_user_id INT NULL,
+                    action_key VARCHAR(100) NOT NULL,
+                    target_type VARCHAR(50) NOT NULL,
+                    target_id VARCHAR(100) NOT NULL,
+                    details TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (actor_user_id) REFERENCES Users(user_id)
+                )
+                """
+            )
+
+        # 1. Users table
+        if not column_exists("Users", "deleted_at"):
+            cursor.execute("ALTER TABLE Users ADD COLUMN deleted_at DATETIME NULL")
+        if not column_exists("Users", "force_change_password"):
+            cursor.execute("ALTER TABLE Users ADD COLUMN force_change_password BOOLEAN DEFAULT FALSE")
+
+        # 2. Doctors table
+        if not column_exists("Doctors", "work_status"):
+            cursor.execute("ALTER TABLE Doctors ADD COLUMN work_status VARCHAR(50) DEFAULT 'active'")
+        if not column_exists("Doctors", "created_at"):
+            cursor.execute("ALTER TABLE Doctors ADD COLUMN created_at DATETIME NULL")
+        if not column_exists("Doctors", "updated_at"):
+            cursor.execute("ALTER TABLE Doctors ADD COLUMN updated_at DATETIME NULL")
+
+        # 3. Appointments table
+        if not column_exists("Appointments", "service_id"):
+            cursor.execute("ALTER TABLE Appointments ADD COLUMN service_id INT NULL")
+            try:
+                cursor.execute("ALTER TABLE Appointments ADD CONSTRAINT fk_appointments_services FOREIGN KEY (service_id) REFERENCES Services(service_id)")
+            except Exception:
+                pass
+
+        # 4. MedicalRecords table
+        if not column_exists("MedicalRecords", "symptoms"):
+            cursor.execute("ALTER TABLE MedicalRecords ADD COLUMN symptoms TEXT NULL")
+        if not column_exists("MedicalRecords", "conclusion"):
+            cursor.execute("ALTER TABLE MedicalRecords ADD COLUMN conclusion TEXT NULL")
+        if not column_exists("MedicalRecords", "notes"):
+            cursor.execute("ALTER TABLE MedicalRecords ADD COLUMN notes TEXT NULL")
+
+        conn.commit()
+        print("[schema-migrate] Schema migrations completed successfully.")
+    except Exception as e:
+        conn.rollback()
+        print(f"[schema-migrate] Error: {e}")
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
 if __name__ == "__main__":
+    run_schema_migrations()
     migrate_legacy_staff_roles()

@@ -8,29 +8,7 @@ class PrescriptionModel:
 
     @staticmethod
     def _ensure_schema():
-        if PrescriptionModel._schema_checked:
-            return
-        PrescriptionModel._schema_checked = True
-        if DB_TYPE == "mysql":
-            execute("ALTER TABLE Prescriptions ADD COLUMN updated_at DATETIME NULL")
-            execute("ALTER TABLE Prescriptions ADD COLUMN dispensed_at DATETIME NULL")
-            return
-        execute(
-            """
-            IF COL_LENGTH('dbo.Prescriptions', 'updated_at') IS NULL
-            BEGIN
-                ALTER TABLE dbo.Prescriptions ADD updated_at DATETIME NULL
-            END
-            """
-        )
-        execute(
-            """
-            IF COL_LENGTH('dbo.Prescriptions', 'dispensed_at') IS NULL
-            BEGIN
-                ALTER TABLE dbo.Prescriptions ADD dispensed_at DATETIME NULL
-            END
-            """
-        )
+        pass
 
     @staticmethod
     def get_by_record(record_id):

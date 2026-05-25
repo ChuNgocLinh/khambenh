@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS Users (
     password VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
+    deleted_at DATETIME NULL,
+    force_change_password BOOLEAN DEFAULT FALSE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     -- Canonical roles phải đồng bộ với migrate.py: admin/doctor/patient/staff
     CHECK (role IN ('admin','doctor','patient','staff'))
@@ -17,6 +19,24 @@ SET @col_exists = (
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'is_active'
 );
 SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Users ADD COLUMN is_active BOOLEAN DEFAULT TRUE', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'deleted_at'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Users ADD COLUMN deleted_at DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'force_change_password'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Users ADD COLUMN force_change_password BOOLEAN DEFAULT FALSE', 'SELECT 1');
 PREPARE stmt FROM @col_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -105,8 +125,11 @@ CREATE TABLE IF NOT EXISTS Doctors (
     specialty VARCHAR(100),
     phone VARCHAR(20),
     email VARCHAR(100),
+    work_status VARCHAR(50) DEFAULT 'active',
     user_id INT UNIQUE,
     is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
 
@@ -115,6 +138,33 @@ SET @col_exists = (
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Doctors' AND COLUMN_NAME = 'is_active'
 );
 SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Doctors ADD COLUMN is_active BOOLEAN DEFAULT TRUE', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Doctors' AND COLUMN_NAME = 'work_status'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Doctors ADD COLUMN work_status VARCHAR(50) DEFAULT \'active\'', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Doctors' AND COLUMN_NAME = 'created_at'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Doctors ADD COLUMN created_at DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Doctors' AND COLUMN_NAME = 'updated_at'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Doctors ADD COLUMN updated_at DATETIME NULL', 'SELECT 1');
 PREPARE stmt FROM @col_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -174,13 +224,24 @@ CREATE TABLE IF NOT EXISTS Appointments (
     appointment_id INT AUTO_INCREMENT PRIMARY KEY,
     patient_id INT,
     doctor_id INT,
+    service_id INT NULL,
     appointment_date DATETIME,
     status VARCHAR(20) DEFAULT 'pending',
     note VARCHAR(255),
     FOREIGN KEY (patient_id) REFERENCES Patients(patient_id),
     FOREIGN KEY (doctor_id) REFERENCES Doctors(doctor_id),
+    FOREIGN KEY (service_id) REFERENCES Services(service_id),
     CHECK (status IN ('pending','confirmed','in_progress','done','cancelled'))
 );
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Appointments' AND COLUMN_NAME = 'service_id'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE Appointments ADD COLUMN service_id INT NULL, ADD CONSTRAINT fk_appointments_services FOREIGN KEY (service_id) REFERENCES Services(service_id)', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 5.1 BẢNG WAITING QUEUE (HÀNG CHỜ KHÁM - STAFF 3B)
@@ -251,11 +312,41 @@ CREATE TABLE IF NOT EXISTS MedicalRecords (
     finalized_at DATETIME NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    symptoms TEXT NULL,
+    conclusion TEXT NULL,
+    notes TEXT NULL,
     FOREIGN KEY (patient_id) REFERENCES Patients(patient_id),
     FOREIGN KEY (doctor_id) REFERENCES Doctors(doctor_id),
     FOREIGN KEY (appointment_id) REFERENCES Appointments(appointment_id),
     CHECK (record_status IN ('draft','finalized'))
 );
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'MedicalRecords' AND COLUMN_NAME = 'symptoms'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE MedicalRecords ADD COLUMN symptoms TEXT NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'MedicalRecords' AND COLUMN_NAME = 'conclusion'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE MedicalRecords ADD COLUMN conclusion TEXT NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'MedicalRecords' AND COLUMN_NAME = 'notes'
+);
+SET @col_sql = IF(@col_exists = 0, 'ALTER TABLE MedicalRecords ADD COLUMN notes TEXT NULL', 'SELECT 1');
+PREPARE stmt FROM @col_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 7. BẢNG MEDICINES (THUỐC)
