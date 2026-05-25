@@ -3024,11 +3024,17 @@ class DashboardView(QtWidgets.QWidget):
 
         try:
             doctor_data = DoctorModel.get_by_id(doctor_id) or {}
-        except Exception:
+        except Exception as e:
+            import sys, traceback
+            print(f"[dashboard_view] Error loading doctor data: {e}", file=sys.stderr)
+            traceback.print_exc()
             doctor_data = {}
         try:
             settings_data = SettingsController.get_settings(user_id) or {}
-        except Exception:
+        except Exception as e:
+            import sys, traceback
+            print(f"[dashboard_view] Error loading settings data: {e}", file=sys.stderr)
+            traceback.print_exc()
             settings_data = {}
 
         if not isinstance(doctor_data, dict):

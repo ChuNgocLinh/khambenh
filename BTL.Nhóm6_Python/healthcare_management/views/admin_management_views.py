@@ -31,7 +31,10 @@ def _safe_fetch_all(query, params=()):
         return []
     try:
         return fetch_all(query, params) or []
-    except Exception:
+    except Exception as e:
+        import sys, traceback
+        print(f"[admin_views] _safe_fetch_all error executing '{query}': {e}", file=sys.stderr)
+        traceback.print_exc()
         return []
 
 
@@ -40,7 +43,10 @@ def _safe_execute(query, params=()):
         return False
     try:
         return bool(execute(query, params))
-    except Exception:
+    except Exception as e:
+        import sys, traceback
+        print(f"[admin_views] _safe_execute error executing '{query}': {e}", file=sys.stderr)
+        traceback.print_exc()
         return False
 
 

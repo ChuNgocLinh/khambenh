@@ -17,8 +17,10 @@ class PaymentModel:
             from models.appointment_model import AppointmentModel
 
             AppointmentModel._ensure_schema()
-        except Exception:
-            pass
+        except Exception as e:
+            import sys, traceback
+            print(f"[payment_model] Error loading appointment schema: {e}", file=sys.stderr)
+            traceback.print_exc()
 
         service_names = string_agg("COALESCE(invoice_service.service_name, appointment_service.service_name)")
         query = f"""

@@ -564,7 +564,10 @@ class SettingsController:
 
         try:
             payload = json.loads(backup_file.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as e:
+            import sys, traceback
+            print(f"[settings_controller] Error reading backup file '{backup_file}': {e}", file=sys.stderr)
+            traceback.print_exc()
             return False, "Không thể đọc dữ liệu bản sao lưu."
 
         source_user_id = int(payload.get("user_id") or 0)

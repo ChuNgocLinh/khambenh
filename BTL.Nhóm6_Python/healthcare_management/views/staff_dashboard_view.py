@@ -466,7 +466,10 @@ class StaffDashboardView(QtWidgets.QWidget):
         appointments = []
         try:
             appointments = AppointmentController.get_all_for_role("staff", self.user_data) or []
-        except Exception:
+        except Exception as e:
+            import sys, traceback
+            print(f"[staff_dashboard] Error loading appointments: {e}", file=sys.stderr)
+            traceback.print_exc()
             appointments = []
         if isinstance(appointments, dict):
             appointments = appointments.get("data") or []
@@ -490,13 +493,19 @@ class StaffDashboardView(QtWidgets.QWidget):
         payments = []
         try:
             payments = PaymentController.get_enriched_all() or []
-        except Exception:
+        except Exception as e:
+            import sys, traceback
+            print(f"[staff_dashboard] Error loading payments: {e}", file=sys.stderr)
+            traceback.print_exc()
             payments = []
 
         waiting = []
         try:
             waiting_rows = WaitingQueueController.get_waiting("3B") or []
-        except Exception:
+        except Exception as e:
+            import sys, traceback
+            print(f"[staff_dashboard] Error loading waiting queue: {e}", file=sys.stderr)
+            traceback.print_exc()
             waiting_rows = []
         for row in waiting_rows[:3]:
             created_at = str(row.get("created_at") or row.get("appointment_date") or "").strip()
