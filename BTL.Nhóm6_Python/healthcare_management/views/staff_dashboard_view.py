@@ -18,7 +18,7 @@ class StaffServiceDonutChart(QtWidgets.QWidget):
     def __init__(self, segments, parent=None):
         super().__init__(parent)
         self.segments = segments
-        self.setMinimumSize(150, 150)
+        self.setMinimumSize(120, 120)
 
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
@@ -219,14 +219,14 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         # Sidebar
         self.sidebar = QtWidgets.QFrame()
-        self.sidebar.setFixedWidth(275)
+        self.sidebar.setFixedWidth(238)
         self.sidebar.setStyleSheet("background-color: white; border-right: 1px solid #e7edf5;")
         sidebar_layout = QtWidgets.QVBoxLayout(self.sidebar)
-        sidebar_layout.setContentsMargins(14, 30, 14, 28)
-        sidebar_layout.setSpacing(10)
+        sidebar_layout.setContentsMargins(12, 18, 12, 16)
+        sidebar_layout.setSpacing(6)
 
         logo = QtWidgets.QLabel("✚  CarePlus")
-        logo.setStyleSheet("color: #24b47e; font-size: 25px; font-weight: 900; margin: 0 0 24px 14px;")
+        logo.setStyleSheet("color: #24b47e; font-size: 22px; font-weight: 900; margin: 0 0 12px 10px;")
         sidebar_layout.addWidget(logo)
 
         self.menu_items = [
@@ -255,7 +255,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.btn_logout = QtWidgets.QPushButton("🚪    Đăng xuất")
         self.btn_logout.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         self.btn_logout.setStyleSheet(
-            "QPushButton { border: none; text-align: left; padding: 12px 15px; color: #ef4444; font-weight: 800; font-size: 14px; } "
+            "QPushButton { border: none; text-align: left; padding: 9px 12px; color: #ef4444; font-weight: 800; font-size: 13px; } "
             "QPushButton:hover { background: #fee2e2; border-radius: 10px; }"
         )
         sidebar_layout.addWidget(self.btn_logout)
@@ -263,13 +263,14 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         # Main content
         right = QtWidgets.QWidget()
-        right.setStyleSheet("background: #f8fbff;")
+        right.setObjectName("staffRightArea")
+        right.setStyleSheet("QWidget#staffRightArea { background: #f8fbff; }")
         right_layout = QtWidgets.QVBoxLayout(right)
-        right_layout.setContentsMargins(24, 22, 22, 18)
-        right_layout.setSpacing(18)
+        right_layout.setContentsMargins(18, 14, 18, 14)
+        right_layout.setSpacing(10)
 
         topbar = QtWidgets.QFrame()
-        topbar.setStyleSheet("background: transparent; border: none;")
+        self._set_frame_style(topbar, "staffTopbar", "background: transparent; border: none;")
         topbar_layout = QtWidgets.QHBoxLayout(topbar)
         topbar_layout.setContentsMargins(4, 0, 4, 0)
         topbar_layout.setSpacing(14)
@@ -304,32 +305,41 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.content_stack = QtWidgets.QStackedWidget()
         self.content_stack.setStyleSheet("QStackedWidget { background: transparent; }")
 
-        self.content_stack.addWidget(self._build_dashboard_page())
-        self.content_stack.addWidget(self._build_patient_intake_page())
-        self.content_stack.addWidget(self._build_appointment_management_page())
-        self.content_stack.addWidget(self._build_staff_patient_list_page())
-        self.content_stack.addWidget(self._build_staff_billing_page())
-        self.content_stack.addWidget(self._build_staff_service_lookup_page())
-        self.content_stack.addWidget(self._build_staff_notifications_page())
-        self.content_stack.addWidget(self._build_staff_reports_page())
-        self.content_stack.addWidget(self._build_staff_settings_page())
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_dashboard_page()))
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_patient_intake_page()))
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_appointment_management_page()))
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_staff_patient_list_page()))
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_staff_billing_page()))
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_staff_service_lookup_page()))
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_staff_notifications_page()))
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_staff_reports_page()))
+        self.content_stack.addWidget(self._wrap_staff_page(self._build_staff_settings_page()))
 
         right_layout.addWidget(self.topbar)
         right_layout.addWidget(self.content_stack, 1)
         self.main_layout.addWidget(right, 1)
 
+    def _wrap_staff_page(self, page):
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        scroll.setWidget(page)
+        return scroll
+
     def _build_dashboard_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffDashboardPage", "background: #f8fbff; border: none;")
         page_layout = QtWidgets.QVBoxLayout(page)
         page_layout.setContentsMargins(0, 0, 0, 0)
-        page_layout.setSpacing(14)
+        page_layout.setSpacing(10)
 
         dashboard_data = self._build_staff_dashboard_snapshot()
         kpis = dashboard_data.get("kpis", {})
 
         kpi_row = QtWidgets.QHBoxLayout()
-        kpi_row.setSpacing(20)
+        kpi_row.setSpacing(12)
         kpi_row.addWidget(self._build_kpi_card("Bệnh nhân hôm nay", kpis.get("patients_today", "0"), kpis.get("patients_note", "Từ dữ liệu tiếp nhận"), "#1fb873", "#e7f8ef", "👥"))
         kpi_row.addWidget(self._build_kpi_card("Lịch hẹn hôm nay", kpis.get("appointments_today", "0"), kpis.get("appointments_note", "Từ lịch hẹn DB"), "#2563eb", "#eaf2ff", "📅"))
         kpi_row.addWidget(self._build_kpi_card("Hóa đơn chờ thanh toán", kpis.get("unpaid_count", "0"), kpis.get("unpaid_note", "Tổng tiền: 0 đ"), "#f97316", "#fff3e4", "🧾"))
@@ -337,7 +347,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         page_layout.addLayout(kpi_row)
 
         first_row = QtWidgets.QHBoxLayout()
-        first_row.setSpacing(18)
+        first_row.setSpacing(12)
         appointments_card = self._build_section_card("Lịch hẹn hôm nay")
         appointments_layout = appointments_card.layout()
 
@@ -352,15 +362,15 @@ class StaffDashboardView(QtWidgets.QWidget):
         table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         table.setShowGrid(False)
-        table.setMinimumHeight(300)
+        table.setMinimumHeight(220)
         table.setStyleSheet(
             "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; }"
-            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 800; border: none; padding: 10px; }"
-            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; color: #0f172a; font-weight: 600; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 11px; font-weight: 800; border: none; padding: 7px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 5px; color: #0f172a; font-weight: 600; }"
         )
 
         for r, row in enumerate(appointment_rows):
-            table.setRowHeight(r, 54)
+            table.setRowHeight(r, 42)
             for c, value in enumerate(row):
                 table.setItem(r, c, QtWidgets.QTableWidgetItem(value))
             status_lbl = self._build_status_badge(row[4])
@@ -380,8 +390,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         quick_actions = self._build_section_card("Thao tác nhanh")
         quick_layout = quick_actions.layout()
         quick_grid = QtWidgets.QGridLayout()
-        quick_grid.setHorizontalSpacing(14)
-        quick_grid.setVerticalSpacing(16)
+        quick_grid.setHorizontalSpacing(10)
+        quick_grid.setVerticalSpacing(10)
         quick_grid.addWidget(self._build_quick_action_button("Tiếp nhận\nbệnh nhân", "👥", 1, "#e8f8ef", "#14a768"), 0, 0)
         quick_grid.addWidget(self._build_quick_action_button("Tạo lịch hẹn\nmới", "📅", 2, "#eaf2ff", "#2563eb"), 0, 1)
         quick_grid.addWidget(self._build_quick_action_button("Tra cứu\nhồ sơ", "📁", 3, "#fff4df", "#f59e0b"), 0, 2)
@@ -396,7 +406,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         page_layout.addLayout(first_row)
 
         second_row = QtWidgets.QHBoxLayout()
-        second_row.setSpacing(18)
+        second_row.setSpacing(12)
 
         waiting_card = self._build_section_card("Bệnh nhân chờ tiếp nhận")
         waiting_layout = waiting_card.layout()
@@ -449,8 +459,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         todo_card = self._build_section_card("Công việc hôm nay")
         todo_layout = todo_card.layout()
         checklist_grid = QtWidgets.QGridLayout()
-        checklist_grid.setHorizontalSpacing(80)
-        checklist_grid.setVerticalSpacing(8)
+        checklist_grid.setHorizontalSpacing(46)
+        checklist_grid.setVerticalSpacing(5)
         for index, text in enumerate(["Xác nhận lịch hẹn", "Tiếp nhận bệnh nhân", "Kiểm tra thanh toán", "In phiếu khám"]):
             cb = QtWidgets.QCheckBox(text)
             cb.setChecked(True)
@@ -603,7 +613,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_placeholder_page(self, title):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: white; border: 1px solid #e5e7eb; border-radius: 16px;")
+        self._set_frame_style(page, "staffPlaceholderPage", "background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px;")
         page_layout = QtWidgets.QVBoxLayout(page)
         page_layout.setContentsMargins(32, 32, 32, 32)
         page_layout.setSpacing(12)
@@ -621,10 +631,10 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_notifications_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffNotificationsPage", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(10)
 
         heading = QtWidgets.QLabel("Thông báo vận hành")
         heading.setStyleSheet("font-size: 24px; color: #0f172a; font-weight: 900;")
@@ -742,7 +752,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_notification_table.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_notification_table.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_notification_table.horizontalHeader().setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.staff_notification_table.setMinimumHeight(360)
+        self.staff_notification_table.setMinimumHeight(260)
         self.staff_notification_table.itemSelectionChanged.connect(self._handle_staff_notification_selection)
         self.staff_notification_table.setStyleSheet(
             "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; }"
@@ -819,7 +829,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_reports_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffReportsPage", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
@@ -988,7 +998,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_report_status_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.staff_report_status_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_report_status_table.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.staff_report_status_table.setMinimumHeight(190)
+        self.staff_report_status_table.setMinimumHeight(150)
         self.staff_report_status_table.setStyleSheet(
             "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; }"
             "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 800; border: none; padding: 10px; }"
@@ -1008,7 +1018,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_report_unpaid_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.staff_report_unpaid_table.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_report_unpaid_table.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.staff_report_unpaid_table.setMinimumHeight(200)
+        self.staff_report_unpaid_table.setMinimumHeight(150)
         self.staff_report_unpaid_table.setStyleSheet(
             "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; }"
             "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 800; border: none; padding: 10px; }"
@@ -1060,15 +1070,15 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_settings_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffSettingsPage", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(18)
+        layout.setSpacing(10)
 
         settings_data = self._load_staff_settings_data()
 
         header = QtWidgets.QFrame()
-        header.setStyleSheet("background: transparent; border: none;")
+        self._set_frame_style(header, "staffSettingsHeader", "background: transparent; border: none;")
         header_layout = QtWidgets.QHBoxLayout(header)
         header_layout.setContentsMargins(4, 0, 4, 0)
         header_layout.setSpacing(14)
@@ -1623,23 +1633,23 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_patient_intake_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffPatientIntakePage", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(18)
+        layout.setSpacing(10)
 
         topbar = QtWidgets.QFrame()
-        topbar.setStyleSheet("background: transparent; border: none;")
+        self._set_frame_style(topbar, "staffPatientIntakeTopbar", "background: transparent; border: none;")
         topbar_layout = QtWidgets.QHBoxLayout(topbar)
         topbar_layout.setContentsMargins(4, 0, 4, 0)
         topbar_layout.setSpacing(14)
 
         topbar_left = QtWidgets.QVBoxLayout()
-        topbar_left.setSpacing(5)
+        topbar_left.setSpacing(3)
         heading = QtWidgets.QLabel("Tiếp nhận bệnh nhân")
-        heading.setStyleSheet("font-size: 25px; color: #0f172a; font-weight: 900;")
+        heading.setStyleSheet("font-size: 22px; color: #0f172a; font-weight: 900;")
         breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Tiếp nhận bệnh nhân")
-        breadcrumb.setStyleSheet("font-size: 14px; color: #64748b; font-weight: 700;")
+        breadcrumb.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 700;")
         topbar_left.addWidget(heading)
         topbar_left.addWidget(breadcrumb)
 
@@ -1661,13 +1671,13 @@ class StaffDashboardView(QtWidgets.QWidget):
         layout.addWidget(topbar)
 
         content_wrap = QtWidgets.QHBoxLayout()
-        content_wrap.setSpacing(22)
+        content_wrap.setSpacing(14)
 
         left_col = QtWidgets.QVBoxLayout()
-        left_col.setSpacing(16)
+        left_col.setSpacing(10)
 
         right_col = QtWidgets.QVBoxLayout()
-        right_col.setSpacing(16)
+        right_col.setSpacing(10)
 
         lookup_card = self._build_section_card("1. Tìm kiếm bệnh nhân")
         lookup_form = QtWidgets.QHBoxLayout()
@@ -1698,9 +1708,9 @@ class StaffDashboardView(QtWidgets.QWidget):
         lookup_result_layout.setContentsMargins(14, 12, 14, 12)
         lookup_result_layout.setSpacing(12)
         patient_avatar = QtWidgets.QLabel("👤")
-        patient_avatar.setFixedSize(58, 58)
+        patient_avatar.setFixedSize(46, 46)
         patient_avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        patient_avatar.setStyleSheet("background: #eaf2ff; border-radius: 29px; font-size: 28px;")
+        patient_avatar.setStyleSheet("background: #eaf2ff; border-radius: 23px; font-size: 22px;")
         self.intake_lookup_result_label = QtWidgets.QLabel("Nhập SĐT/CCCD/mã bệnh nhân để tìm hồ sơ đã có.")
         self.intake_lookup_result_label.setWordWrap(True)
         self.intake_lookup_result_label.setStyleSheet("font-size: 13px; color: #475569; font-weight: 700;")
@@ -1735,8 +1745,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         profile_card.layout().addLayout(intake_mode_row)
 
         profile_form = QtWidgets.QGridLayout()
-        profile_form.setHorizontalSpacing(18)
-        profile_form.setVerticalSpacing(12)
+        profile_form.setHorizontalSpacing(12)
+        profile_form.setVerticalSpacing(8)
 
         self.intake_name_input = QtWidgets.QLineEdit()
         self.intake_name_input.setPlaceholderText("Nhập họ và tên")
@@ -1768,7 +1778,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_address_input.textChanged.connect(self._refresh_intake_summary_card)
         self.intake_note_input = QtWidgets.QPlainTextEdit()
         self.intake_note_input.setPlaceholderText("Ghi chú thêm (nếu có)")
-        self.intake_note_input.setFixedHeight(78)
+        self.intake_note_input.setFixedHeight(58)
         self.intake_note_input.textChanged.connect(self._refresh_intake_summary_card)
 
         profile_form.addWidget(self._build_intake_field("Họ và tên *", self.intake_name_input), 0, 0)
@@ -1797,8 +1807,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         queue_layout = queue_card.layout()
 
         intake_schedule_form = QtWidgets.QGridLayout()
-        intake_schedule_form.setHorizontalSpacing(18)
-        intake_schedule_form.setVerticalSpacing(12)
+        intake_schedule_form.setHorizontalSpacing(12)
+        intake_schedule_form.setVerticalSpacing(8)
         self.intake_date_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
         self.intake_date_input.setCalendarPopup(True)
         self.intake_date_input.setDisplayFormat("dd/MM/yyyy")
@@ -1812,7 +1822,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_doctor_combo.currentTextChanged.connect(self._refresh_intake_summary_card)
         self.intake_reason_input = QtWidgets.QPlainTextEdit()
         self.intake_reason_input.setPlaceholderText("Nhập lý do khám (nếu có)")
-        self.intake_reason_input.setFixedHeight(94)
+        self.intake_reason_input.setFixedHeight(66)
         self.intake_reason_input.textChanged.connect(self._refresh_intake_summary_card)
 
         intake_schedule_form.addWidget(self._build_intake_field("Ngày tiếp nhận", self.intake_date_input), 0, 0)
@@ -1839,14 +1849,14 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.intake_summary_card = QtWidgets.QLabel("Chưa có dữ liệu tiếp nhận.")
         self.intake_summary_card.setWordWrap(True)
         self.intake_summary_card.setStyleSheet(
-            "background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px; padding: 16px; font-size: 13px; color: #0f172a; font-weight: 700;"
+            "background: #ffffff; border: 1px solid #e4ebf4; border-radius: 12px; padding: 12px; font-size: 12px; color: #0f172a; font-weight: 700;"
         )
         self.intake_appointment_summary = QtWidgets.QLabel("Trạng thái: Chờ khám")
         self.intake_appointment_summary.setStyleSheet("font-size: 13px; color: #f97316; font-weight: 900;")
         self.intake_info_badge = QtWidgets.QLabel("ⓘ  Bệnh nhân sẽ được chuyển vào danh sách chờ khám của bác sĩ.\n    Vui lòng hướng dẫn bệnh nhân ngồi chờ.")
         self.intake_info_badge.setWordWrap(True)
         self.intake_info_badge.setStyleSheet(
-            "background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; border-radius: 10px; padding: 12px 14px; font-size: 13px; font-weight: 800;"
+            "background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 800;"
         )
         next_steps_card.layout().addWidget(self.intake_patient_summary)
         next_steps_card.layout().addWidget(self.intake_summary_card)
@@ -1891,7 +1901,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_service_lookup_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffServiceLookupPageLegacy", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
@@ -2380,7 +2390,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_service_info_chip(self, title, value):
         frame = QtWidgets.QFrame()
-        frame.setStyleSheet("QFrame { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }")
+        self._set_frame_style(frame, "staffServiceInfoChip", "background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;")
         layout = QtWidgets.QVBoxLayout(frame)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(4)
@@ -3452,7 +3462,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         return (
             "QLineEdit, QComboBox, QDateEdit, QTimeEdit, QPlainTextEdit {"
             " background: #ffffff; border: 1px solid #dbe4ee; border-radius: 9px;"
-            " padding: 9px 12px; color: #0f172a; font-size: 13px; min-height: 24px; }"
+            " padding: 7px 10px; color: #0f172a; font-size: 12px; min-height: 22px; }"
             "QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTimeEdit:focus, QPlainTextEdit:focus {"
             " border: 1px solid #18a66d; }"
             "QLineEdit:disabled, QComboBox:disabled, QDateEdit:disabled, QTimeEdit:disabled, QPlainTextEdit:disabled {"
@@ -3476,7 +3486,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         label = QtWidgets.QLabel(label_text)
         label.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #334155; font-weight: 800;")
         if isinstance(widget, (QtWidgets.QLineEdit, QtWidgets.QComboBox, QtWidgets.QDateEdit, QtWidgets.QTimeEdit)):
-            widget.setMinimumHeight(42)
+            widget.setMinimumHeight(36)
         layout.addWidget(label)
         layout.addWidget(widget)
         return wrapper
@@ -3521,8 +3531,8 @@ class StaffDashboardView(QtWidgets.QWidget):
     @staticmethod
     def _intake_primary_button_style():
         return (
-            "QPushButton { background: #13a66b; color: white; padding: 11px 14px;"
-            " border: 1px solid #12915f; border-radius: 9px; font-weight: 900; font-size: 13px; }"
+            "QPushButton { background: #13a66b; color: white; padding: 8px 12px;"
+            " border: 1px solid #12915f; border-radius: 8px; font-weight: 900; font-size: 12px; }"
             "QPushButton:hover { background: #178a60; }"
             "QPushButton:pressed { background: #147a55; }"
             "QPushButton:disabled { background: #a7f3d0; color: #ecfdf5; border: 1px solid #86efac; }"
@@ -3531,8 +3541,8 @@ class StaffDashboardView(QtWidgets.QWidget):
     @staticmethod
     def _intake_secondary_button_style():
         return (
-            "QPushButton { background: #ffffff; color: #334155; padding: 11px 14px;"
-            " border: 1px solid #dbe4ee; border-radius: 9px; font-weight: 900; font-size: 13px; }"
+            "QPushButton { background: #ffffff; color: #334155; padding: 8px 12px;"
+            " border: 1px solid #dbe4ee; border-radius: 8px; font-weight: 900; font-size: 12px; }"
             "QPushButton:hover { background: #e2e8f0; }"
             "QPushButton:pressed { background: #cbd5e1; }"
             "QPushButton:disabled { background: #f1f5f9; color: #94a3b8; border: 1px solid #d1d5db; }"
@@ -3561,13 +3571,13 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_patient_list_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffPatientListPage", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(14)
+        layout.setSpacing(6)
 
         header = QtWidgets.QFrame()
-        header.setStyleSheet("background: transparent; border: none;")
+        self._set_frame_style(header, "staffPatientListHeader", "background: transparent; border: none;")
         header_layout = QtWidgets.QHBoxLayout(header)
         header_layout.setContentsMargins(4, 0, 4, 0)
         header_layout.setSpacing(12)
@@ -3576,7 +3586,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         title_col.setSpacing(3)
         heading = QtWidgets.QLabel("Danh sách bệnh nhân")
         heading.setStyleSheet(
-            "border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;"
+            "border: none; background: transparent; font-size: 20px; color: #0f172a; font-weight: 900;"
         )
         breadcrumb = QtWidgets.QLabel("Trang chủ  >  Danh sách bệnh nhân")
         breadcrumb.setStyleSheet(
@@ -3609,14 +3619,15 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         filter_card = self._build_section_card("")
         filter_layout = filter_card.layout()
-        filter_layout.setSpacing(11)
+        filter_layout.setContentsMargins(10, 10, 10, 10)
+        filter_layout.setSpacing(6)
 
         search_row = QtWidgets.QHBoxLayout()
-        search_row.setSpacing(10)
+        search_row.setSpacing(8)
         self.staff_patient_search_input = QtWidgets.QLineEdit()
         self.staff_patient_search_input.setPlaceholderText("Nhập tên, SĐT, CCCD hoặc mã bệnh nhân...")
         self.staff_patient_search_input.setStyleSheet(self._intake_input_style())
-        self.staff_patient_search_input.setMinimumHeight(44)
+        self.staff_patient_search_input.setMinimumHeight(34)
         self.staff_patient_search_input.textChanged.connect(self._filter_staff_patients)
 
         search_btn = QtWidgets.QPushButton("🔎  Tìm kiếm")
@@ -3633,6 +3644,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         add_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         add_btn.setStyleSheet(self._intake_primary_button_style())
         add_btn.clicked.connect(self._open_staff_patient_create_dialog)
+        for btn in (search_btn, filter_btn, add_btn):
+            btn.setMinimumHeight(34)
 
         search_row.addWidget(self.staff_patient_search_input, 1)
         search_row.addWidget(search_btn)
@@ -3641,7 +3654,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         filter_layout.addLayout(search_row)
 
         quick_filter_row = QtWidgets.QHBoxLayout()
-        quick_filter_row.setSpacing(10)
+        quick_filter_row.setSpacing(6)
         self.staff_patient_gender_filter = self._build_staff_patient_filter_combo("Giới tính", ["Tất cả", "Nam", "Nữ"])
         self.staff_patient_age_filter = self._build_staff_patient_filter_combo(
             "Độ tuổi", ["Tất cả", "Trẻ em", "Người lớn", "Người cao tuổi"]
@@ -3664,16 +3677,19 @@ class StaffDashboardView(QtWidgets.QWidget):
         refresh_btn = QtWidgets.QPushButton("↻  Làm mới")
         refresh_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         refresh_btn.setStyleSheet(self._intake_secondary_button_style())
+        refresh_btn.setMinimumHeight(34)
         refresh_btn.clicked.connect(self._reset_staff_patient_filters)
         quick_filter_row.addWidget(refresh_btn)
         filter_layout.addLayout(quick_filter_row)
         layout.addWidget(filter_card)
 
         body = QtWidgets.QHBoxLayout()
-        body.setSpacing(14)
+        body.setSpacing(10)
 
         list_card = self._build_section_card("")
         list_layout = list_card.layout()
+        list_layout.setContentsMargins(10, 10, 10, 10)
+        list_layout.setSpacing(6)
 
         list_header = QtWidgets.QHBoxLayout()
         self.staff_patient_list_title = QtWidgets.QLabel("Danh sách bệnh nhân (0)")
@@ -3699,7 +3715,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_patient_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.staff_patient_table.setShowGrid(False)
         self.staff_patient_table.verticalHeader().setVisible(False)
-        self.staff_patient_table.verticalHeader().setDefaultSectionSize(56)
+        self.staff_patient_table.verticalHeader().setDefaultSectionSize(36)
         self.staff_patient_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.staff_patient_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_patient_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
@@ -3708,18 +3724,18 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_patient_table.horizontalHeader().setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_patient_table.horizontalHeader().setSectionResizeMode(7, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_patient_table.itemSelectionChanged.connect(self._handle_staff_patient_selection)
-        self.staff_patient_table.setMinimumWidth(770)
+        self.staff_patient_table.setMinimumWidth(620)
         self.staff_patient_table.setStyleSheet(
             "QTableWidget { background: #ffffff; border: none; color: #0f172a; font-size: 13px; font-weight: 600; }"
             "QHeaderView::section { background: #f8fafc; color: #475569; border: none; border-bottom: 1px solid #e5edf7;"
-            " padding: 10px 8px; font-size: 12px; font-weight: 900; }"
-            "QTableWidget::item { border-bottom: 1px solid #eef2f7; padding: 8px; }"
+            " padding: 7px 6px; font-size: 11px; font-weight: 900; }"
+            "QTableWidget::item { border-bottom: 1px solid #eef2f7; padding: 5px; }"
             "QTableWidget::item:selected { background: #ecfdf5; color: #0f172a; }"
         )
         list_layout.addWidget(self.staff_patient_table, 1)
 
         pagination_row = QtWidgets.QHBoxLayout()
-        pagination_row.setSpacing(8)
+        pagination_row.setSpacing(6)
         page_size_label = QtWidgets.QLabel("Hiển thị")
         page_size_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 700;")
         self.staff_patient_page_size_combo = QtWidgets.QComboBox()
@@ -3737,7 +3753,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_patient_prev_page_btn = QtWidgets.QPushButton("<")
         self.staff_patient_next_page_btn = QtWidgets.QPushButton(">")
         for btn in [self.staff_patient_prev_page_btn, self.staff_patient_next_page_btn]:
-            btn.setFixedSize(32, 30)
+            btn.setFixedSize(30, 28)
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
             btn.setStyleSheet(
                 "QPushButton { background: #ffffff; border: 1px solid #dbe4ee; border-radius: 8px;"
@@ -3759,30 +3775,31 @@ class StaffDashboardView(QtWidgets.QWidget):
         list_layout.addLayout(pagination_row)
 
         detail_col = QtWidgets.QVBoxLayout()
-        detail_col.setSpacing(14)
+        detail_col.setSpacing(6)
 
         detail_card = self._build_section_card("Thông tin bệnh nhân")
         detail_layout = detail_card.layout()
-        detail_layout.setSpacing(10)
+        detail_layout.setContentsMargins(10, 10, 10, 10)
+        detail_layout.setSpacing(6)
 
         profile = QtWidgets.QFrame()
-        profile.setStyleSheet("QFrame { background: #ffffff; border: none; }")
+        self._set_frame_style(profile, "staffPatientProfileFrame", "background: #ffffff; border: none;")
         profile_layout = QtWidgets.QHBoxLayout(profile)
         profile_layout.setContentsMargins(0, 0, 0, 0)
-        profile_layout.setSpacing(12)
+        profile_layout.setSpacing(8)
 
         self.staff_patient_avatar = QtWidgets.QLabel("👤")
-        self.staff_patient_avatar.setFixedSize(60, 60)
+        self.staff_patient_avatar.setFixedSize(40, 40)
         self.staff_patient_avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.staff_patient_avatar.setStyleSheet(
-            "border: none; background: #ecfeff; border-radius: 30px; color: #0891b2; font-size: 28px;"
+            "border: none; background: #ecfeff; border-radius: 20px; color: #0891b2; font-size: 20px;"
         )
         identity_col = QtWidgets.QVBoxLayout()
-        identity_col.setSpacing(4)
+        identity_col.setSpacing(2)
         name_row = QtWidgets.QHBoxLayout()
         self.staff_patient_detail_name = QtWidgets.QLabel("Chưa chọn bệnh nhân")
         self.staff_patient_detail_name.setStyleSheet(
-            "border: none; background: transparent; font-size: 16px; color: #0f172a; font-weight: 900;"
+            "border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;"
         )
         self.staff_patient_detail_badge = QtWidgets.QLabel("-")
         self.staff_patient_detail_badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
@@ -3807,8 +3824,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         detail_layout.addWidget(self.staff_patient_empty_state)
 
         info_grid = QtWidgets.QFormLayout()
-        info_grid.setHorizontalSpacing(16)
-        info_grid.setVerticalSpacing(7)
+        info_grid.setHorizontalSpacing(10)
+        info_grid.setVerticalSpacing(4)
         self.staff_patient_info_code = QtWidgets.QLabel("-")
         self.staff_patient_info_dob = QtWidgets.QLabel("-")
         self.staff_patient_info_phone = QtWidgets.QLabel("-")
@@ -3835,6 +3852,11 @@ class StaffDashboardView(QtWidgets.QWidget):
         detail_layout.addLayout(info_grid)
 
         self.staff_patient_detail_tabs = QtWidgets.QTabWidget()
+        self.staff_patient_detail_tabs.setFixedHeight(150)
+        self.staff_patient_detail_tabs.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Fixed,
+        )
         self.staff_patient_detail_tabs.setStyleSheet(
             "QTabWidget::pane { border: 1px solid #e4ebf4; border-radius: 10px; background: #ffffff; }"
             "QTabBar::tab { background: #f8fafc; border: 1px solid #e4ebf4; border-bottom: none;"
@@ -3875,7 +3897,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_patient_history_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.staff_patient_history_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.staff_patient_history_table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
-        self.staff_patient_history_table.setMinimumHeight(132)
+        self.staff_patient_history_table.setMinimumHeight(72)
+        self.staff_patient_history_table.setMaximumHeight(82)
         self.staff_patient_history_empty = QtWidgets.QLabel("Chưa có lịch sử khám để hiển thị.")
         self.staff_patient_history_empty.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 700;")
         history_layout.addWidget(self.staff_patient_history_table)
@@ -3917,7 +3940,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         )
         self.staff_patient_note_text = QtWidgets.QTextEdit()
         self.staff_patient_note_text.setReadOnly(True)
-        self.staff_patient_note_text.setMinimumHeight(74)
+        self.staff_patient_note_text.setFixedHeight(50)
         self.staff_patient_note_text.setStyleSheet(
             "QTextEdit { background: #f8fafc; border: 1px solid #e4ebf4; border-radius: 10px;"
             " color: #334155; font-size: 12px; font-weight: 600; padding: 8px; }"
@@ -3927,9 +3950,11 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         quick_card = self._build_section_card("Thao tác nhanh")
         quick_layout = quick_card.layout()
+        quick_layout.setContentsMargins(10, 10, 10, 10)
+        quick_layout.setSpacing(6)
         quick_grid = QtWidgets.QGridLayout()
-        quick_grid.setHorizontalSpacing(9)
-        quick_grid.setVerticalSpacing(9)
+        quick_grid.setHorizontalSpacing(6)
+        quick_grid.setVerticalSpacing(6)
         quick_actions = [
             ("👁", "Xem hồ sơ", "#E0F2FE", "#0369A1", "view"),
             ("📅", "Tạo lịch hẹn", "#DCFCE7", "#15803D", "appointment"),
@@ -3946,8 +3971,8 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         detail_col.addWidget(detail_card)
         detail_col.addWidget(quick_card)
-        body.addWidget(list_card, 11)
-        body.addLayout(detail_col, 6)
+        body.addWidget(list_card, 13)
+        body.addLayout(detail_col, 5)
         layout.addLayout(body, 1)
 
         self.staff_patient_current_page = 1
@@ -3960,11 +3985,11 @@ class StaffDashboardView(QtWidgets.QWidget):
     def _build_staff_patient_filter_combo(self, label, values):
         combo = QtWidgets.QComboBox()
         combo.addItems(values)
-        combo.setMinimumHeight(40)
+        combo.setMinimumHeight(34)
         combo.setToolTip(label)
         combo.setStyleSheet(
-            "QComboBox { background: #ffffff; border: 1px solid #dbe4ee; border-radius: 9px;"
-            " padding: 8px 12px; color: #334155; font-size: 12px; font-weight: 800; }"
+            "QComboBox { background: #ffffff; border: 1px solid #dbe4ee; border-radius: 8px;"
+            " padding: 6px 10px; color: #334155; font-size: 12px; font-weight: 800; }"
             "QComboBox::drop-down { border: none; width: 22px; }"
         )
         return combo
@@ -4088,6 +4113,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_patient_table.blockSignals(True)
         self.staff_patient_table.setRowCount(len(page_rows))
         for row, patient in enumerate(page_rows):
+            self.staff_patient_table.setRowHeight(row, 36)
             values = [
                 str(start + row + 1),
                 self._staff_patient_code(patient),
@@ -4158,7 +4184,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         start_page = max(1, end_page - buttons_to_show + 1)
         for page in range(start_page, end_page + 1):
             page_btn = QtWidgets.QPushButton(str(page))
-            page_btn.setFixedSize(32, 30)
+            page_btn.setFixedSize(30, 28)
             page_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
             if page == self.staff_patient_current_page:
                 page_btn.setStyleSheet(
@@ -4416,10 +4442,10 @@ class StaffDashboardView(QtWidgets.QWidget):
     def _build_staff_patient_quick_button(self, icon, label, bg, fg):
         btn = QtWidgets.QPushButton(f"{icon}  {label}")
         btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-        btn.setMinimumHeight(52)
+        btn.setMinimumHeight(36)
         btn.setStyleSheet(
-            f"QPushButton {{ background: {bg}; color: {fg}; border: none; border-radius: 10px;"
-            " padding: 9px 10px; text-align: left; font-size: 12px; font-weight: 900; }}"
+            f"QPushButton {{ background: {bg}; color: {fg}; border: none; border-radius: 8px;"
+            " padding: 5px 8px; text-align: left; font-size: 11px; font-weight: 900; }}"
             "QPushButton:hover { border: 1px solid #cbd5e1; }"
         )
         return btn
@@ -4479,7 +4505,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_appointment_management_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffAppointmentPageLegacy", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
@@ -4489,7 +4515,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         left_sidebar = QtWidgets.QFrame()
         left_sidebar.setFixedWidth(200)
-        left_sidebar.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;")
+        self._set_frame_style(left_sidebar, "staffAppointmentLeftSidebar", "background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;")
         left_layout = QtWidgets.QVBoxLayout(left_sidebar)
         left_layout.setContentsMargins(12, 12, 12, 12)
         left_layout.setSpacing(8)
@@ -4511,7 +4537,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         center_right.setSpacing(12)
 
         center_panel = QtWidgets.QFrame()
-        center_panel.setStyleSheet("background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;")
+        self._set_frame_style(center_panel, "staffAppointmentCenterPanel", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;")
         center_layout = QtWidgets.QVBoxLayout(center_panel)
         center_layout.setContentsMargins(14, 14, 14, 14)
         center_layout.setSpacing(10)
@@ -4600,7 +4626,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         center_layout.addWidget(self.staff_appt_feedback)
 
         right_panel = QtWidgets.QFrame()
-        right_panel.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;")
+        self._set_frame_style(right_panel, "staffAppointmentRightPanel", "background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;")
         right_layout = QtWidgets.QVBoxLayout(right_panel)
         right_layout.setContentsMargins(12, 12, 12, 12)
         right_layout.setSpacing(8)
@@ -4615,7 +4641,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         right_layout.addWidget(self.staff_appt_detail_placeholder)
 
         patient_card = QtWidgets.QFrame()
-        patient_card.setStyleSheet("QFrame {background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;}")
+        self._set_frame_style(patient_card, "staffAppointmentPatientCard", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;")
         patient_layout = QtWidgets.QVBoxLayout(patient_card)
         patient_layout.setContentsMargins(10, 10, 10, 10)
         patient_layout.setSpacing(4)
@@ -4635,7 +4661,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         right_layout.addWidget(patient_card)
 
         detail_grid_card = QtWidgets.QFrame()
-        detail_grid_card.setStyleSheet("QFrame {background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;}")
+        self._set_frame_style(detail_grid_card, "staffAppointmentDetailGridCard", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;")
         detail_grid = QtWidgets.QGridLayout(detail_grid_card)
         detail_grid.setContentsMargins(10, 10, 10, 10)
         detail_grid.setHorizontalSpacing(8)
@@ -4660,7 +4686,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         right_layout.addWidget(detail_grid_card)
 
         timeline_card = QtWidgets.QFrame()
-        timeline_card.setStyleSheet("QFrame {background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;}")
+        self._set_frame_style(timeline_card, "staffAppointmentTimelineCard", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;")
         timeline_layout = QtWidgets.QVBoxLayout(timeline_card)
         timeline_layout.setContentsMargins(10, 10, 10, 10)
         timeline_layout.setSpacing(4)
@@ -5205,7 +5231,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_billing_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffBillingPageLegacy", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
@@ -5228,7 +5254,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         shell_row.setSpacing(12)
 
         center_panel = QtWidgets.QFrame()
-        center_panel.setStyleSheet("background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px;")
+        self._set_frame_style(center_panel, "staffBillingCenterPanelLegacy", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px;")
         center_layout = QtWidgets.QVBoxLayout(center_panel)
         center_layout.setContentsMargins(16, 16, 16, 16)
         center_layout.setSpacing(12)
@@ -5364,7 +5390,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         center_layout.addWidget(self.staff_bill_feedback)
 
         right_panel = QtWidgets.QFrame()
-        right_panel.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;")
+        self._set_frame_style(right_panel, "staffBillingRightPanelLegacy", "background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;")
         right_layout = QtWidgets.QVBoxLayout(right_panel)
         right_layout.setContentsMargins(14, 14, 14, 14)
         right_layout.setSpacing(10)
@@ -5383,7 +5409,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         right_layout.addWidget(self.staff_bill_detail_placeholder)
 
         patient_card = QtWidgets.QFrame()
-        patient_card.setStyleSheet("QFrame { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; }")
+        self._set_frame_style(patient_card, "staffBillingPatientCard", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;")
         patient_layout = QtWidgets.QVBoxLayout(patient_card)
         patient_layout.setContentsMargins(12, 12, 12, 12)
         patient_layout.setSpacing(6)
@@ -5407,7 +5433,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         right_layout.addWidget(patient_card)
 
         info_card = QtWidgets.QFrame()
-        info_card.setStyleSheet("QFrame { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; }")
+        self._set_frame_style(info_card, "staffBillingInfoCard", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;")
         info_grid = QtWidgets.QGridLayout(info_card)
         info_grid.setContentsMargins(12, 12, 12, 12)
         info_grid.setHorizontalSpacing(8)
@@ -5433,7 +5459,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         right_layout.addWidget(info_card)
 
         timeline_card = QtWidgets.QFrame()
-        timeline_card.setStyleSheet("QFrame { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; }")
+        self._set_frame_style(timeline_card, "staffBillingTimelineCard", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;")
         timeline_layout = QtWidgets.QVBoxLayout(timeline_card)
         timeline_layout.setContentsMargins(12, 12, 12, 12)
         timeline_layout.setSpacing(4)
@@ -5450,7 +5476,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         right_layout.addWidget(timeline_card)
 
         quick_form_card = QtWidgets.QFrame()
-        quick_form_card.setStyleSheet("QFrame { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; }")
+        self._set_frame_style(quick_form_card, "staffBillingQuickFormCard", "background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;")
         quick_form_layout = QtWidgets.QVBoxLayout(quick_form_card)
         quick_form_layout.setContentsMargins(12, 12, 12, 12)
         quick_form_layout.setSpacing(8)
@@ -6297,6 +6323,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         note_lbl = QtWidgets.QLabel(note)
         note_lbl.setWordWrap(True)
         note_lbl.setStyleSheet("border: none; background: transparent; font-size: 11px; color: #64748b; font-weight: 700;")
+        note_lbl.setVisible(False)
         title_row.addWidget(dot)
         title_row.addWidget(title_lbl)
         title_row.addStretch()
@@ -7520,9 +7547,14 @@ class StaffDashboardView(QtWidgets.QWidget):
             return base + "QPushButton { background: #e9f8f1; color: #0f9f6e; font-weight: 900; }"
         return base + "QPushButton:hover { background: #f1f5f9; }"
 
+    @staticmethod
+    def _set_frame_style(frame, object_name, style_body):
+        frame.setObjectName(object_name)
+        frame.setStyleSheet(f"QFrame#{object_name} {{ {style_body} }}")
+
     def _build_staff_settings_info_card(self, label_text, value_text):
         card = QtWidgets.QFrame()
-        card.setStyleSheet("QFrame { background: #f8fbff; border: 1px solid #e4ebf4; border-radius: 12px; }")
+        self._set_frame_style(card, "staffSettingsInfoCard", "background: #f8fbff; border: 1px solid #e4ebf4; border-radius: 12px;")
         layout = QtWidgets.QVBoxLayout(card)
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(5)
@@ -7564,34 +7596,32 @@ class StaffDashboardView(QtWidgets.QWidget):
             "QFrame#sectionCard { background: #ffffff; border: 1px solid #e4ebf4; border-radius: 14px; }"
         )
         card_layout = QtWidgets.QVBoxLayout(card)
-        card_layout.setContentsMargins(16, 16, 16, 16)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(12, 12, 12, 12)
+        card_layout.setSpacing(8)
 
         if title:
             title_lbl = QtWidgets.QLabel(title)
-            title_lbl.setStyleSheet("border: none; background: transparent; font-size: 17px; font-weight: 900; color: #0f172a;")
+            title_lbl.setStyleSheet("border: none; background: transparent; font-size: 15px; font-weight: 900; color: #0f172a;")
             card_layout.addWidget(title_lbl)
         return card
 
     def _build_kpi_card(self, title, value, note, accent, icon_bg="#f1f5f9", icon_text=""):
         card = QtWidgets.QFrame()
-        card.setMinimumHeight(118)
-        card.setStyleSheet(
-            "QFrame { background: #ffffff; border: 1px solid #e4ebf4; border-radius: 14px; }"
-        )
+        card.setMinimumHeight(86)
+        self._set_frame_style(card, "staffKpiCard", "background: #ffffff; border: 1px solid #e4ebf4; border-radius: 14px;")
         layout = QtWidgets.QHBoxLayout(card)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(14)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(10)
 
         text_col = QtWidgets.QVBoxLayout()
         text_col.setSpacing(3)
 
         title_lbl = QtWidgets.QLabel(title)
         title_lbl.setWordWrap(True)
-        title_lbl.setStyleSheet("font-size: 12px; color: #0f172a; font-weight: 900;")
+        title_lbl.setStyleSheet("font-size: 11px; color: #0f172a; font-weight: 900;")
 
         value_lbl = QtWidgets.QLabel(value)
-        value_lbl.setStyleSheet(f"font-size: 32px; color: {accent}; font-weight: 900;")
+        value_lbl.setStyleSheet(f"font-size: 24px; color: {accent}; font-weight: 900;")
 
         note_lbl = QtWidgets.QLabel(note)
         note_lbl.setWordWrap(True)
@@ -7606,21 +7636,21 @@ class StaffDashboardView(QtWidgets.QWidget):
         text_col.addWidget(note_lbl)
         if icon_text:
             icon = QtWidgets.QLabel(icon_text)
-            icon.setFixedSize(64, 64)
+            icon.setFixedSize(44, 44)
             icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-            icon.setStyleSheet(f"background: {icon_bg}; color: {accent}; border-radius: 12px; font-size: 27px; font-weight: 900;")
+            icon.setStyleSheet(f"background: {icon_bg}; color: {accent}; border-radius: 10px; font-size: 20px; font-weight: 900;")
             layout.addWidget(icon)
         layout.addLayout(text_col, 1)
         return card
 
     def _build_quick_action_button(self, title, icon, target_index, bg_color, accent):
         btn = QtWidgets.QPushButton(f"{icon}\n{title}")
-        btn.setMinimumSize(96, 126)
+        btn.setMinimumSize(82, 90)
         btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         btn.setStyleSheet(
             "QPushButton {"
             f"background: {bg_color}; border: none; border-radius: 14px;"
-            f"color: #0f172a; font-size: 13px; font-weight: 900; padding: 12px;"
+            f"color: #0f172a; font-size: 12px; font-weight: 900; padding: 9px;"
             "}"
             f"QPushButton:hover {{ color: {accent}; }}"
         )
@@ -7656,7 +7686,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_patient_waiting_row(self, name, detail, time_text):
         row = QtWidgets.QFrame()
-        row.setStyleSheet("border-bottom: 1px solid #edf2f7;")
+        self._set_frame_style(row, "staffPatientWaitingRow", "background: transparent; border: none; border-bottom: 1px solid #edf2f7;")
         layout = QtWidgets.QHBoxLayout(row)
         layout.setContentsMargins(0, 8, 0, 8)
         layout.setSpacing(10)
@@ -7688,7 +7718,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_notice_row(self, icon_text, content, when, color):
         row = QtWidgets.QFrame()
-        row.setStyleSheet("border-bottom: 1px solid #edf2f7;")
+        self._set_frame_style(row, "staffNoticeRow", "background: transparent; border: none; border-bottom: 1px solid #edf2f7;")
         layout = QtWidgets.QHBoxLayout(row)
         layout.setContentsMargins(0, 8, 0, 8)
         layout.setSpacing(10)
@@ -7711,23 +7741,23 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_billing_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffBillingPage", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(10)
 
         header = QtWidgets.QHBoxLayout()
         title_col = QtWidgets.QVBoxLayout()
         heading = QtWidgets.QLabel("Thanh toán & Hóa đơn")
-        heading.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        heading.setStyleSheet("border: none; background: transparent; font-size: 22px; color: #0f172a; font-weight: 900;")
         breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Thanh toán & Hóa đơn")
-        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #64748b; font-weight: 700;")
         title_col.addWidget(heading)
         title_col.addWidget(breadcrumb)
         header.addLayout(title_col, 1)
         for text, style in [("🔔", "font-size: 21px;"), ("👤", "background: #eaf2ff; border-radius: 21px; font-size: 20px;")]:
             lbl = QtWidgets.QLabel(text)
-            lbl.setFixedSize(42, 42)
+            lbl.setFixedSize(34, 34)
             lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
             lbl.setStyleSheet("border: none; " + style)
             header.addWidget(lbl)
@@ -7742,7 +7772,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         refunded = [b for b in self.staff_billing_rows if self._staff_bill_status_key(b) == "refunded"]
         paid_total = sum(float(b.get("total_amount") or 0) for b in paid)
         kpi_row = QtWidgets.QHBoxLayout()
-        kpi_row.setSpacing(16)
+        kpi_row.setSpacing(10)
         kpi_row.addWidget(self._staff_bill_kpi("🧾", "Hóa đơn chờ thanh toán", len(pending), f"Tổng tiền: {self._format_staff_money(sum(float(b.get('total_amount') or 0) for b in pending))}", "#fff3e4", "#f97316"))
         kpi_row.addWidget(self._staff_bill_kpi("💵", "Đã thanh toán hôm nay", len(paid), f"Tổng tiền: {self._format_staff_money(paid_total)}", "#e8f8ef", "#13a66b"))
         kpi_row.addWidget(self._staff_bill_kpi("↩", "Hoàn tiền hôm nay", len(refunded), f"Tổng tiền: {self._format_staff_money(sum(float(b.get('total_amount') or 0) for b in refunded))}", "#eaf2ff", "#2563eb"))
@@ -7750,7 +7780,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         layout.addLayout(kpi_row)
 
         body = QtWidgets.QHBoxLayout()
-        body.setSpacing(18)
+        body.setSpacing(12)
         left = self._build_section_card("")
         left_layout = left.layout()
         tabs = QtWidgets.QHBoxLayout()
@@ -7762,7 +7792,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             btn.setChecked(key == "all")
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
             btn.setStyleSheet(
-                "QPushButton { background: #ffffff; border: 1px solid transparent; border-radius: 9px; padding: 9px 13px; color: #64748b; font-size: 13px; font-weight: 900; }"
+                "QPushButton { background: #ffffff; border: 1px solid transparent; border-radius: 8px; padding: 7px 10px; color: #64748b; font-size: 12px; font-weight: 900; }"
                 "QPushButton:checked { background: #ecfdf5; color: #13a66b; border-color: #d1fae5; }"
             )
             btn.clicked.connect(lambda _, k=key: self._set_staff_bill_tab(k))
@@ -7772,7 +7802,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         left_layout.addLayout(tabs)
 
         filters = QtWidgets.QHBoxLayout()
-        filters.setSpacing(10)
+        filters.setSpacing(8)
         self.staff_bill_search_input = QtWidgets.QLineEdit()
         self.staff_bill_search_input.setPlaceholderText("Tìm kiếm bệnh nhân, mã hóa đơn...")
         self.staff_bill_search_input.setStyleSheet(self._intake_input_style())
@@ -7810,14 +7840,14 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_bill_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.staff_bill_table.setShowGrid(False)
         self.staff_bill_table.verticalHeader().setVisible(False)
-        self.staff_bill_table.verticalHeader().setDefaultSectionSize(58)
+        self.staff_bill_table.verticalHeader().setDefaultSectionSize(44)
         self.staff_bill_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.staff_bill_table.horizontalHeader().setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_bill_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_bill_table.setStyleSheet(
             "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; color: #0f172a; font-size: 13px; font-weight: 700; }"
-            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 900; border: none; padding: 10px; }"
-            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 11px; font-weight: 900; border: none; padding: 7px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 5px; }"
             "QTableWidget::item:selected { background: #ecfdf5; color: #0f172a; }"
         )
         self.staff_bill_table.itemSelectionChanged.connect(self._on_staff_billing_row_selected)
@@ -7852,12 +7882,12 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_bill_service_table.setShowGrid(False)
         self.staff_bill_service_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.staff_bill_service_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.staff_bill_service_table.setFixedHeight(155)
+        self.staff_bill_service_table.setFixedHeight(120)
         self.staff_bill_service_table.setStyleSheet("QTableWidget { border: none; background: #ffffff; font-size: 12px; } QHeaderView::section { border: none; background: #ffffff; color: #64748b; font-weight: 800; } QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 6px; }")
         right_layout.addWidget(self.staff_bill_service_table)
         self.staff_bill_total_label = QtWidgets.QLabel("Tổng cần thanh toán: --")
         self.staff_bill_total_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
-        self.staff_bill_total_label.setStyleSheet("border: none; background: transparent; color: #f97316; font-size: 18px; font-weight: 900;")
+        self.staff_bill_total_label.setStyleSheet("border: none; background: transparent; color: #f97316; font-size: 15px; font-weight: 900;")
         right_layout.addWidget(self.staff_bill_total_label)
         pay_title = QtWidgets.QLabel("Thanh toán")
         pay_title.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 15px; font-weight: 900;")
@@ -7868,7 +7898,7 @@ class StaffDashboardView(QtWidgets.QWidget):
             btn = QtWidgets.QPushButton(text)
             btn.setCheckable(True)
             btn.setChecked(idx == 0)
-            btn.setStyleSheet("QPushButton { background: #ffffff; color: #475569; border: 1px solid #dbe4ee; border-radius: 8px; padding: 10px; font-size: 12px; font-weight: 900; } QPushButton:checked { background: #13a66b; color: #ffffff; border-color: #13a66b; }")
+            btn.setStyleSheet("QPushButton { background: #ffffff; color: #475569; border: 1px solid #dbe4ee; border-radius: 8px; padding: 7px; font-size: 11px; font-weight: 900; } QPushButton:checked { background: #13a66b; color: #ffffff; border-color: #13a66b; }")
             btn.clicked.connect(lambda _, b=btn: self._set_staff_bill_payment_method(b))
             self.staff_bill_method_buttons.append(btn)
             method_row.addWidget(btn)
@@ -7900,18 +7930,18 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _staff_bill_kpi(self, icon, title, value, note, bg_color, fg_color):
         card = QtWidgets.QFrame()
-        card.setMinimumHeight(96)
-        card.setStyleSheet("background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
+        card.setMinimumHeight(76)
+        self._set_frame_style(card, "staffBillingKpiCard", "background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
         layout = QtWidgets.QHBoxLayout(card)
-        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setContentsMargins(12, 10, 12, 10)
         icon_lbl = QtWidgets.QLabel(str(icon))
-        icon_lbl.setFixedSize(44, 44)
+        icon_lbl.setFixedSize(36, 36)
         icon_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         icon_lbl.setStyleSheet(f"background: {bg_color}; color: {fg_color}; border: none; border-radius: 12px; font-size: 20px; font-weight: 900;")
         text_col = QtWidgets.QVBoxLayout()
         for text, style in [
-            (title, "color: #334155; font-size: 12px; font-weight: 900;"),
-            (str(value), f"color: {fg_color}; font-size: 22px; font-weight: 900;"),
+            (title, "color: #334155; font-size: 11px; font-weight: 900;"),
+            (str(value), f"color: {fg_color}; font-size: 18px; font-weight: 900;"),
             (note, "color: #64748b; font-size: 11px; font-weight: 700;"),
         ]:
             label = QtWidgets.QLabel(text)
@@ -8135,23 +8165,23 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_appointment_management_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffAppointmentPage", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(10)
 
         header = QtWidgets.QFrame()
-        header.setStyleSheet("background: transparent; border: none;")
+        self._set_frame_style(header, "staffAppointmentHeader", "background: transparent; border: none;")
         header_layout = QtWidgets.QHBoxLayout(header)
         header_layout.setContentsMargins(4, 0, 4, 0)
         header_layout.setSpacing(14)
 
         title_col = QtWidgets.QVBoxLayout()
-        title_col.setSpacing(5)
+        title_col.setSpacing(3)
         heading = QtWidgets.QLabel("Quản lý lịch hẹn")
-        heading.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        heading.setStyleSheet("border: none; background: transparent; font-size: 22px; color: #0f172a; font-weight: 900;")
         breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Quản lý lịch hẹn")
-        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #64748b; font-weight: 700;")
         title_col.addWidget(heading)
         title_col.addWidget(breadcrumb)
 
@@ -8173,17 +8203,17 @@ class StaffDashboardView(QtWidgets.QWidget):
         layout.addWidget(header)
 
         tabs = QtWidgets.QHBoxLayout()
-        tabs.setSpacing(28)
+        tabs.setSpacing(14)
         for index, label in enumerate(["Lịch hẹn hôm nay", "Lịch hẹn ngày mai", "📅  Lịch hẹn theo ngày"]):
             tab = QtWidgets.QPushButton(label)
             tab.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
             if index == 0:
                 tab.setStyleSheet(
-                    "QPushButton { border: none; border-bottom: 3px solid #13a66b; background: transparent; padding: 8px 12px; color: #13a66b; font-size: 15px; font-weight: 900; }"
+                    "QPushButton { border: none; border-bottom: 2px solid #13a66b; background: transparent; padding: 6px 10px; color: #13a66b; font-size: 13px; font-weight: 900; }"
                 )
             else:
                 tab.setStyleSheet(
-                    "QPushButton { border: none; background: transparent; padding: 8px 12px; color: #64748b; font-size: 15px; font-weight: 800; }"
+                    "QPushButton { border: none; background: transparent; padding: 6px 10px; color: #64748b; font-size: 13px; font-weight: 800; }"
                     "QPushButton:hover { color: #13a66b; }"
                 )
             tabs.addWidget(tab)
@@ -8191,7 +8221,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         layout.addLayout(tabs)
 
         content = QtWidgets.QHBoxLayout()
-        content.setSpacing(22)
+        content.setSpacing(14)
 
         form_card = self._build_section_card("Thông tin lịch hẹn")
         self.staff_appt_form_card = form_card
@@ -8270,14 +8300,14 @@ class StaffDashboardView(QtWidgets.QWidget):
         left_panel = self._build_section_card("")
         left_layout = left_panel.layout()
         search_row = QtWidgets.QHBoxLayout()
-        search_row.setSpacing(10)
+        search_row.setSpacing(8)
         self.staff_appt_search_input = QtWidgets.QLineEdit()
         self.staff_appt_search_input.setPlaceholderText("Tìm kiếm bệnh nhân, SĐT, dịch vụ...")
-        self.staff_appt_search_input.setMinimumHeight(42)
+        self.staff_appt_search_input.setMinimumHeight(36)
         self.staff_appt_search_input.setStyleSheet(self._intake_input_style())
         self.staff_appt_search_input.textChanged.connect(self._apply_staff_appointment_filters)
         create_btn = QtWidgets.QPushButton("+  Tạo lịch hẹn")
-        create_btn.setFixedWidth(150)
+        create_btn.setFixedWidth(136)
         create_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         create_btn.setStyleSheet(self._intake_primary_button_style())
         create_btn.clicked.connect(self._toggle_staff_appointment_form)
@@ -8286,7 +8316,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         left_layout.addLayout(search_row)
 
         filters = QtWidgets.QHBoxLayout()
-        filters.setSpacing(10)
+        filters.setSpacing(8)
         self.staff_appt_filter_doctor_combo = QtWidgets.QComboBox()
         self.staff_appt_filter_service_combo = QtWidgets.QComboBox()
         self.staff_appt_filter_status_combo = QtWidgets.QComboBox()
@@ -8319,17 +8349,17 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_appt_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.staff_appt_table.setShowGrid(False)
         self.staff_appt_table.verticalHeader().setVisible(False)
-        self.staff_appt_table.verticalHeader().setDefaultSectionSize(48)
+        self.staff_appt_table.verticalHeader().setDefaultSectionSize(42)
         self.staff_appt_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.staff_appt_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_appt_table.horizontalHeader().setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.Fixed)
         self.staff_appt_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.staff_appt_table.setColumnWidth(4, 150)
-        self.staff_appt_table.setColumnWidth(5, 92)
+        self.staff_appt_table.setColumnWidth(4, 124)
+        self.staff_appt_table.setColumnWidth(5, 78)
         self.staff_appt_table.setStyleSheet(
             "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; }"
-            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 900; border: none; padding: 10px; }"
-            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; color: #0f172a; font-weight: 700; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 11px; font-weight: 900; border: none; padding: 7px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 5px; color: #0f172a; font-weight: 700; }"
             "QTableWidget::item:selected { background: #ecfdf5; color: #0f172a; }"
         )
         self.staff_appt_table.itemSelectionChanged.connect(self._handle_staff_appointment_selection)
@@ -8340,7 +8370,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         left_layout.addWidget(self.staff_appt_paging_label)
 
         legend = QtWidgets.QHBoxLayout()
-        legend.setSpacing(18)
+        legend.setSpacing(10)
         for text, color, note in [
             ("Đang chờ", "#f59e0b", "Bệnh nhân chưa đến/chưa xác nhận"),
             ("Đã xác nhận", "#13a66b", "Bệnh nhân và chờ đến lượt"),
@@ -8364,7 +8394,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_appt_detail_timeline.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #475569; font-weight: 700;")
         detail_layout.addWidget(self.staff_appt_detail_patient)
         detail_layout.addWidget(self.staff_appt_detail_info)
-        detail_layout.addSpacing(10)
+        detail_layout.addSpacing(6)
         timeline_title = QtWidgets.QLabel("Lịch sử cập nhật")
         timeline_title.setStyleSheet("border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;")
         detail_layout.addWidget(timeline_title)
@@ -8379,8 +8409,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_appt_btn_edit.clicked.connect(self._show_staff_appointment_form_for_selected)
         self.staff_appt_btn_cancel.clicked.connect(self._handle_staff_appointment_cancel)
         self.staff_appt_btn_print.clicked.connect(self._handle_staff_appt_print)
-        self.staff_appt_btn_edit.setStyleSheet("background: #ffffff; color: #13a66b; border: 1px solid #13a66b; border-radius: 9px; padding: 10px; font-weight: 900;")
-        self.staff_appt_btn_cancel.setStyleSheet("background: #ffffff; color: #ef4444; border: 1px solid #ef4444; border-radius: 9px; padding: 10px; font-weight: 900;")
+        self.staff_appt_btn_edit.setStyleSheet("background: #ffffff; color: #13a66b; border: 1px solid #13a66b; border-radius: 8px; padding: 7px; font-weight: 900;")
+        self.staff_appt_btn_cancel.setStyleSheet("background: #ffffff; color: #ef4444; border: 1px solid #ef4444; border-radius: 8px; padding: 7px; font-weight: 900;")
         self.staff_appt_btn_print.setStyleSheet(self._intake_primary_button_style())
         detail_layout.addWidget(detail_actions_title)
         detail_layout.addWidget(self.staff_appt_btn_edit)
@@ -8492,22 +8522,22 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_service_lookup_page(self):
         page = QtWidgets.QFrame()
-        page.setStyleSheet("background: #f8fbff; border: none;")
+        self._set_frame_style(page, "staffServiceLookupPage", "background: #f8fbff; border: none;")
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(10)
 
         header = QtWidgets.QFrame()
-        header.setStyleSheet("background: transparent; border: none;")
+        self._set_frame_style(header, "staffServiceHeader", "background: transparent; border: none;")
         header_layout = QtWidgets.QHBoxLayout(header)
         header_layout.setContentsMargins(4, 0, 4, 0)
         header_layout.setSpacing(14)
         title_col = QtWidgets.QVBoxLayout()
         title_col.setSpacing(5)
         heading = QtWidgets.QLabel("Dịch vụ & Gói khám")
-        heading.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        heading.setStyleSheet("border: none; background: transparent; font-size: 22px; color: #0f172a; font-weight: 900;")
         breadcrumb = QtWidgets.QLabel("Trang chủ  ›  Dịch vụ & Gói khám")
-        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        breadcrumb.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #64748b; font-weight: 700;")
         title_col.addWidget(heading)
         title_col.addWidget(breadcrumb)
         bell = QtWidgets.QLabel("🔔")
@@ -8529,7 +8559,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_service_rows = self._build_staff_service_catalog()
 
         kpi_row = QtWidgets.QHBoxLayout()
-        kpi_row.setSpacing(16)
+        kpi_row.setSpacing(10)
         total_services = len([s for s in self.staff_service_rows if not s.get("is_package")])
         total_packages = len([s for s in self.staff_service_rows if s.get("is_package")])
         active_count = len([s for s in self.staff_service_rows if self._staff_service_is_active(s)])
@@ -8541,12 +8571,12 @@ class StaffDashboardView(QtWidgets.QWidget):
         layout.addLayout(kpi_row)
 
         body = QtWidgets.QHBoxLayout()
-        body.setSpacing(18)
+        body.setSpacing(12)
 
         list_card = self._build_section_card("")
         list_layout = list_card.layout()
         tab_row = QtWidgets.QHBoxLayout()
-        tab_row.setSpacing(22)
+        tab_row.setSpacing(12)
         self.staff_service_tab_service = QtWidgets.QPushButton("Dịch vụ")
         self.staff_service_tab_package = QtWidgets.QPushButton("Gói khám")
         for idx, btn in enumerate([self.staff_service_tab_service, self.staff_service_tab_package]):
@@ -8554,8 +8584,8 @@ class StaffDashboardView(QtWidgets.QWidget):
             btn.setChecked(idx == 0)
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
             btn.setStyleSheet(
-                "QPushButton { border: none; background: transparent; padding: 8px 12px; color: #64748b; font-size: 14px; font-weight: 900; }"
-                "QPushButton:checked { color: #13a66b; border-bottom: 3px solid #13a66b; }"
+                "QPushButton { border: none; background: transparent; padding: 6px 10px; color: #64748b; font-size: 13px; font-weight: 900; }"
+                "QPushButton:checked { color: #13a66b; border-bottom: 2px solid #13a66b; }"
             )
         self.staff_service_tab_service.clicked.connect(lambda: self._set_staff_service_mode(False))
         self.staff_service_tab_package.clicked.connect(lambda: self._set_staff_service_mode(True))
@@ -8565,7 +8595,7 @@ class StaffDashboardView(QtWidgets.QWidget):
         list_layout.addLayout(tab_row)
 
         filter_row = QtWidgets.QHBoxLayout()
-        filter_row.setSpacing(12)
+        filter_row.setSpacing(8)
         self.staff_service_search_input = QtWidgets.QLineEdit()
         self.staff_service_search_input.setPlaceholderText("Tìm kiếm dịch vụ...")
         self.staff_service_search_input.setStyleSheet(self._intake_input_style())
@@ -8599,15 +8629,15 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_service_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.staff_service_table.setShowGrid(False)
         self.staff_service_table.verticalHeader().setVisible(False)
-        self.staff_service_table.verticalHeader().setDefaultSectionSize(58)
+        self.staff_service_table.verticalHeader().setDefaultSectionSize(44)
         self.staff_service_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.staff_service_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_service_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_service_table.horizontalHeader().setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.staff_service_table.setStyleSheet(
             "QTableWidget { border: 1px solid #e7edf5; border-radius: 12px; background: #ffffff; color: #0f172a; font-size: 13px; font-weight: 700; }"
-            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 12px; font-weight: 900; border: none; padding: 10px; }"
-            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 8px; }"
+            "QHeaderView::section { background: #f8fafc; color: #1f2937; font-size: 11px; font-weight: 900; border: none; padding: 7px; }"
+            "QTableWidget::item { border-bottom: 1px solid #edf2f7; padding: 5px; }"
             "QTableWidget::item:selected { background: #ecfdf5; color: #0f172a; }"
         )
         self.staff_service_table.itemSelectionChanged.connect(self._handle_staff_service_selection)
@@ -8632,16 +8662,16 @@ class StaffDashboardView(QtWidgets.QWidget):
 
         detail_card = self._build_section_card("Thông tin dịch vụ")
         detail_layout = detail_card.layout()
-        detail_layout.setSpacing(14)
+        detail_layout.setSpacing(10)
         profile = QtWidgets.QHBoxLayout()
         self.staff_service_icon = QtWidgets.QLabel("✚")
-        self.staff_service_icon.setFixedSize(82, 82)
+        self.staff_service_icon.setFixedSize(58, 58)
         self.staff_service_icon.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.staff_service_icon.setStyleSheet("background: #e7f8ef; color: #13a66b; border-radius: 14px; font-size: 40px; font-weight: 900;")
+        self.staff_service_icon.setStyleSheet("background: #e7f8ef; color: #13a66b; border-radius: 12px; font-size: 28px; font-weight: 900;")
         info_col = QtWidgets.QVBoxLayout()
         self.staff_service_detail_name = QtWidgets.QLabel("Chưa chọn dịch vụ")
         self.staff_service_detail_name.setWordWrap(True)
-        self.staff_service_detail_name.setStyleSheet("border: none; background: transparent; font-size: 18px; color: #0f172a; font-weight: 900;")
+        self.staff_service_detail_name.setStyleSheet("border: none; background: transparent; font-size: 15px; color: #0f172a; font-weight: 900;")
         self.staff_service_detail_meta = QtWidgets.QLabel("Danh mục: --")
         self.staff_service_detail_meta.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #475569; font-weight: 700;")
         info_col.addWidget(self.staff_service_detail_name)
@@ -8674,8 +8704,8 @@ class StaffDashboardView(QtWidgets.QWidget):
         self.staff_service_disable_btn = QtWidgets.QPushButton("🗑  Ngưng áp dụng")
         self.staff_service_edit_btn.clicked.connect(self._show_staff_service_edit_dialog)
         self.staff_service_disable_btn.clicked.connect(self._handle_staff_service_disable)
-        self.staff_service_edit_btn.setStyleSheet("background: #ffffff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 9px; padding: 11px; font-weight: 900;")
-        self.staff_service_disable_btn.setStyleSheet("background: #fff1f2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 9px; padding: 11px; font-weight: 900;")
+        self.staff_service_edit_btn.setStyleSheet("background: #ffffff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px; font-weight: 900;")
+        self.staff_service_disable_btn.setStyleSheet("background: #fff1f2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 8px; padding: 8px; font-weight: 900;")
         detail_actions.addWidget(self.staff_service_edit_btn)
         detail_actions.addWidget(self.staff_service_disable_btn)
         detail_layout.addLayout(detail_actions)
@@ -8725,21 +8755,21 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_service_kpi_card(self, icon, title, value, note, bg_color, fg_color):
         card = QtWidgets.QFrame()
-        card.setMinimumHeight(92)
-        card.setStyleSheet("background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
+        card.setMinimumHeight(74)
+        self._set_frame_style(card, "staffServiceKpiCard", "background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
         layout = QtWidgets.QHBoxLayout(card)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(9)
         icon_label = QtWidgets.QLabel(icon)
-        icon_label.setFixedSize(44, 44)
+        icon_label.setFixedSize(36, 36)
         icon_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         icon_label.setStyleSheet(f"background: {bg_color}; color: {fg_color}; border: none; border-radius: 12px; font-size: 20px;")
         text_col = QtWidgets.QVBoxLayout()
         text_col.setSpacing(3)
         title_label = QtWidgets.QLabel(title)
-        title_label.setStyleSheet("border: none; background: transparent; color: #64748b; font-size: 12px; font-weight: 800;")
+        title_label.setStyleSheet("border: none; background: transparent; color: #64748b; font-size: 11px; font-weight: 800;")
         value_label = QtWidgets.QLabel(str(value))
-        value_label.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 21px; font-weight: 900;")
+        value_label.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 18px; font-weight: 900;")
         note_label = QtWidgets.QLabel(note)
         note_label.setStyleSheet("border: none; background: transparent; color: #94a3b8; font-size: 11px; font-weight: 700;")
         text_col.addWidget(title_label)
@@ -8974,7 +9004,7 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _build_staff_related_service_row(self, service):
         row = QtWidgets.QFrame()
-        row.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;")
+        self._set_frame_style(row, "staffRelatedServiceRow", "background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;")
         layout = QtWidgets.QHBoxLayout(row)
         layout.setContentsMargins(10, 8, 10, 8)
         name = QtWidgets.QLabel(self._staff_display_text(service.get("service_name") or service.get("name") or ""))
@@ -9198,8 +9228,8 @@ class StaffDashboardView(QtWidgets.QWidget):
 
     def _nav_button_style(self, is_active=False):
         base = (
-            "QPushButton { border: none; text-align: left; padding: 14px 20px; border-radius: 10px; "
-            "font-size: 15px; color: #111827; font-weight: 700; }"
+            "QPushButton { border: none; text-align: left; padding: 10px 12px; border-radius: 9px; "
+            "font-size: 13px; color: #111827; font-weight: 700; }"
         )
         if is_active:
             return base + "QPushButton { background-color: #e3f5ef; color: #0f9f6e; font-weight: 900; }"

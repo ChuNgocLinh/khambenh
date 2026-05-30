@@ -83,7 +83,7 @@ class ChartWidget(QtWidgets.QWidget):
 class DoctorLineChartWidget(QtWidgets.QWidget):
     def __init__(self, labels=None, values=None, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(250)
+        self.setMinimumHeight(200)
         self.labels = labels or []
         self.values = values or []
 
@@ -157,7 +157,7 @@ class DoctorLineChartWidget(QtWidgets.QWidget):
 class DoctorPieChartWidget(QtWidgets.QWidget):
     def __init__(self, chart_data=None, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(250)
+        self.setMinimumHeight(200)
         self.chart_data = chart_data or []
         self.colors = [
             QtGui.QColor("#69c0a5"),
@@ -241,15 +241,15 @@ class DashboardView(QtWidgets.QWidget):
 
         # SideBar Bác Sĩ
         self.sidebar = QtWidgets.QFrame()
-        self.sidebar.setFixedWidth(268)
+        self.sidebar.setFixedWidth(250)
         self.sidebar.setStyleSheet("background-color: #ffffff; border-right: 1px solid #edf2f7;")
         self.sidebar_layout = QtWidgets.QVBoxLayout(self.sidebar)
-        self.sidebar_layout.setContentsMargins(18, 28, 18, 26)
-        self.sidebar_layout.setSpacing(10)
+        self.sidebar_layout.setContentsMargins(12, 16, 12, 14)
+        self.sidebar_layout.setSpacing(6)
 
         self.logo = QtWidgets.QLabel("⊕ CarePlus")
         self.logo.setStyleSheet(
-            "color: #22c55e; font-size: 26px; font-weight: 900; margin-bottom: 28px; margin-left: 8px;"
+            "color: #22c55e; font-size: 23px; font-weight: 900; margin-bottom: 18px; margin-left: 6px;"
         )
         self.sidebar_layout.addWidget(self.logo)
 
@@ -265,9 +265,9 @@ class DashboardView(QtWidgets.QWidget):
         ]
         self.nav_buttons = []
         for i, (icon, text) in enumerate(menu_items):
-            btn = QtWidgets.QPushButton(f"   {icon}     {text}")
+            btn = QtWidgets.QPushButton(f"  {icon}   {text}")
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-            btn.setFixedHeight(58)
+            btn.setFixedHeight(44)
             btn.setStyleSheet(self._doctor_sidebar_button_style(i == 0))
             btn.clicked.connect(lambda checked, idx=i: self.switch_page(idx))
             self.nav_buttons.append(btn)
@@ -277,9 +277,9 @@ class DashboardView(QtWidgets.QWidget):
 
         self.btn_logout = QtWidgets.QPushButton("   ⎋     Đăng xuất")
         self.btn_logout.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-        self.btn_logout.setFixedHeight(54)
+        self.btn_logout.setFixedHeight(42)
         self.btn_logout.setStyleSheet(
-            "QPushButton { border: none; text-align: left; padding: 14px; padding-left: 20px; padding-right: 20px; border-radius: 16px; "
+            "QPushButton { border: none; text-align: left; padding: 11px; padding-left: 16px; padding-right: 16px; border-radius: 13px; "
             "color: #ef4444; font-size: 14px; font-weight: 800; background: transparent; }"
             "QPushButton:hover { background: #fef2f2; }"
         )
@@ -290,8 +290,8 @@ class DashboardView(QtWidgets.QWidget):
         self.content_container = QtWidgets.QWidget()
         self.content_container.setStyleSheet("background-color: #fbfdff;")
         self.content_layout = QtWidgets.QVBoxLayout(self.content_container)
-        self.content_layout.setContentsMargins(28, 22, 28, 22)
-        self.content_layout.setSpacing(18)
+        self.content_layout.setContentsMargins(18, 12, 18, 12)
+        self.content_layout.setSpacing(8)
         self.main_layout.addWidget(self.content_container)
 
         self.header_layout = QtWidgets.QHBoxLayout()
@@ -309,10 +309,10 @@ class DashboardView(QtWidgets.QWidget):
 
         self.header_notification_button = QtWidgets.QPushButton("🔔")
         self.header_notification_button.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-        self.header_notification_button.setFixedSize(38, 38)
+        self.header_notification_button.setFixedSize(34, 34)
         self.header_notification_button.setStyleSheet(
             "QPushButton { background: transparent; border: none; font-size: 20px; color: #94a3b8; }"
-            "QPushButton:hover { background: #f8fafc; border-radius: 19px; }"
+            "QPushButton:hover { background: #f8fafc; border-radius: 17px; }"
         )
         bell_grid.addWidget(
             self.header_notification_button,
@@ -322,10 +322,10 @@ class DashboardView(QtWidgets.QWidget):
         )
 
         self.bell_badge = QtWidgets.QLabel("0")
-        self.bell_badge.setFixedSize(18, 18)
+        self.bell_badge.setFixedSize(16, 16)
         self.bell_badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.bell_badge.setStyleSheet(
-            "background: #ff2d20; color: white; border-radius: 9px; font-size: 10px; font-weight: 800;"
+            "background: #ff2d20; color: white; border-radius: 8px; font-size: 10px; font-weight: 800;"
         )
         bell_grid.addWidget(
             self.bell_badge,
@@ -337,7 +337,7 @@ class DashboardView(QtWidgets.QWidget):
 
         self.user_info_layout = QtWidgets.QHBoxLayout()
         self.user_info_layout.setContentsMargins(0, 0, 0, 0)
-        self.user_info_layout.setSpacing(14)
+        self.user_info_layout.setSpacing(10)
 
         profile_frame = QtWidgets.QFrame()
         profile_frame.setStyleSheet("background: transparent; border: none;")
@@ -346,9 +346,9 @@ class DashboardView(QtWidgets.QWidget):
         profile_layout.setSpacing(10)
 
         self.user_avatar = QtWidgets.QLabel("👨‍⚕️")
-        self.user_avatar.setFixedSize(42, 42)
+        self.user_avatar.setFixedSize(38, 38)
         self.user_avatar.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.user_avatar.setStyleSheet("background: #eef2ff; border-radius: 21px; font-size: 20px;")
+        self.user_avatar.setStyleSheet("background: #eef2ff; border-radius: 19px; font-size: 18px;")
         self.user_name_lbl = QtWidgets.QLabel(f"Bác sĩ {self.user_data.get('name')} ▿")
         self.user_name_lbl.setStyleSheet("font-weight: 800; color: #0f172a; font-size: 14px;")
         profile_layout.addWidget(self.user_avatar)
@@ -379,7 +379,7 @@ class DashboardView(QtWidgets.QWidget):
 
         self.page_dashboard_layout = QtWidgets.QVBoxLayout(self.dashboard_container)
         self.page_dashboard_layout.setContentsMargins(0, 0, 0, 0)
-        self.page_dashboard_layout.setSpacing(20)
+        self.page_dashboard_layout.setSpacing(10)
 
         self.dashboard_scroll.setWidget(self.dashboard_container)
         outer_layout.addWidget(self.dashboard_scroll)
@@ -1109,10 +1109,10 @@ class DashboardView(QtWidgets.QWidget):
 
     def _build_dashboard_filter_bar(self):
         wrapper = QtWidgets.QFrame()
-        wrapper.setStyleSheet("background: white; border-radius: 18px; border: 1px solid #e2e8f0;")
+        wrapper.setStyleSheet("background: white; border-radius: 14px; border: 1px solid #e2e8f0;")
         layout = QtWidgets.QHBoxLayout(wrapper)
-        layout.setContentsMargins(18, 14, 18, 14)
-        layout.setSpacing(14)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(10)
 
         self.range_combo = QtWidgets.QComboBox()
         self.range_combo.addItem("7 ngày gần nhất", "7d")
@@ -1143,11 +1143,13 @@ class DashboardView(QtWidgets.QWidget):
             widget.setStyleSheet(
                 "padding: 8px 10px; border-radius: 8px; border: 1px solid #dbe2ea; background: white; color: #1f2937;"
             )
+            widget.setMinimumHeight(36)
             col.addWidget(label)
             col.addWidget(widget)
             layout.addLayout(col)
 
         apply_btn = QtWidgets.QPushButton("Cập nhật")
+        apply_btn.setMinimumHeight(36)
         apply_btn.setStyleSheet(
             "background: #69c0a5; color: white; border-radius: 8px; padding: 10px 16px; font-weight: 800;"
         )
@@ -1159,7 +1161,7 @@ class DashboardView(QtWidgets.QWidget):
 
     def _build_dashboard_kpi_row(self):
         row = QtWidgets.QHBoxLayout()
-        row.setSpacing(18)
+        row.setSpacing(10)
         kpis = self.dashboard_data.get("kpis", {})
         cards = [
             ("👥", "Tổng bệnh nhân đã khám", str(kpis.get("total_examined_patients", 0)), "#e6f2ff", "#2563eb"),
@@ -1186,14 +1188,14 @@ class DashboardView(QtWidgets.QWidget):
 
     def _build_dashboard_analytics_row(self):
         row = QtWidgets.QHBoxLayout()
-        row.setSpacing(20)
+        row.setSpacing(14)
         row.addWidget(self._build_status_analytics_card(), 5)
         row.addWidget(self._build_top_diseases_card(), 5)
         return row
 
     def _build_dashboard_trend_row(self):
         row = QtWidgets.QHBoxLayout()
-        row.setSpacing(20)
+        row.setSpacing(14)
         row.addWidget(
             self._build_chart_card(
                 "Xu hướng bệnh nhân theo ngày",
@@ -1218,7 +1220,7 @@ class DashboardView(QtWidgets.QWidget):
 
     def _build_dashboard_distribution_row(self):
         row = QtWidgets.QHBoxLayout()
-        row.setSpacing(20)
+        row.setSpacing(14)
         row.addWidget(
             self._build_chart_card(
                 "Phân loại thuốc đã kê",
@@ -1237,16 +1239,16 @@ class DashboardView(QtWidgets.QWidget):
 
     def _build_dashboard_summary_row(self):
         row = QtWidgets.QHBoxLayout()
-        row.setSpacing(20)
+        row.setSpacing(14)
         row.addWidget(self._build_weekly_summary_card(), 1)
         row.addWidget(self._build_month_summary_card(), 1)
         return row
 
     def _build_chart_card(self, title_text, widget):
         frame = QtWidgets.QFrame()
-        frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
+        frame.setStyleSheet("background: white; border-radius: 14px; border: 1px solid #e2e8f0;")
         layout = QtWidgets.QVBoxLayout(frame)
-        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setContentsMargins(14, 14, 14, 14)
         title = QtWidgets.QLabel(title_text)
         title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
         layout.addWidget(title)
@@ -1255,10 +1257,10 @@ class DashboardView(QtWidgets.QWidget):
 
     def _build_status_analytics_card(self):
         frame = QtWidgets.QFrame()
-        frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
+        frame.setStyleSheet("background: white; border-radius: 14px; border: 1px solid #e2e8f0;")
         layout = QtWidgets.QVBoxLayout(frame)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(8)
 
         title = QtWidgets.QLabel("Phân tích trạng thái lịch hẹn")
         title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
@@ -1289,16 +1291,16 @@ class DashboardView(QtWidgets.QWidget):
         for row_idx, row in enumerate(rows):
             for col_idx, text in enumerate(row):
                 table.setItem(row_idx, col_idx, QtWidgets.QTableWidgetItem(str(text)))
-            table.setRowHeight(row_idx, 42)
+            table.setRowHeight(row_idx, 36)
         layout.addWidget(table)
         return frame
 
     def _build_top_diseases_card(self):
         frame = QtWidgets.QFrame()
-        frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
+        frame.setStyleSheet("background: white; border-radius: 14px; border: 1px solid #e2e8f0;")
         layout = QtWidgets.QVBoxLayout(frame)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(8)
 
         title = QtWidgets.QLabel("Top 5 bệnh thường gặp")
         title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
@@ -1314,7 +1316,7 @@ class DashboardView(QtWidgets.QWidget):
                 card = QtWidgets.QFrame()
                 card.setStyleSheet("background: #f8fafc; border-radius: 12px;")
                 row = QtWidgets.QHBoxLayout(card)
-                row.setContentsMargins(12, 10, 12, 10)
+                row.setContentsMargins(10, 8, 10, 8)
                 name_lbl = QtWidgets.QLabel(f"#{index} {label}")
                 name_lbl.setStyleSheet("font-size: 13px; font-weight: 700; color: #1e293b;")
                 count_lbl = QtWidgets.QLabel(f"{count} ca")
@@ -1330,10 +1332,10 @@ class DashboardView(QtWidgets.QWidget):
     def _build_weekly_summary_card(self):
         summary = self.dashboard_data.get("weekly_summary", {})
         frame = QtWidgets.QFrame()
-        frame.setStyleSheet("background: white; border-radius: 20px; border: 1px solid #e2e8f0;")
+        frame.setStyleSheet("background: white; border-radius: 14px; border: 1px solid #e2e8f0;")
         layout = QtWidgets.QVBoxLayout(frame)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(8)
 
         title = QtWidgets.QLabel("Hiệu suất khám theo tuần")
         title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;")
@@ -1357,17 +1359,17 @@ class DashboardView(QtWidgets.QWidget):
     def _build_month_summary_card(self):
         summary = self.dashboard_data.get("month_summary", {})
         frame = QtWidgets.QFrame()
-        frame.setStyleSheet("background: #ecfdf3; border-radius: 20px; border: 1px solid #bbf7d0;")
+        frame.setStyleSheet("background: #ecfdf3; border-radius: 14px; border: 1px solid #bbf7d0;")
         layout = QtWidgets.QVBoxLayout(frame)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(8)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(6)
 
         title = QtWidgets.QLabel(f"Tổng tháng này ({summary.get('label', '')})")
         title.setStyleSheet("font-size: 16px; font-weight: 800; color: #166534;")
         layout.addWidget(title)
 
         total_lbl = QtWidgets.QLabel(str(summary.get("appointments", 0)))
-        total_lbl.setStyleSheet("font-size: 42px; font-weight: 900; color: #166534;")
+        total_lbl.setStyleSheet("font-size: 34px; font-weight: 900; color: #166534;")
         layout.addWidget(total_lbl)
 
         detail = QtWidgets.QLabel(
@@ -2368,11 +2370,11 @@ class DashboardView(QtWidgets.QWidget):
 
         header_widget = QtWidgets.QWidget()
         header_layout = QtWidgets.QVBoxLayout(header_widget)
-        header_layout.setContentsMargins(0, 0, 0, 18)
+        header_layout.setContentsMargins(0, 0, 0, 12)
         header_layout.setSpacing(6)
 
         title = QtWidgets.QLabel("Cài đặt")
-        title.setStyleSheet("font-size: 26px; font-weight: 900; color: #0f172a; border: none;")
+        title.setStyleSheet("font-size: 24px; font-weight: 900; color: #0f172a; border: none;")
         header_layout.addWidget(title)
 
         breadcrumb = QtWidgets.QLabel("Trang chủ   ›   Cài đặt")
@@ -2381,10 +2383,10 @@ class DashboardView(QtWidgets.QWidget):
         page_layout.addWidget(header_widget)
 
         content_wrapper = QtWidgets.QHBoxLayout()
-        content_wrapper.setSpacing(18)
+        content_wrapper.setSpacing(14)
 
         left_nav = QtWidgets.QFrame()
-        left_nav.setFixedWidth(288)
+        left_nav.setFixedWidth(250)
         left_nav.setStyleSheet("background: white; border-radius: 18px; border: 1px solid #e8eef5;")
         left_nav_layout = QtWidgets.QVBoxLayout(left_nav)
         left_nav_layout.setContentsMargins(14, 16, 14, 16)
@@ -2408,7 +2410,7 @@ class DashboardView(QtWidgets.QWidget):
         for key, icon, text, is_active in settings_menu_items:
             btn = QtWidgets.QPushButton(f"  {icon}   {text}")
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-            btn.setFixedHeight(48)
+            btn.setFixedHeight(42)
             btn.setStyleSheet(self._settings_nav_style(is_active))
             btn.clicked.connect(lambda _, selected_key=key: self._handle_settings_nav_action(selected_key))
             self._settings_nav_buttons.append((key, btn))
@@ -2941,12 +2943,12 @@ class DashboardView(QtWidgets.QWidget):
         if is_active:
             return (
                 "QPushButton { background: #edf9f1; color: #16a34a; border: none; text-align: left; "
-                "padding: 16px; padding-left: 20px; padding-right: 20px; border-radius: 16px; font-size: 14px; font-weight: 800; }"
+                "padding: 11px; padding-left: 16px; padding-right: 16px; border-radius: 13px; font-size: 13px; font-weight: 800; }"
             )
 
         return (
             "QPushButton { background: transparent; color: #0f172a; border: none; text-align: left; "
-            "padding: 16px; padding-left: 20px; padding-right: 20px; border-radius: 16px; font-size: 14px; font-weight: 700; }"
+            "padding: 11px; padding-left: 16px; padding-right: 16px; border-radius: 13px; font-size: 13px; font-weight: 700; }"
             "QPushButton:hover { background: #f8fafc; }"
         )
 
@@ -3853,12 +3855,12 @@ class DashboardView(QtWidgets.QWidget):
                 self.switch_page(index)
 
     def create_stat_card(self, icon, title, value, bg_color, text_color):
-        card = QtWidgets.QFrame(); card.setMinimumHeight(130); card.setStyleSheet(f"background-color: {bg_color}; border-radius: 20px; border: none;")
-        layout = QtWidgets.QHBoxLayout(card); layout.setContentsMargins(25, 25, 25, 25)
-        icon_lbl = QtWidgets.QLabel(icon); icon_lbl.setStyleSheet(f"font-size: 35px; color: {text_color}; background: transparent;")
-        text_v = QtWidgets.QVBoxLayout(); title_lbl = QtWidgets.QLabel(title); title_lbl.setStyleSheet(f"color: #475569; font-weight: 700; font-size: 14px;")
-        value_lbl = QtWidgets.QLabel(value); value_lbl.setStyleSheet(f"color: {text_color}; font-size: 38px; font-weight: 900;")
-        text_v.addWidget(title_lbl); text_v.addWidget(value_lbl); layout.addWidget(icon_lbl); layout.addSpacing(15); layout.addLayout(text_v); layout.addStretch()
+        card = QtWidgets.QFrame(); card.setMinimumHeight(96); card.setStyleSheet(f"background-color: {bg_color}; border-radius: 14px; border: none;")
+        layout = QtWidgets.QHBoxLayout(card); layout.setContentsMargins(14, 14, 14, 14)
+        icon_lbl = QtWidgets.QLabel(icon); icon_lbl.setStyleSheet(f"font-size: 28px; color: {text_color}; background: transparent;")
+        text_v = QtWidgets.QVBoxLayout(); title_lbl = QtWidgets.QLabel(title); title_lbl.setWordWrap(True); title_lbl.setStyleSheet(f"color: #475569; font-weight: 700; font-size: 12px;")
+        value_lbl = QtWidgets.QLabel(value); value_lbl.setStyleSheet(f"color: {text_color}; font-size: 28px; font-weight: 900;")
+        text_v.addWidget(title_lbl); text_v.addWidget(value_lbl); layout.addWidget(icon_lbl); layout.addSpacing(10); layout.addLayout(text_v); layout.addStretch()
         return card
 
 # =================================================================

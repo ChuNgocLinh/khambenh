@@ -1360,7 +1360,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
 
         # ── Body: Table (left) + Detail panel (right) ──
         body = QtWidgets.QHBoxLayout()
-        body.setSpacing(16)
+        body.setSpacing(12)
 
         # ─── TABLE CARD ───
         table_card = QtWidgets.QFrame()
@@ -2700,7 +2700,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
         super().__init__(parent)
         self.doctor_id = doctor_id
         self.role = "doctor"
-        self.page_size = 10
+        self.page_size = 8
         self.current_page = 1
         self.all_rows = []
         self.filtered_rows = []
@@ -2710,14 +2710,14 @@ class DoctorPatientListView(QtWidgets.QWidget):
         self.setStyleSheet(f"background: {PAGE_BG};")
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(14)
+        root.setSpacing(8)
         root.addWidget(page_title("Danh sách bệnh nhân", "Trang chủ  >  Danh sách bệnh nhân"))
         root.addWidget(self._build_filter_card())
 
         body = QtWidgets.QHBoxLayout()
-        body.setSpacing(16)
-        body.addWidget(self._build_table_card(), 7)
-        body.addWidget(self._build_detail_card(), 3)
+        body.setSpacing(10)
+        body.addWidget(self._build_table_card(), 8)
+        body.addWidget(self._build_detail_card(), 2)
         root.addLayout(body, 1)
 
         self.search_input.textChanged.connect(self._apply_filters)
@@ -2729,11 +2729,13 @@ class DoctorPatientListView(QtWidgets.QWidget):
     def _build_filter_card(self):
         wrapper = card()
         layout = QtWidgets.QVBoxLayout(wrapper)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
 
-        row = QtWidgets.QHBoxLayout()
-        row.setSpacing(10)
+        search_row = QtWidgets.QHBoxLayout()
+        search_row.setSpacing(8)
+        filter_row = QtWidgets.QHBoxLayout()
+        filter_row.setSpacing(8)
         self.search_input = QtWidgets.QLineEdit()
         self.search_input.setPlaceholderText("Tìm theo tên, SĐT, mã BN...")
         self.gender_filter = QtWidgets.QComboBox()
@@ -2743,19 +2745,19 @@ class DoctorPatientListView(QtWidgets.QWidget):
         self.status_filter = QtWidgets.QComboBox()
         self.status_filter.addItems(["Tất cả trạng thái", "Bệnh nhân mới", "Đang điều trị", "Tái khám", "Khám gần đây"])
         for widget in [self.search_input, self.gender_filter, self.age_filter, self.status_filter]:
-            widget.setMinimumHeight(44)
+            widget.setMinimumHeight(34)
             widget.setStyleSheet(input_style())
-        row.addWidget(self.search_input, 3)
-        row.addWidget(self.gender_filter, 1)
-        row.addWidget(self.age_filter, 1)
-        row.addWidget(self.status_filter, 1)
+        search_row.addWidget(self.search_input, 1)
+        for widget in [self.gender_filter, self.age_filter, self.status_filter]:
+            filter_row.addWidget(widget, 1)
         add_btn = button("+ Thêm bệnh nhân")
         add_btn.clicked.connect(self.add_patient)
         export_btn = button("Xuất danh sách", "outline")
         export_btn.clicked.connect(self.export_patients)
-        row.addWidget(export_btn)
-        row.addWidget(add_btn)
-        layout.addLayout(row)
+        search_row.addWidget(export_btn)
+        search_row.addWidget(add_btn)
+        layout.addLayout(search_row)
+        layout.addLayout(filter_row)
 
         self.tab_row = QtWidgets.QHBoxLayout()
         self.tab_row.setSpacing(8)
@@ -2770,20 +2772,21 @@ class DoctorPatientListView(QtWidgets.QWidget):
         self.table = QtWidgets.QTableWidget()
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels(
-            ["STT", "Mã BN", "Họ và tên", "Giới tính", "Ngày sinh", "SĐT", "Lần khám gần nhất", "Trạng thái", "Thao tác"]
+            ["STT", "Mã BN", "Họ và tên", "Giới tính", "Ngày sinh", "SĐT", "Lần khám", "Trạng thái", "Thao tác"]
         )
         self.table.setStyleSheet(table_style())
         self.table.setShowGrid(False)
+        self.table.setWordWrap(True)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self._configure_patient_table_columns()
         self.table.cellClicked.connect(lambda row, _col: self._select_patient_row(row))
         self.table.cellDoubleClicked.connect(lambda row, _col: self.open_patient_profile(row))
         layout.addWidget(self.table, 1)
 
         footer = QtWidgets.QHBoxLayout()
-        footer.setContentsMargins(16, 12, 16, 12)
+        footer.setContentsMargins(12, 8, 12, 8)
         self.status_label = QtWidgets.QLabel("")
         self.status_label.setStyleSheet("color: #667085; font-size: 13px;")
         self.prev_btn = icon_button("<")
@@ -2794,18 +2797,38 @@ class DoctorPatientListView(QtWidgets.QWidget):
         self.next_btn.clicked.connect(lambda: self._go_page(self.current_page + 1))
         footer.addWidget(self.status_label)
         footer.addStretch()
-        footer.addWidget(QtWidgets.QLabel("Hiển thị 10 bản ghi"))
+        footer.addWidget(QtWidgets.QLabel("Hiển thị 8 bản ghi"))
         footer.addWidget(self.prev_btn)
         footer.addWidget(self.page_label)
         footer.addWidget(self.next_btn)
         layout.addLayout(footer)
         return wrapper
 
+    def _configure_patient_table_columns(self):
+        header = self.table.horizontalHeader()
+        header.setMinimumSectionSize(34)
+        for col in range(self.table.columnCount()):
+            header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        column_widths = {
+            0: 38,
+            1: 78,
+            3: 50,
+            4: 80,
+            5: 88,
+            6: 78,
+            7: 100,
+            8: 104,
+        }
+        for col, width in column_widths.items():
+            self.table.setColumnWidth(col, width)
+        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
     def _build_detail_card(self):
         wrapper = card()
         layout = QtWidgets.QVBoxLayout(wrapper)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         title = QtWidgets.QLabel("Thông tin bệnh nhân")
         title.setStyleSheet("font-size: 18px; font-weight: 800; color: #101828;")
         layout.addWidget(title)
@@ -2903,13 +2926,13 @@ class DoctorPatientListView(QtWidgets.QWidget):
             tabs.append((key, f"{label} ({count})"))
         for key, text in tabs:
             btn = QtWidgets.QPushButton(text)
-            btn.setMinimumHeight(38)
+            btn.setMinimumHeight(34)
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
             active = key == self.active_tab
             btn.setStyleSheet(
                 "QPushButton { "
                 + ("background: #ECFDF3; color: #16B364; border: none;" if active else "background: white; color: #667085; border: 1px solid #EAECF0;")
-                + " border-radius: 10px; padding: 0 14px; font-weight: 800; }"
+                + " border-radius: 10px; padding: 0 10px; font-weight: 800; }"
             )
             btn.clicked.connect(lambda checked=False, tab=key: self._set_tab(tab))
             self.tab_row.addWidget(btn)
@@ -2981,7 +3004,7 @@ class DoctorPatientListView(QtWidgets.QWidget):
             self.table.setCellWidget(row_index, 2, self._patient_name_cell(row))
             self.table.setCellWidget(row_index, 7, badge(status_label, status_color, status_bg))
             self.table.setCellWidget(row_index, 8, self._patient_actions(row))
-            self.table.setRowHeight(row_index, 62)
+            self.table.setRowHeight(row_index, 56)
         self.page_label.setText(f"{self.current_page}/{total_pages}")
         self.prev_btn.setEnabled(self.current_page > 1)
         self.next_btn.setEnabled(self.current_page < total_pages)
@@ -2992,24 +3015,29 @@ class DoctorPatientListView(QtWidgets.QWidget):
     def _patient_name_cell(self, row):
         wrapper = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(wrapper)
-        layout.setContentsMargins(4, 6, 4, 6)
-        layout.setSpacing(10)
-        layout.addWidget(avatar(row.get("name")))
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(8)
+        layout.addWidget(avatar(row.get("name"), 34))
         info = QtWidgets.QVBoxLayout()
+        info.setSpacing(0)
         name = QtWidgets.QLabel(str(row.get("name", "")))
+        name.setWordWrap(True)
+        name.setToolTip(str(row.get("name", "")))
+        name.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         name.setStyleSheet("font-weight: 800; color: #101828;")
         meta = QtWidgets.QLabel(age_from_dob(row.get("dob")) or f"BN{int(row.get('patient_id') or 0):06d}")
+        meta.setToolTip(meta.text())
         meta.setStyleSheet("color: #667085; font-size: 12px;")
         info.addWidget(name)
         info.addWidget(meta)
         layout.addLayout(info)
-        layout.addStretch()
         return wrapper
 
     def _patient_actions(self, row):
         wrapper = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         for text, cb in [
             ("Xem", lambda checked=False, r=row: self.open_patient_profile_by_id(r.get("patient_id"))),
             ("Sửa", lambda checked=False, r=row: self.edit_patient(r)),
@@ -3038,9 +3066,11 @@ class DoctorPatientListView(QtWidgets.QWidget):
             if item.widget():
                 item.widget().deleteLater()
         head = QtWidgets.QHBoxLayout()
-        head.addWidget(avatar(row.get("name"), 58))
+        head.addWidget(avatar(row.get("name"), 50))
         text = QtWidgets.QVBoxLayout()
         name = QtWidgets.QLabel(str(row.get("name", "")))
+        name.setWordWrap(True)
+        name.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         name.setStyleSheet("font-size: 18px; font-weight: 900; color: #101828;")
         code = QtWidgets.QLabel(row.get("patient_code") or f"BN{int(row.get('patient_id') or 0):06d}")
         code.setStyleSheet("color: #667085;")
@@ -3210,7 +3240,7 @@ class PrescriptionView(QtWidgets.QWidget):
         super().__init__(parent)
         self.doctor_id = doctor_id
         self.role = "doctor"
-        self.page_size = 10
+        self.page_size = 8
         self.current_page = 1
         self.all_rows = []
         self.filtered_rows = []
@@ -3221,13 +3251,13 @@ class PrescriptionView(QtWidgets.QWidget):
 
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(14)
+        root.setSpacing(8)
         root.addWidget(page_title("Đơn thuốc của tôi", "Trang chủ  >  Đơn thuốc của tôi"))
         root.addWidget(self._build_filter_card())
         body = QtWidgets.QHBoxLayout()
-        body.setSpacing(16)
-        body.addWidget(self._build_table_card(), 7)
-        body.addWidget(self._build_summary_sidebar(), 3)
+        body.setSpacing(10)
+        body.addWidget(self._build_table_card(), 8)
+        body.addWidget(self._build_summary_sidebar(), 2)
         root.addLayout(body, 1)
 
         self.search_input.textChanged.connect(self._apply_filters)
@@ -3240,10 +3270,12 @@ class PrescriptionView(QtWidgets.QWidget):
     def _build_filter_card(self):
         wrapper = card()
         layout = QtWidgets.QVBoxLayout(wrapper)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
-        row = QtWidgets.QHBoxLayout()
-        row.setSpacing(10)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+        search_row = QtWidgets.QHBoxLayout()
+        search_row.setSpacing(8)
+        filter_row = QtWidgets.QHBoxLayout()
+        filter_row.setSpacing(8)
         self.search_input = QtWidgets.QLineEdit()
         self.search_input.setPlaceholderText("Tìm kiếm theo tên bệnh nhân, mã BN, số đơn...")
         self.from_date = QtWidgets.QDateEdit(QtCore.QDate.currentDate().addMonths(-1))
@@ -3256,17 +3288,16 @@ class PrescriptionView(QtWidgets.QWidget):
         self.type_filter = QtWidgets.QComboBox()
         self.type_filter.addItems(["Tất cả loại đơn", "Đơn mới", "Đơn tái khám", "Đơn cấp phát"])
         for widget in [self.search_input, self.from_date, self.to_date, self.status_filter, self.type_filter]:
-            widget.setMinimumHeight(44)
+            widget.setMinimumHeight(34)
             widget.setStyleSheet(input_style())
-        row.addWidget(self.search_input, 3)
-        row.addWidget(self.from_date, 1)
-        row.addWidget(self.to_date, 1)
-        row.addWidget(self.status_filter, 1)
-        row.addWidget(self.type_filter, 1)
+        search_row.addWidget(self.search_input, 1)
+        for widget in [self.from_date, self.to_date, self.status_filter, self.type_filter]:
+            filter_row.addWidget(widget, 1)
         self.create_prescription_btn = button("+ Tạo đơn thuốc")
         self.create_prescription_btn.clicked.connect(self.create_prescription)
-        row.addWidget(self.create_prescription_btn)
-        layout.addLayout(row)
+        search_row.addWidget(self.create_prescription_btn)
+        layout.addLayout(search_row)
+        layout.addLayout(filter_row)
         self.tab_row = QtWidgets.QHBoxLayout()
         self.tab_row.setSpacing(8)
         layout.addLayout(self.tab_row)
@@ -3281,12 +3312,13 @@ class PrescriptionView(QtWidgets.QWidget):
         self.table.setHorizontalHeaderLabels(["STT", "Số đơn", "Bệnh nhân", "Ngày kê", "Chẩn đoán", "Tổng tiền", "Trạng thái", "Thao tác"])
         self.table.setStyleSheet(table_style())
         self.table.setShowGrid(False)
+        self.table.setWordWrap(True)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self._configure_prescription_table_columns()
         layout.addWidget(self.table, 1)
         footer = QtWidgets.QHBoxLayout()
-        footer.setContentsMargins(16, 12, 16, 12)
+        footer.setContentsMargins(12, 8, 12, 8)
         self.message_label = QtWidgets.QLabel("")
         self.message_label.setStyleSheet("color: #667085; font-size: 13px;")
         self.prev_btn = icon_button("<")
@@ -3296,24 +3328,43 @@ class PrescriptionView(QtWidgets.QWidget):
         self.next_btn.clicked.connect(lambda: self._go_page(self.current_page + 1))
         footer.addWidget(self.message_label)
         footer.addStretch()
-        footer.addWidget(QtWidgets.QLabel("Hiển thị 10 bản ghi"))
+        footer.addWidget(QtWidgets.QLabel("Hiển thị 8 bản ghi"))
         footer.addWidget(self.prev_btn)
         footer.addWidget(self.page_label)
         footer.addWidget(self.next_btn)
         layout.addLayout(footer)
         return wrapper
 
+    def _configure_prescription_table_columns(self):
+        header = self.table.horizontalHeader()
+        header.setMinimumSectionSize(34)
+        for col in range(self.table.columnCount()):
+            header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        column_widths = {
+            0: 38,
+            1: 90,
+            3: 84,
+            4: 106,
+            5: 76,
+            6: 104,
+            7: 104,
+        }
+        for col, width in column_widths.items():
+            self.table.setColumnWidth(col, width)
+        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
     def _build_summary_sidebar(self):
         wrapper = card()
         layout = QtWidgets.QVBoxLayout(wrapper)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         title = QtWidgets.QLabel("Tổng quan")
         title.setStyleSheet("font-size: 18px; font-weight: 900; color: #101828;")
         layout.addWidget(title)
         self.summary_box = QtWidgets.QVBoxLayout()
         layout.addLayout(self.summary_box)
-        layout.addSpacing(8)
+        layout.addSpacing(4)
         quick = QtWidgets.QLabel("Thao tác nhanh")
         quick.setStyleSheet("font-size: 16px; font-weight: 800; color: #101828;")
         layout.addWidget(quick)
@@ -3363,12 +3414,12 @@ class PrescriptionView(QtWidgets.QWidget):
             tabs.append((key, f"{label} ({count})"))
         for key, text in tabs:
             btn = QtWidgets.QPushButton(text)
-            btn.setMinimumHeight(38)
+            btn.setMinimumHeight(34)
             active = key == self.active_tab
             btn.setStyleSheet(
                 "QPushButton { "
                 + ("background: #ECFDF3; color: #16B364; border: none;" if active else "background: white; color: #667085; border: 1px solid #EAECF0;")
-                + " border-radius: 10px; padding: 0 14px; font-weight: 800; }"
+                + " border-radius: 10px; padding: 0 10px; font-weight: 800; }"
             )
             btn.clicked.connect(lambda checked=False, tab=key: self._set_tab(tab))
             self.tab_row.addWidget(btn)
@@ -3386,6 +3437,18 @@ class PrescriptionView(QtWidgets.QWidget):
         if raw == "approved":
             return "issued"
         return raw if raw in self.STATUS_META else "draft"
+
+    @staticmethod
+    def _display_prescription_date(value):
+        if isinstance(value, datetime):
+            return value.strftime("%d/%m/%Y")
+        text = str(value or "").strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(text, fmt).strftime("%d/%m/%Y")
+            except ValueError:
+                continue
+        return text[:10] if len(text) > 10 else text
 
     def _matches(self, row):
         keyword = self.search_input.text().strip().lower()
@@ -3437,7 +3500,7 @@ class PrescriptionView(QtWidgets.QWidget):
                 start + index + 1,
                 f"RX{int(row.get('prescription_id') or 0):06d}",
                 "",
-                row.get("prescribed_at", ""),
+                self._display_prescription_date(row.get("prescribed_at", "")),
                 row.get("diagnosis", ""),
                 row.get("total_amount", "Chưa tính"),
                 "",
@@ -3447,7 +3510,7 @@ class PrescriptionView(QtWidgets.QWidget):
             self.table.setCellWidget(index, 2, self._patient_cell(row))
             self.table.setCellWidget(index, 6, badge(label, color, bg))
             self.table.setCellWidget(index, 7, self._prescription_actions(row))
-            self.table.setRowHeight(index, 62)
+            self.table.setRowHeight(index, 56)
         self.page_label.setText(f"{self.current_page}/{total_pages}")
         self.prev_btn.setEnabled(self.current_page > 1)
         self.next_btn.setEnabled(self.current_page < total_pages)
@@ -3459,12 +3522,20 @@ class PrescriptionView(QtWidgets.QWidget):
     def _patient_cell(self, row):
         wrapper = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(wrapper)
-        layout.setContentsMargins(4, 6, 4, 6)
-        layout.addWidget(avatar(row.get("patient_name")))
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(8)
+        layout.addWidget(avatar(row.get("patient_name"), 34))
         info = QtWidgets.QVBoxLayout()
+        info.setSpacing(0)
         name = QtWidgets.QLabel(str(row.get("patient_name", "")))
+        name.setWordWrap(True)
+        name.setToolTip(str(row.get("patient_name", "")))
+        name.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         name.setStyleSheet("font-weight: 800; color: #101828;")
         meta = QtWidgets.QLabel(str(row.get("medicine_name") or row.get("name") or ""))
+        meta.setWordWrap(True)
+        meta.setToolTip(meta.text())
+        meta.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         meta.setStyleSheet("color: #667085; font-size: 12px;")
         info.addWidget(name)
         info.addWidget(meta)
@@ -3475,6 +3546,7 @@ class PrescriptionView(QtWidgets.QWidget):
         wrapper = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         for text, cb in [
             ("Xem", lambda checked=False, r=row: self.view_prescription(r)),
             ("Sua", lambda checked=False, r=row: self.edit_prescription(r)),

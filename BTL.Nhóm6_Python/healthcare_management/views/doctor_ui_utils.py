@@ -52,11 +52,11 @@ def page_title(title, breadcrumb):
     wrapper = QtWidgets.QWidget()
     layout = QtWidgets.QVBoxLayout(wrapper)
     layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(4)
+    layout.setSpacing(3)
     title_label = QtWidgets.QLabel(title)
-    title_label.setStyleSheet(f"font-size: 30px; font-weight: 800; color: {TEXT}; background: transparent;")
+    title_label.setStyleSheet(f"font-size: 23px; font-weight: 800; color: {TEXT}; background: transparent;")
     crumb_label = QtWidgets.QLabel(breadcrumb)
-    crumb_label.setStyleSheet(f"font-size: 14px; color: {MUTED}; font-weight: 500; background: transparent;")
+    crumb_label.setStyleSheet(f"font-size: 13px; color: {MUTED}; font-weight: 500; background: transparent;")
     layout.addWidget(title_label)
     layout.addWidget(crumb_label)
     return wrapper
@@ -64,7 +64,10 @@ def page_title(title, breadcrumb):
 
 def card(radius=16):
     frame = QtWidgets.QFrame()
-    frame.setStyleSheet(f"background: white; border: 1px solid {CARD_BORDER}; border-radius: {radius}px;")
+    frame.setObjectName("doctorCard")
+    frame.setStyleSheet(
+        f"QFrame#doctorCard {{ background: white; border: 1px solid {CARD_BORDER}; border-radius: {radius}px; }}"
+    )
     return frame
 
 
@@ -101,7 +104,7 @@ def avatar(name, size=42, bg="#EAF7F0", color=GREEN):
 def input_style():
     return (
         "background: white; color: #344054; border: 1px solid #D0D5DD; border-radius: 10px; "
-        "padding: 8px 12px; font-size: 14px; font-weight: 500;"
+        "padding: 7px 11px; font-size: 13px; font-weight: 500;"
     )
 
 
@@ -109,15 +112,15 @@ def table_style():
     return (
         "QTableWidget { background: white; color: #344054; border: none; gridline-color: transparent; font-size: 13px; }"
         "QHeaderView::section { background: white; color: #101828; border: none; border-bottom: 1px solid #EAECF0; "
-        "padding: 12px 8px; font-weight: 800; font-size: 13px; }"
-        "QTableWidget::item { border-bottom: 1px solid #F2F4F7; padding: 8px; }"
+        "padding: 7px 6px; font-weight: 800; font-size: 13px; }"
+        "QTableWidget::item { border-bottom: 1px solid #F2F4F7; padding: 5px; }"
         "QTableWidget::item:selected { background: #ECFDF3; color: #101828; }"
     )
 
 
 def button(text, kind="primary"):
     btn = QtWidgets.QPushButton(text)
-    btn.setMinimumHeight(40)
+    btn.setMinimumHeight(34)
     btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
     if kind == "primary":
         css = "background: #16B364; color: white; border: none;"
@@ -125,13 +128,13 @@ def button(text, kind="primary"):
         css = "background: white; color: #F04438; border: 1px solid #FEE4E2;"
     else:
         css = "background: white; color: #344054; border: 1px solid #D0D5DD;"
-    btn.setStyleSheet(f"QPushButton {{ {css} border-radius: 10px; padding: 8px 14px; font-weight: 800; }}")
+    btn.setStyleSheet(f"QPushButton {{ {css} border-radius: 9px; padding: 7px 12px; font-weight: 800; }}")
     return btn
 
 
 def icon_button(text):
     btn = QtWidgets.QPushButton(text)
-    btn.setFixedSize(34, 34)
+    btn.setFixedSize(30, 30)
     btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
     btn.setStyleSheet(
         "QPushButton { background: white; color: #475467; border: 1px solid #EAECF0; "

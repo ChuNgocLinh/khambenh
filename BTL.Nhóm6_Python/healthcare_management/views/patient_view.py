@@ -111,15 +111,15 @@ class ServicePage(QtWidgets.QWidget):
         self.setStyleSheet("background: #f8fbff; color: #0f172a;")
 
         root = QtWidgets.QHBoxLayout(self)
-        root.setContentsMargins(28, 18, 28, 18)
-        root.setSpacing(18)
+        root.setContentsMargins(24, 14, 24, 14)
+        root.setSpacing(14)
 
         sidebar = QtWidgets.QFrame()
-        sidebar.setFixedWidth(255)
+        sidebar.setFixedWidth(240)
         sidebar.setStyleSheet("QFrame { background: #ffffff; border: 1px solid #eef2f7; border-radius: 14px; }")
         sidebar_layout = QtWidgets.QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(18, 18, 18, 18)
-        sidebar_layout.setSpacing(8)
+        sidebar_layout.setContentsMargins(16, 16, 16, 16)
+        sidebar_layout.setSpacing(6)
 
         side_items = [
             ("▦", "Tất cả dịch vụ", "all"),
@@ -135,7 +135,7 @@ class ServicePage(QtWidgets.QWidget):
         for index, (icon, text, action) in enumerate(side_items):
             btn = QtWidgets.QPushButton(f"{icon}   {text}")
             btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
-            btn.setMinimumHeight(42)
+            btn.setMinimumHeight(36)
             btn.setStyleSheet(self._service_side_button_style(index == 0))
             btn.clicked.connect(lambda _, key=action: self.handle_action(key))
             sidebar_layout.addWidget(btn)
@@ -147,14 +147,14 @@ class ServicePage(QtWidgets.QWidget):
             "QLabel { border: none; background: transparent; }"
         )
         emergency_layout = QtWidgets.QVBoxLayout(emergency)
-        emergency_layout.setContentsMargins(16, 18, 16, 18)
-        emergency_layout.setSpacing(8)
+        emergency_layout.setContentsMargins(14, 12, 14, 12)
+        emergency_layout.setSpacing(5)
         emergency_title = QtWidgets.QLabel("Hỗ trợ khẩn cấp")
         emergency_title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         emergency_title.setStyleSheet("color: #334155; font-size: 13px; font-weight: 700;")
         emergency_phone = QtWidgets.QLabel("📞  1900 1234")
         emergency_phone.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        emergency_phone.setStyleSheet("color: #49b87d; font-size: 22px; font-weight: 900;")
+        emergency_phone.setStyleSheet("color: #49b87d; font-size: 18px; font-weight: 900;")
         emergency_note = QtWidgets.QLabel("24/7 - Miễn phí cước")
         emergency_note.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         emergency_note.setStyleSheet("color: #334155; font-size: 12px; font-weight: 600;")
@@ -172,47 +172,47 @@ class ServicePage(QtWidgets.QWidget):
         content.setStyleSheet("background: transparent;")
         content_layout = QtWidgets.QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(18)
+        content_layout.setSpacing(12)
 
         top_row = QtWidgets.QHBoxLayout()
-        top_row.setSpacing(18)
+        top_row.setSpacing(14)
         banner = QtWidgets.QFrame()
-        banner.setMinimumHeight(205)
+        banner.setMinimumHeight(160)
         banner.setStyleSheet(
             "QFrame { background: #ffffff; border: 1px solid #eef2f7; border-radius: 14px; }"
             "QLabel { border: none; background: transparent; }"
         )
         banner_layout = QtWidgets.QHBoxLayout(banner)
-        banner_layout.setContentsMargins(28, 22, 28, 22)
-        banner_layout.setSpacing(18)
+        banner_layout.setContentsMargins(22, 16, 22, 16)
+        banner_layout.setSpacing(14)
         banner_text = QtWidgets.QVBoxLayout()
-        banner_text.setSpacing(12)
+        banner_text.setSpacing(8)
         banner_title = QtWidgets.QLabel("Dịch vụ chăm sóc sức khỏe")
-        banner_title.setStyleSheet("font-size: 25px; font-weight: 900; color: #0f2a55;")
+        banner_title.setStyleSheet("font-size: 22px; font-weight: 900; color: #0f2a55;")
         banner_desc = QtWidgets.QLabel("Đặt lịch khám, tư vấn và quản lý sức khỏe\ndễ dàng và nhanh chóng")
-        banner_desc.setStyleSheet("font-size: 15px; line-height: 150%; color: #334155;")
+        banner_desc.setStyleSheet("font-size: 13px; line-height: 140%; color: #334155;")
         banner_text.addStretch()
         banner_text.addWidget(banner_title)
         banner_text.addWidget(banner_desc)
         banner_text.addStretch()
         hero = QtWidgets.QLabel("🛡\n✚  🗓  🩺")
         hero.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        hero.setStyleSheet("font-size: 52px; color: #4fbf9f;")
+        hero.setStyleSheet("font-size: 42px; color: #4fbf9f;")
         banner_layout.addLayout(banner_text, 1)
         banner_layout.addWidget(hero, 1)
         top_row.addWidget(banner, 3)
 
         quick = QtWidgets.QFrame()
-        quick.setMinimumHeight(205)
+        quick.setMinimumHeight(160)
         quick.setStyleSheet(
             "QFrame { background: #ffffff; border: 1px solid #eef2f7; border-radius: 14px; }"
             "QLabel { border: none; background: transparent; }"
         )
         quick_layout = QtWidgets.QVBoxLayout(quick)
-        quick_layout.setContentsMargins(18, 16, 18, 18)
-        quick_layout.setSpacing(12)
+        quick_layout.setContentsMargins(16, 14, 16, 14)
+        quick_layout.setSpacing(8)
         quick_title = QtWidgets.QLabel("Truy cập nhanh")
-        quick_title.setStyleSheet("font-size: 17px; font-weight: 900; color: #0f2a55;")
+        quick_title.setStyleSheet("font-size: 15px; font-weight: 900; color: #0f2a55;")
         quick_layout.addWidget(quick_title)
         quick_grid = QtWidgets.QGridLayout()
         quick_grid.setHorizontalSpacing(12)
@@ -231,8 +231,8 @@ class ServicePage(QtWidgets.QWidget):
 
         content_layout.addWidget(self._section_title("Nhóm dịch vụ"))
         service_grid = QtWidgets.QGridLayout()
-        service_grid.setHorizontalSpacing(18)
-        service_grid.setVerticalSpacing(18)
+        service_grid.setHorizontalSpacing(12)
+        service_grid.setVerticalSpacing(12)
         service_cards = [
             ("🩺", "Khám bệnh", "Đặt lịch khám với bác sĩ\nchuyên khoa", "Đặt lịch ngay", "booking", "#eef3ff", "#5b72f2"),
             ("⚗", "Xét nghiệm", "Đặt lịch xét nghiệm và\nxem kết quả online", "Đặt lịch ngay", "lab_results", "#f5ebff", "#b35be2"),
@@ -267,7 +267,7 @@ class ServicePage(QtWidgets.QWidget):
 
         content_layout.addWidget(self._section_title("Tiện ích khác"))
         utility_grid = QtWidgets.QGridLayout()
-        utility_grid.setHorizontalSpacing(14)
+        utility_grid.setHorizontalSpacing(10)
         utility_items = [
             ("▰", "Hồ sơ sức khỏe", "Xem và quản lý hồ sơ\nsức khỏe của bạn", "profile", "#eaf4ff", "#2e9dde"),
             ("▦", "Lịch sử khám bệnh", "Xem lịch sử khám\nvà điều trị", "history", "#eaf4ff", "#2e9dde"),
@@ -287,11 +287,11 @@ class ServicePage(QtWidgets.QWidget):
         if active:
             return (
                 "QPushButton { background: #49b87d; color: white; border: none; border-radius: 8px;"
-                " text-align: left; padding: 10px 12px; font-size: 13px; font-weight: 900; }"
+                " text-align: left; padding: 8px 10px; font-size: 12px; font-weight: 900; }"
             )
         return (
             "QPushButton { background: transparent; color: #0f172a; border: none; border-radius: 8px;"
-            " text-align: left; padding: 10px 12px; font-size: 13px; font-weight: 700; }"
+            " text-align: left; padding: 8px 10px; font-size: 12px; font-weight: 700; }"
             "QPushButton:hover { background: #f1f5f9; color: #49b87d; }"
         )
 
@@ -303,10 +303,10 @@ class ServicePage(QtWidgets.QWidget):
     def _build_quick_tile(self, icon, title, action, bg, fg):
         btn = QtWidgets.QPushButton(f"{icon}   {title}")
         btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
-        btn.setMinimumHeight(66)
+        btn.setMinimumHeight(52)
         btn.setStyleSheet(
             "QPushButton { background: #ffffff; border: 1px solid #eef2f7; border-radius: 10px;"
-            f" color: #0f2a55; font-size: 13px; font-weight: 900; text-align: left; padding: 12px 14px; }}"
+            f" color: #0f2a55; font-size: 12px; font-weight: 900; text-align: left; padding: 9px 12px; }}"
             f"QPushButton:hover {{ background: {bg}; color: {fg}; border-color: {bg}; }}"
         )
         btn.clicked.connect(lambda: self.handle_action(action))
@@ -314,26 +314,26 @@ class ServicePage(QtWidgets.QWidget):
 
     def _build_service_card(self, icon, title, desc, button_text, action, icon_bg, icon_fg):
         card = QtWidgets.QFrame()
-        card.setMinimumHeight(155)
+        card.setMinimumHeight(130)
         card.setStyleSheet(
             "QFrame { background: #ffffff; border: 1px solid #eef2f7; border-radius: 12px; }"
             "QLabel { border: none; background: transparent; }"
         )
         layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(16, 16, 16, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 10)
+        layout.setSpacing(6)
 
         top = QtWidgets.QHBoxLayout()
         icon_label = QtWidgets.QLabel(icon)
-        icon_label.setFixedSize(58, 58)
+        icon_label.setFixedSize(44, 44)
         icon_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        icon_label.setStyleSheet(f"background: {icon_bg}; color: {icon_fg}; border-radius: 10px; font-size: 28px;")
+        icon_label.setStyleSheet(f"background: {icon_bg}; color: {icon_fg}; border-radius: 9px; font-size: 22px;")
         text_col = QtWidgets.QVBoxLayout()
-        text_col.setSpacing(6)
+        text_col.setSpacing(4)
         title_label = QtWidgets.QLabel(title)
-        title_label.setStyleSheet("font-size: 15px; font-weight: 900; color: #0f2a55;")
+        title_label.setStyleSheet("font-size: 13px; font-weight: 900; color: #0f2a55;")
         desc_label = QtWidgets.QLabel(desc)
-        desc_label.setStyleSheet("font-size: 12px; color: #334155; line-height: 140%;")
+        desc_label.setStyleSheet("font-size: 11px; color: #334155; line-height: 130%;")
         text_col.addWidget(title_label)
         text_col.addWidget(desc_label)
         top.addWidget(icon_label)
@@ -342,10 +342,10 @@ class ServicePage(QtWidgets.QWidget):
 
         action_btn = QtWidgets.QPushButton(f"{button_text}     →")
         action_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
-        action_btn.setMinimumHeight(34)
+        action_btn.setMinimumHeight(30)
         action_btn.setStyleSheet(
             "QPushButton { background: #edf6f2; color: #35a978; border: none; border-radius: 8px;"
-            " font-size: 12px; font-weight: 900; }"
+            " font-size: 11px; font-weight: 900; }"
             "QPushButton:hover { background: #dff3eb; }"
         )
         action_btn.clicked.connect(lambda: self.handle_action(action))
@@ -355,10 +355,10 @@ class ServicePage(QtWidgets.QWidget):
     def _build_utility_tile(self, icon, title, desc, action, icon_bg, icon_fg):
         tile = QtWidgets.QPushButton(f"{icon}   {title}\n      {desc}")
         tile.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
-        tile.setMinimumHeight(92)
+        tile.setMinimumHeight(72)
         tile.setStyleSheet(
             "QPushButton { background: #ffffff; border: 1px solid #eef2f7; border-radius: 10px;"
-            " color: #0f2a55; font-size: 12px; font-weight: 800; text-align: left; padding: 12px; }"
+            " color: #0f2a55; font-size: 11px; font-weight: 800; text-align: left; padding: 9px; }"
             f"QPushButton:hover {{ background: {icon_bg}; color: {icon_fg}; }}"
         )
         tile.clicked.connect(lambda: self.handle_action(action))
@@ -416,7 +416,10 @@ class DoctorPage(QtWidgets.QWidget):
         self.on_open_doctor_profile = on_open_doctor_profile
         self.on_book_doctor = on_book_doctor
 
-        self.page_size = 8
+        self.page_size = 6
+        self.card_width = 210
+        self.card_height = 255
+        self._rendered_col_count = 0
         self.current_page = 1
         self.all_doctors = []
         self.filtered_doctors = []
@@ -454,38 +457,38 @@ class DoctorPage(QtWidgets.QWidget):
 
     def init_ui(self):
         root_layout = QtWidgets.QVBoxLayout(self)
-        root_layout.setContentsMargins(40, 20, 40, 20)
-        root_layout.setSpacing(16)
+        root_layout.setContentsMargins(34, 14, 34, 14)
+        root_layout.setSpacing(10)
 
         header_layout = QtWidgets.QVBoxLayout()
         title = QtWidgets.QLabel("Đội ngũ bác sĩ")
-        title.setStyleSheet("font-size: 26px; font-weight: 800; color: #2c3e50;")
+        title.setStyleSheet("font-size: 24px; font-weight: 800; color: #2c3e50;")
         header_layout.addWidget(title)
 
         desc = QtWidgets.QLabel(
             "Tìm kiếm và đặt lịch hẹn với các bác sĩ chuyên khoa giàu kinh nghiệm"
         )
         desc.setWordWrap(True)
-        desc.setStyleSheet("color: #64748b; font-size: 14px;")
+        desc.setStyleSheet("color: #64748b; font-size: 13px;")
         header_layout.addWidget(desc)
         root_layout.addLayout(header_layout)
 
         body_layout = QtWidgets.QHBoxLayout()
-        body_layout.setSpacing(20)
-        root_layout.addLayout(body_layout)
+        body_layout.setSpacing(16)
+        root_layout.addLayout(body_layout, 1)
 
         # LEFT SIDEBAR
         left_sidebar = QtWidgets.QFrame()
-        left_sidebar.setFixedWidth(260)
+        left_sidebar.setFixedWidth(230)
         left_sidebar.setStyleSheet(
             "background: white; border-radius: 12px; border: 1px solid #eef0f2;"
         )
         left_layout = QtWidgets.QVBoxLayout(left_sidebar)
-        left_layout.setContentsMargins(20, 20, 20, 20)
-        left_layout.setSpacing(12)
+        left_layout.setContentsMargins(14, 14, 14, 14)
+        left_layout.setSpacing(8)
 
         left_title = QtWidgets.QLabel("Tìm kiếm bác sĩ")
-        left_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b;")
+        left_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
         left_layout.addWidget(left_title)
 
         search_row = QtWidgets.QHBoxLayout()
@@ -494,7 +497,7 @@ class DoctorPage(QtWidgets.QWidget):
         self.search_input = QtWidgets.QLineEdit()
         self.search_input.setPlaceholderText("Tìm theo tên bác sĩ...")
         self.search_input.setStyleSheet(
-            "padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1;"
+            "padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;"
             "font-size: 13px; background: #f8fafc;"
         )
         search_row.addWidget(self.search_input, 1)
@@ -526,15 +529,15 @@ class DoctorPage(QtWidgets.QWidget):
         self.search_btn = QtWidgets.QPushButton("Tìm kiếm")
         self.search_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.search_btn.setStyleSheet(
-            "background: #69c0a5; color: white; padding: 10px; border-radius: 6px;"
-            "font-weight: bold; font-size: 14px; margin-top: 8px; border: none;"
+            "background: #69c0a5; color: white; padding: 8px; border-radius: 6px;"
+            "font-weight: bold; font-size: 13px; margin-top: 6px; border: none;"
         )
         left_layout.addWidget(self.search_btn)
 
         self.reset_btn = QtWidgets.QPushButton("Xóa bộ lọc")
         self.reset_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.reset_btn.setStyleSheet(
-            "background: white; color: #475569; padding: 10px; border-radius: 6px;"
+            "background: white; color: #475569; padding: 8px; border-radius: 6px;"
             "font-weight: bold; font-size: 13px; border: 1px solid #cbd5e1;"
         )
         left_layout.addWidget(self.reset_btn)
@@ -545,7 +548,7 @@ class DoctorPage(QtWidgets.QWidget):
         center_widget = QtWidgets.QWidget()
         center_layout = QtWidgets.QVBoxLayout(center_widget)
         center_layout.setContentsMargins(0, 0, 0, 0)
-        center_layout.setSpacing(12)
+        center_layout.setSpacing(8)
 
         center_header = QtWidgets.QHBoxLayout()
         center_title = QtWidgets.QLabel("Danh sách bác sĩ")
@@ -596,7 +599,7 @@ class DoctorPage(QtWidgets.QWidget):
         self.grid_widget.setStyleSheet("background: transparent;")
         self.grid_layout = QtWidgets.QGridLayout(self.grid_widget)
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.grid_layout.setSpacing(15)
+        self.grid_layout.setSpacing(12)
         self.scroll_area.setWidget(self.grid_widget)
         list_layout.addWidget(self.scroll_area)
 
@@ -665,7 +668,7 @@ class DoctorPage(QtWidgets.QWidget):
 
         # RIGHT SIDEBAR
         right_sidebar_layout = QtWidgets.QVBoxLayout()
-        right_sidebar_layout.setSpacing(20)
+        right_sidebar_layout.setSpacing(12)
 
         quick_items = [
             ("📅", "Đặt lịch khám", "booking"),
@@ -695,12 +698,12 @@ class DoctorPage(QtWidgets.QWidget):
     def create_filter_combo(self, parent_layout, label_text, items):
         label = QtWidgets.QLabel(label_text)
         label.setStyleSheet(
-            "font-size: 13px; font-weight: bold; color: #475569; margin-top: 4px;"
+            "font-size: 12px; font-weight: bold; color: #475569; margin-top: 2px;"
         )
         combo = QtWidgets.QComboBox()
         combo.addItems(items)
         combo.setStyleSheet(
-            "padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;"
+            "padding: 7px; border-radius: 6px; border: 1px solid #cbd5e1;"
             "font-size: 13px; background: white;"
         )
         parent_layout.addWidget(label)
@@ -711,25 +714,33 @@ class DoctorPage(QtWidgets.QWidget):
         panel = QtWidgets.QFrame()
         panel.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #eef0f2;")
         layout = QtWidgets.QVBoxLayout(panel)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(8)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(6)
 
         title = QtWidgets.QLabel(title_text)
-        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b; margin-bottom: 6px;")
+        title.setStyleSheet("font-size: 13px; font-weight: bold; color: #1e293b; margin-bottom: 4px;")
         layout.addWidget(title)
 
-        for item in items:
+        visible_items = items[:6] if is_specialty else items
+        for item in visible_items:
             icon, text = item[0], item[1]
             meta = item[2] if len(item) > 2 else ""
             suffix = f" ({meta})" if is_specialty and meta else ""
 
-            button = QtWidgets.QPushButton(f"{icon}  {text}{suffix}   ›")
+            arrow = "" if is_specialty else "   ›"
+            button = QtWidgets.QPushButton(f"{icon}  {text}{suffix}{arrow}")
             button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+            button.setToolTip(f"{text}{suffix}")
+            button.setMinimumHeight(26)
+            button.setSizePolicy(
+                QtWidgets.QSizePolicy.Policy.Expanding,
+                QtWidgets.QSizePolicy.Policy.Fixed,
+            )
             button.setStyleSheet(
                 "QPushButton {"
-                " text-align: left; padding: 8px 10px; border-radius: 8px;"
+                " text-align: left; padding: 5px 6px; border-radius: 8px;"
                 " border: 1px solid transparent; background: transparent;"
-                " color: #475569; font-size: 12px;"
+                " color: #475569; font-size: 10px;"
                 "}"
                 "QPushButton:hover {"
                 " background: #f8fafc; border-color: #e2e8f0;"
@@ -752,7 +763,7 @@ class DoctorPage(QtWidgets.QWidget):
             view_all.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             view_all.setStyleSheet(
                 "QPushButton { text-align: left; border: none; color: #2563eb;"
-                " font-size: 12px; font-weight: bold; padding: 6px 2px; }"
+                " font-size: 11px; font-weight: bold; padding: 5px 2px; }"
                 "QPushButton:hover { color: #1d4ed8; }"
             )
             view_all.clicked.connect(self.reset_specialty_filter)
@@ -1029,7 +1040,8 @@ class DoctorPage(QtWidgets.QWidget):
         self.doctors_data = self.filtered_doctors[start:end]
 
         self.clear_grid_layout()
-        col_count = 3
+        col_count = self._doctor_column_count()
+        self._rendered_col_count = col_count
         for index, doctor in enumerate(self.doctors_data):
             card = self.create_doctor_card(doctor)
             self.grid_layout.addWidget(card, index // col_count, index % col_count)
@@ -1048,6 +1060,23 @@ class DoctorPage(QtWidgets.QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+    def _doctor_column_count(self):
+        viewport_width = self.scroll_area.viewport().width() if hasattr(self, "scroll_area") else 0
+        card_width = self.card_width + self.grid_layout.horizontalSpacing()
+        if viewport_width <= 0 or card_width <= 0:
+            return 3
+
+        return max(1, min(3, viewport_width // card_width))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not getattr(self, "doctors_data", None):
+            return
+
+        new_col_count = self._doctor_column_count()
+        if new_col_count != self._rendered_col_count:
+            QtCore.QTimer.singleShot(0, self.render_current_page)
 
     def show_state(self, state, title, description):
         self.state_title.setText(title)
@@ -1078,19 +1107,19 @@ class DoctorPage(QtWidgets.QWidget):
     def create_doctor_card(self, doctor):
         card = QtWidgets.QFrame()
         card.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #eef0f2;")
-        card.setFixedSize(230, 315)
+        card.setFixedSize(self.card_width, self.card_height)
 
         layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(4)
 
         top_layout = QtWidgets.QHBoxLayout()
 
         avatar_btn = QtWidgets.QPushButton("🧑‍⚕️")
-        avatar_btn.setFixedSize(50, 50)
+        avatar_btn.setFixedSize(44, 44)
         avatar_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         avatar_btn.setStyleSheet(
-            "background: #f1f5f9; border-radius: 25px; font-size: 24px;"
+            "background: #f1f5f9; border-radius: 22px; font-size: 20px;"
             "border: 2px solid #e2e8f0;"
         )
         avatar_btn.clicked.connect(lambda: self.open_doctor_profile(doctor))
@@ -1098,7 +1127,7 @@ class DoctorPage(QtWidgets.QWidget):
         badge = QtWidgets.QLabel(doctor.get("experience_label", "0 năm KN"))
         badge.setStyleSheet(
             "background: #d1fae5; color: #059669; border-radius: 8px; padding: 4px 8px;"
-            "font-size: 11px; font-weight: bold;"
+            "font-size: 10px; font-weight: bold;"
         )
         badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 
@@ -1112,7 +1141,7 @@ class DoctorPage(QtWidgets.QWidget):
         name_btn.setStyleSheet(
             "QPushButton {"
             " text-align: left; border: none; padding: 0;"
-            " font-size: 14px; font-weight: bold; color: #1e293b;"
+            " font-size: 13px; font-weight: bold; color: #1e293b;"
             "}"
             "QPushButton:hover { color: #0f766e; }"
         )
@@ -1120,11 +1149,11 @@ class DoctorPage(QtWidgets.QWidget):
         layout.addWidget(name_btn)
 
         specialty = QtWidgets.QLabel(doctor.get("specialty", "Chuyên khoa"))
-        specialty.setStyleSheet("font-size: 12px; color: #059669; font-weight: bold;")
+        specialty.setStyleSheet("font-size: 11px; color: #059669; font-weight: bold;")
         layout.addWidget(specialty)
 
         hospital = QtWidgets.QLabel(doctor.get("hospital", "Bệnh viện CarePlus"))
-        hospital.setStyleSheet("font-size: 11px; color: #64748b;")
+        hospital.setStyleSheet("font-size: 10px; color: #64748b;")
         hospital.setWordWrap(True)
         layout.addWidget(hospital)
 
@@ -1134,7 +1163,7 @@ class DoctorPage(QtWidgets.QWidget):
         rating_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         rating_btn.setStyleSheet(
             "QPushButton { text-align: left; border: none; padding: 0;"
-            " font-size: 11px; color: #d97706; }"
+            " font-size: 10px; color: #d97706; }"
             "QPushButton:hover { color: #b45309; }"
         )
         rating_btn.clicked.connect(lambda: self.open_doctor_profile(doctor, open_reviews=True))
@@ -1147,7 +1176,7 @@ class DoctorPage(QtWidgets.QWidget):
         view_profile_btn.setStyleSheet(
             "QPushButton {"
             " background: white; border: 1px solid #69c0a5; color: #69c0a5;"
-            " border-radius: 6px; padding: 7px; font-weight: bold; font-size: 12px;"
+            " border-radius: 6px; padding: 5px; font-weight: bold; font-size: 11px;"
             "}"
             "QPushButton:hover { background: #f0fdf4; }"
         )
@@ -1159,7 +1188,7 @@ class DoctorPage(QtWidgets.QWidget):
         book_btn.setStyleSheet(
             "QPushButton {"
             " background: #69c0a5; border: none; color: white;"
-            " border-radius: 6px; padding: 7px; font-weight: bold; font-size: 12px;"
+            " border-radius: 6px; padding: 5px; font-weight: bold; font-size: 11px;"
             "}"
             "QPushButton:hover { background: #58a68e; }"
         )
@@ -1171,7 +1200,7 @@ class DoctorPage(QtWidgets.QWidget):
         view_slots_btn.setStyleSheet(
             "QPushButton {"
             " background: transparent; border: none; color: #2563eb;"
-            " font-size: 12px; font-weight: bold;"
+            " font-size: 11px; font-weight: bold;"
             "}"
             "QPushButton:hover { color: #1d4ed8; }"
         )

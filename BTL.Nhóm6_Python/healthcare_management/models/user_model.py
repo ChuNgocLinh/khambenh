@@ -40,7 +40,42 @@ class UserModel:
 
     @staticmethod
     def _ensure_auth_schema():
-        pass
+        if UserModel._auth_schema_checked:
+            return
+        UserModel._auth_schema_checked = True
+
+        if DB_TYPE == "mysql":
+            execute("ALTER TABLE Users ADD COLUMN is_active BOOLEAN DEFAULT TRUE")
+            execute("ALTER TABLE Users ADD COLUMN deleted_at DATETIME NULL")
+            execute("ALTER TABLE Users ADD COLUMN force_change_password BOOLEAN DEFAULT FALSE")
+            return
+
+        execute(
+            """
+            IF COL_LENGTH('dbo.Users', 'is_active') IS NULL
+            BEGIN
+                ALTER TABLE dbo.Users
+                ADD is_active BIT NOT NULL CONSTRAINT DF_Users_is_active DEFAULT 1
+            END
+            """
+        )
+        execute(
+            """
+            IF COL_LENGTH('dbo.Users', 'deleted_at') IS NULL
+            BEGIN
+                ALTER TABLE dbo.Users ADD deleted_at DATETIME2 NULL
+            END
+            """
+        )
+        execute(
+            """
+            IF COL_LENGTH('dbo.Users', 'force_change_password') IS NULL
+            BEGIN
+                ALTER TABLE dbo.Users
+                ADD force_change_password BIT NOT NULL CONSTRAINT DF_Users_force_change_password DEFAULT 0
+            END
+            """
+        )
 
     @staticmethod
     def _load_effective_roles(user_id, base_role):
@@ -112,16 +147,20 @@ class UserModel:
     @staticmethod
     def login(username, password):
         UserModel._ensure_auth_schema()
+        username = str(username or "").strip()
+        password = str(password or "")
+        if not username or not password:
+            return None
+
         hashed_password = UserModel.hash_password(password)
         query = """
             SELECT user_id, username, password, role, COALESCE(is_active, 1) AS is_active, deleted_at, COALESCE(force_change_password, 0) AS force_change_password
             FROM Users
             WHERE username=?
-              AND password=?
               AND COALESCE(is_active, 1) = 1
               AND deleted_at IS NULL
         """
-        row = fetch_one(query, (username, hashed_password))
+        row = fetch_one(query, (username,))
 
         if not row:
             return None
@@ -141,6 +180,14 @@ class UserModel:
             user_data["force_change_password"] = row.get("force_change_password", 0)
         else:
             return None
+
+        stored_password = str(user_data.get("password") or "")
+        if stored_password != hashed_password:
+            if stored_password == password:
+                execute("UPDATE Users SET password=? WHERE user_id=?", (hashed_password, user_data.get("user_id")))
+                user_data["password"] = hashed_password
+            else:
+                return None
 
         base_role = UserModel.resolve_login_role(
             user_data.get("role"),
@@ -204,6 +251,7 @@ class UserModel:
 
     @staticmethod
     def verify_password(user_id, password):
+        UserModel._ensure_auth_schema()
         row = fetch_one("SELECT password FROM Users WHERE user_id=? AND COALESCE(is_active, 1)=1", (user_id,))
         if not row:
             return False
@@ -222,6 +270,7 @@ class UserModel:
 
     @staticmethod
     def change_password(user_id, current_password, new_password):
+        UserModel._ensure_auth_schema()
         if not UserModel.verify_password(user_id, current_password):
             return False
 
@@ -230,6 +279,7 @@ class UserModel:
 
     @staticmethod
     def reset_password(user_id, new_password=None):
+        UserModel._ensure_auth_schema()
         if new_password is None:
             new_password = "TemporaryPassword123"
         hashed = UserModel.hash_password(new_password)

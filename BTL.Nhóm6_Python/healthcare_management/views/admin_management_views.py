@@ -36,7 +36,19 @@ def _ensure_column(table, column, definition):
 
 
 def _ensure_admin_runtime_schema():
-    pass
+    try:
+        from models.user_model import UserModel
+
+        UserModel._ensure_auth_schema()
+    except Exception:
+        pass
+
+    try:
+        from models.settings_model import SettingsModel
+
+        SettingsModel.ensure_table_exists()
+    except Exception:
+        pass
 
 
 def _hash_password(password):
@@ -791,6 +803,7 @@ class AdminListPage(AdminBasePage):
         pager.addWidget(self.page_label)
         pager.addWidget(self.next_btn)
         table_layout.addLayout(pager)
+        self.table_card = table_card
         self.content_layout.addWidget(table_card)
         self.content_layout.addStretch()
 
@@ -1241,7 +1254,7 @@ class AccountManagementPage(AdminListPage):
         self._search_debounce_timer.setSingleShot(True)
         self._search_debounce_timer.timeout.connect(self._reset_and_refresh)
         self.search_input.textChanged.connect(self._on_search_text_changed)
-        self.table_card = self.table.parentWidget().parentWidget()
+        self.table_card = self.table.parentWidget()
         self.bulk_row = QtWidgets.QHBoxLayout()
         self.bulk_row.setSpacing(8)
         self.bulk_label = QtWidgets.QLabel("Chưa chọn tài khoản")
@@ -1334,9 +1347,7 @@ class AccountManagementPage(AdminListPage):
         self.load_error = ""
         _ensure_admin_runtime_schema()
         try:
-            if fetch_all is None:
-                return []
-            rows = fetch_all(
+            rows = _safe_fetch_all(
                 """
                 SELECT
                     u.user_id,
@@ -1357,6 +1368,36 @@ class AccountManagementPage(AdminListPage):
                 ORDER BY u.user_id DESC
                 """
             ) or []
+            if not rows:
+                rows = _safe_fetch_all(
+                    """
+                    SELECT
+                        u.user_id,
+                        u.username,
+                        u.role,
+                        u.is_active,
+                        u.created_at,
+                        u.deleted_at,
+                        u.username AS full_name,
+                        '' AS email,
+                        '' AS phone,
+                        '' AS avatar_path,
+                        NULL AS profile_updated_at
+                    FROM Users u
+                    ORDER BY u.user_id DESC
+                    """
+                ) or []
+            if not rows:
+                rows = _safe_fetch_all("SELECT * FROM Users ORDER BY user_id DESC") or []
+            for row in rows:
+                row.setdefault("full_name", row.get("username") or "")
+                row.setdefault("email", "")
+                row.setdefault("phone", "")
+                row.setdefault("avatar_path", "")
+                row.setdefault("profile_updated_at", None)
+                row.setdefault("created_at", "")
+                row.setdefault("deleted_at", None)
+                row.setdefault("is_active", 1)
             role_rows = _safe_fetch_all(
                 """
                 SELECT ura.user_id, r.role_key
@@ -1979,7 +2020,7 @@ class DoctorManagementPage(AdminListPage):
         self._search_debounce_timer.setSingleShot(True)
         self._search_debounce_timer.timeout.connect(self._reset_and_refresh)
         self.search_input.textChanged.connect(self._on_search_text_changed)
-        self.table_card = self.table.parentWidget().parentWidget()
+        self.table_card = self.table.parentWidget()
 
         self.bulk_row = QtWidgets.QHBoxLayout()
         self.bulk_row.setSpacing(8)
@@ -2983,7 +3024,7 @@ class PaymentManagementPage(AdminListPage):
 
     def _build_list_page(self):
         super()._build_list_page()
-        self.table_card = self.table.parentWidget().parentWidget()
+        self.table_card = self.table.parentWidget()
         
         self.empty_card = self._card()
         empty_layout = QtWidgets.QVBoxLayout(self.empty_card)

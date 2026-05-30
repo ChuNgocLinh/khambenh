@@ -28,15 +28,15 @@ class DoctorScheduleView(QtWidgets.QWidget):
 
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(16)
+        root.setSpacing(8)
         root.addLayout(self._build_header())
         root.addWidget(self._build_filter_bar())
 
         body = QtWidgets.QHBoxLayout()
-        body.setSpacing(18)
+        body.setSpacing(10)
         body.addWidget(self._build_timeline_card(), 7)
         right = QtWidgets.QVBoxLayout()
-        right.setSpacing(16)
+        right.setSpacing(8)
         right.addWidget(self._build_month_card())
         right.addWidget(self._build_detail_card(), 1)
         right_widget = QtWidgets.QWidget()
@@ -51,9 +51,9 @@ class DoctorScheduleView(QtWidgets.QWidget):
         header = QtWidgets.QHBoxLayout()
         title_col = QtWidgets.QVBoxLayout()
         title = QtWidgets.QLabel("Lịch khám")
-        title.setStyleSheet("border: none; background: transparent; font-size: 25px; color: #0f172a; font-weight: 900;")
+        title.setStyleSheet("border: none; background: transparent; font-size: 23px; color: #0f172a; font-weight: 900;")
         crumb = QtWidgets.QLabel("Trang chủ  >  Lịch khám")
-        crumb.setStyleSheet("border: none; background: transparent; font-size: 14px; color: #64748b; font-weight: 700;")
+        crumb.setStyleSheet("border: none; background: transparent; font-size: 13px; color: #64748b; font-weight: 700;")
         title_col.addWidget(title)
         title_col.addWidget(crumb)
         header.addLayout(title_col, 1)
@@ -62,9 +62,13 @@ class DoctorScheduleView(QtWidgets.QWidget):
     def _build_filter_bar(self):
         card = QtWidgets.QFrame()
         card.setStyleSheet("background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
-        layout = QtWidgets.QHBoxLayout(card)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(12)
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(8)
+        nav_row = QtWidgets.QHBoxLayout()
+        nav_row.setSpacing(8)
+        filter_row = QtWidgets.QHBoxLayout()
+        filter_row.setSpacing(8)
 
         prev_btn = self._small_button("<")
         next_btn = self._small_button(">")
@@ -72,7 +76,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
         self.date_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
         self.date_input.setCalendarPopup(True)
         self.date_input.setDisplayFormat("dd/MM/yyyy")
-        self.date_input.setMinimumWidth(148)
+        self.date_input.setMinimumWidth(112)
 
         self.status_filter = QtWidgets.QComboBox()
         self.status_filter.addItem("Tất cả trạng thái", None)
@@ -94,9 +98,9 @@ class DoctorScheduleView(QtWidgets.QWidget):
 
         for widget in [self.date_input, self.status_filter, self.service_filter, self.room_filter]:
             widget.setStyleSheet(self._input_style())
-            widget.setMinimumHeight(42)
+            widget.setMinimumHeight(34)
         for combo in [self.status_filter, self.service_filter, self.room_filter]:
-            combo.setMinimumWidth(170)
+            combo.setMinimumWidth(120)
 
         self.date_input.dateChanged.connect(self._on_date_input_changed)
         self.status_filter.currentIndexChanged.connect(self._apply_filters)
@@ -106,29 +110,33 @@ class DoctorScheduleView(QtWidgets.QWidget):
         prev_btn.clicked.connect(lambda: self.date_input.setDate(self.date_input.date().addDays(-1)))
         next_btn.clicked.connect(lambda: self.date_input.setDate(self.date_input.date().addDays(1)))
 
-        for widget in [prev_btn, self.date_input, next_btn, today_btn, self.status_filter, self.service_filter, self.room_filter]:
-            layout.addWidget(widget)
-        layout.addStretch()
+        for widget in [prev_btn, self.date_input, next_btn, today_btn]:
+            nav_row.addWidget(widget)
+        nav_row.addStretch()
         add_btn = QtWidgets.QPushButton("+ Thêm lịch khám")
-        add_btn.setMinimumHeight(44)
+        add_btn.setMinimumHeight(34)
         add_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         add_btn.setStyleSheet(
             "QPushButton { background: #16B364; color: white; border: none; border-radius: 10px; "
-            "padding: 0 18px; font-size: 14px; font-weight: 800; }"
+            "padding: 0 14px; font-size: 13px; font-weight: 800; }"
             "QPushButton:hover { background: #12A061; }"
         )
         add_btn.clicked.connect(self._add_appointment)
-        layout.addWidget(add_btn)
+        nav_row.addWidget(add_btn)
+        for widget in [self.status_filter, self.service_filter, self.room_filter]:
+            filter_row.addWidget(widget, 1)
+        layout.addLayout(nav_row)
+        layout.addLayout(filter_row)
         return card
 
     def _build_timeline_card(self):
         card = QtWidgets.QFrame()
         card.setStyleSheet("background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
         layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setContentsMargins(12, 10, 12, 10)
         top = QtWidgets.QHBoxLayout()
         self.timeline_title = QtWidgets.QLabel("")
-        self.timeline_title.setStyleSheet("border: none; background: transparent; font-size: 18px; color: #0f172a; font-weight: 900;")
+        self.timeline_title.setStyleSheet("border: none; background: transparent; font-size: 16px; color: #0f172a; font-weight: 900;")
         top.addWidget(self.timeline_title, 1)
         for status in self.STATUS_ORDER:
             label, color, _ = self.STATUS_META[status]
@@ -151,16 +159,16 @@ class DoctorScheduleView(QtWidgets.QWidget):
         card = QtWidgets.QFrame()
         card.setStyleSheet("background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;")
         layout = QtWidgets.QVBoxLayout(card)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(7)
         title = QtWidgets.QLabel("Thông tin lịch khám")
         title.setStyleSheet("border: none; background: transparent; color: #0f172a; font-size: 17px; font-weight: 900;")
         self.detail_patient = QtWidgets.QLabel("Chưa chọn lịch khám")
-        self.detail_patient.setMinimumHeight(96)
+        self.detail_patient.setMinimumHeight(64)
         self.detail_patient.setWordWrap(True)
         self.detail_patient.setStyleSheet("background: #f8fafc; border: 1px solid #e7edf5; border-radius: 10px; padding: 12px; color: #0f172a; font-size: 13px; font-weight: 800;")
         self.detail_info = QtWidgets.QLabel("Chọn một lịch trong timeline để xem chi tiết.")
-        self.detail_info.setMinimumHeight(150)
+        self.detail_info.setMinimumHeight(84)
         self.detail_info.setWordWrap(True)
         self.detail_info.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 13px; font-weight: 800;")
         layout.addWidget(title)
@@ -174,11 +182,12 @@ class DoctorScheduleView(QtWidgets.QWidget):
 
         for btn in [self.start_btn, self.patient_btn, self.edit_btn, self.cancel_btn]:
             layout.addWidget(btn)
+        layout.addStretch()
         return card
 
     def _build_month_card(self):
         self.calendar = QtWidgets.QCalendarWidget()
-        self.calendar.setMaximumHeight(330)
+        self.calendar.setMaximumHeight(226)
         self.calendar.setSelectedDate(self.date_input.date())
         self.calendar.setStyleSheet(
             "QCalendarWidget { background: white; border: 1px solid #EAECF0; border-radius: 14px; color: #344054; }"
@@ -187,17 +196,18 @@ class DoctorScheduleView(QtWidgets.QWidget):
             "QCalendarWidget QAbstractItemView { selection-background-color: #16B364; selection-color: white; "
             "outline: none; border: none; font-size: 13px; }"
         )
+        self._refresh_calendar_marks()
         self.calendar.selectionChanged.connect(self._on_calendar_changed)
         return self.calendar
 
     def _input_style(self):
-        return "background: #ffffff; border: 1px solid #dbe4ee; border-radius: 8px; padding: 9px 12px; color: #0f172a; font-weight: 800;"
+        return "background: #ffffff; border: 1px solid #dbe4ee; border-radius: 8px; padding: 7px 10px; color: #0f172a; font-weight: 800;"
 
     def _primary_style(self):
-        return "QPushButton { background: #13a66b; color: #ffffff; border: none; border-radius: 9px; padding: 11px 16px; font-weight: 900; } QPushButton:disabled { background: #cbd5e1; color: #ffffff; }"
+        return "QPushButton { background: #13a66b; color: #ffffff; border: none; border-radius: 9px; padding: 8px 12px; font-weight: 900; } QPushButton:disabled { background: #cbd5e1; color: #ffffff; }"
 
     def _outline_style(self, color):
-        return f"QPushButton {{ background: #ffffff; color: {color}; border: 1px solid #dbe4ee; border-radius: 9px; padding: 11px 16px; font-weight: 900; }} QPushButton:disabled {{ color: #94a3b8; border-color: #e2e8f0; }}"
+        return f"QPushButton {{ background: #ffffff; color: {color}; border: 1px solid #dbe4ee; border-radius: 9px; padding: 8px 12px; font-weight: 900; }} QPushButton:disabled {{ color: #94a3b8; border-color: #e2e8f0; }}"
 
     def _scrollbar_style(self):
         return (
@@ -211,13 +221,13 @@ class DoctorScheduleView(QtWidgets.QWidget):
 
     def _small_button(self, text, width=46):
         btn = QtWidgets.QPushButton(text)
-        btn.setFixedSize(width, 42)
+        btn.setFixedSize(width, 34)
         btn.setStyleSheet(self._outline_style("#475569"))
         return btn
 
     def _detail_button(self, text, style, callback):
         btn = QtWidgets.QPushButton(text)
-        btn.setMinimumHeight(44)
+        btn.setMinimumHeight(34)
         btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         btn.setStyleSheet(style)
         btn.clicked.connect(callback)
@@ -331,7 +341,35 @@ class DoctorScheduleView(QtWidgets.QWidget):
         self.filtered_rows = filtered
         count_text = f"{len(filtered)} lịch" if filtered else "Không có lịch"
         self.timeline_title.setText(f"Lịch khám trong ngày - {self.date_input.date().toString('dd/MM/yyyy')} ({count_text})")
+        self._refresh_calendar_marks()
         self._render_timeline()
+
+    def _refresh_calendar_marks(self):
+        if not hasattr(self, "calendar"):
+            return
+
+        self.calendar.setDateTextFormat(QtCore.QDate(), QtGui.QTextCharFormat())
+
+        appointment_format = QtGui.QTextCharFormat()
+        appointment_format.setBackground(QtGui.QBrush(QtGui.QColor("#dcfce7")))
+        appointment_format.setForeground(QtGui.QBrush(QtGui.QColor("#166534")))
+        appointment_format.setFontWeight(QtGui.QFont.Weight.Bold)
+
+        selected_format = QtGui.QTextCharFormat()
+        selected_format.setBackground(QtGui.QBrush(QtGui.QColor("#16B364")))
+        selected_format.setForeground(QtGui.QBrush(QtGui.QColor("#ffffff")))
+        selected_format.setFontWeight(QtGui.QFont.Weight.Bold)
+
+        for row in self.all_rows:
+            dt_value = self._to_datetime(row.get("appointment_date"))
+            if not dt_value:
+                continue
+            qdate = QtCore.QDate(dt_value.year, dt_value.month, dt_value.day)
+            self.calendar.setDateTextFormat(qdate, appointment_format)
+
+        selected_date = self.date_input.date()
+        if selected_date.isValid():
+            self.calendar.setDateTextFormat(selected_date, selected_format)
 
     def _render_timeline(self):
         while self.timeline_list.count():
@@ -351,7 +389,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(10)
             hour_lbl = QtWidgets.QLabel(f"{hour:02d}:00")
-            hour_lbl.setFixedWidth(84)
+            hour_lbl.setFixedWidth(68)
             hour_lbl.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 15px; font-weight: 900;")
             row.addWidget(hour_lbl)
 
@@ -368,7 +406,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
 
             row.addWidget(slot, 1)
             holder = QtWidgets.QWidget()
-            holder.setMinimumHeight(max(56, len(matches) * 78 if matches else 56))
+            holder.setMinimumHeight(max(42, len(matches) * 62 if matches else 42))
             holder.setLayout(row)
             self.timeline_list.addWidget(holder)
 
@@ -383,7 +421,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
 
     def _empty_slot(self):
         empty = QtWidgets.QFrame()
-        empty.setFixedHeight(48)
+        empty.setFixedHeight(34)
         empty.setStyleSheet("background: transparent; border-bottom: 1px solid #edf2f7;")
         return empty
 
@@ -391,11 +429,11 @@ class DoctorScheduleView(QtWidgets.QWidget):
         status = str(appt.get("status") or "pending")
         label, color, bg = self.STATUS_META.get(status, self.STATUS_META["pending"])
         card = QtWidgets.QFrame()
-        card.setFixedHeight(72)
+        card.setFixedHeight(56)
         card.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
         card.setStyleSheet(f"background: {bg}; border: 1px solid {color}55; border-left: 3px solid {color}; border-radius: 9px;")
         layout = QtWidgets.QHBoxLayout(card)
-        layout.setContentsMargins(16, 8, 12, 8)
+        layout.setContentsMargins(12, 6, 10, 6)
         dt_value = self._to_datetime(appt.get("appointment_date"))
         start = dt_value.strftime("%H:%M") if dt_value else "--:--"
         end = (dt_value + timedelta(minutes=30)).strftime("%H:%M") if dt_value else "--:--"
@@ -407,7 +445,7 @@ class DoctorScheduleView(QtWidgets.QWidget):
         )
         info.setStyleSheet("border: none; background: transparent; color: #334155; font-size: 13px;")
         badge = QtWidgets.QLabel(label)
-        badge.setMinimumWidth(108)
+        badge.setMinimumWidth(96)
         badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         badge.setStyleSheet(f"background: {color}18; color: {color}; border: none; border-radius: 10px; padding: 5px 12px; font-weight: 900;")
         layout.addWidget(info, 1)
@@ -423,16 +461,14 @@ class DoctorScheduleView(QtWidgets.QWidget):
         end = (dt_value + timedelta(minutes=30)).strftime("%H:%M") if dt_value else "--:--"
         patient_id = int(appt.get("patient_id") or 0)
         self.detail_patient.setText(
-            f"👤 {appt.get('patient_name', '')}\n"
-            f"{self._gender_age_text(appt)} · {appt.get('patient_phone', 'Chưa cập nhật')}\n"
-            f"Mã BN: BN{patient_id:06d}"
+            f"👤 {appt.get('patient_name', '')} - BN{patient_id:06d}\n"
+            f"{self._gender_age_text(appt)} · {appt.get('patient_phone', 'Chưa cập nhật')}"
         )
         self.detail_info.setText(
             f"⏱ Thời gian: {start} - {end}\n"
             f"🩺 Dịch vụ: {appt.get('service_name')}\n"
             f"🏥 Phòng khám: {appt.get('room', 'Phòng khám 1')}\n"
-            f"● Trạng thái: {label}\n"
-            f"📝 Ghi chú: {appt.get('note') or 'Không có'}"
+            f"● Trạng thái: {label}"
         )
         self.detail_info.setStyleSheet(f"border: none; background: transparent; color: #334155; font-size: 13px; font-weight: 800;")
         self.detail_patient.setStyleSheet(f"background: {bg}; border: 1px solid {color}55; border-radius: 10px; padding: 12px; color: #0f172a; font-size: 13px; font-weight: 800;")

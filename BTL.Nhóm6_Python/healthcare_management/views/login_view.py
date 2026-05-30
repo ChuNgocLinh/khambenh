@@ -3,14 +3,38 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QVBoxLayout, QMessageBox, QFrame, 
     QStackedWidget, QCheckBox, QGridLayout
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap, QFont, QCursor
+from PyQt6.QtCore import Qt, QSize, QRectF
+from PyQt6.QtGui import QPixmap, QFont, QCursor, QPainter, QPainterPath
 from pathlib import Path
 
 from controllers.auth_controller import AuthController
 from views.main_view import MainView
 
 class LoginView(QWidget):
+    @staticmethod
+    def _rounded_background_pixmap(pixmap, width, height, radius):
+        scaled = pixmap.scaled(
+            width,
+            height,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        x = max(0, (scaled.width() - width) // 2)
+        y = max(0, (scaled.height() - height) // 2)
+        cropped = scaled.copy(x, y, width, height)
+
+        rounded = QPixmap(width, height)
+        rounded.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(rounded)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, width, height), radius, radius)
+        painter.setClipPath(path)
+        painter.drawPixmap(0, 0, cropped)
+        painter.end()
+        return rounded
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("CarePlus - Healthcare Management System")
@@ -30,13 +54,13 @@ class LoginView(QWidget):
 
         # ================= LEFT PANEL =================
         left_panel = QFrame()
-        left_panel.setFixedWidth(520)
+        left_panel.setFixedSize(520, 720)
+        left_panel.setObjectName("leftHeroPanel")
 
         left_panel.setStyleSheet("""
-            QFrame {
-                border-top-left-radius: 30px;
-                border-bottom-left-radius: 30px;
-                background-color: black;
+            #leftHeroPanel {
+                border-radius: 30px;
+                background-color: transparent;
             }
         """)
 
@@ -47,16 +71,9 @@ class LoginView(QWidget):
         bg_path = Path(__file__).resolve().parents[1] / "assets" / "bg.jpg"
         pixmap = QPixmap(str(bg_path))
         if not pixmap.isNull():
-            bg_label.setPixmap(
-                pixmap.scaled(
-                    520,
-                    720,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-            )
+            bg_label.setPixmap(self._rounded_background_pixmap(pixmap, 520, 720, 30))
 
-        bg_label.setScaledContents(True)
+        bg_label.setScaledContents(False)
 
         # ===== OVERLAY TỐI NHẸ =====
         overlay = QFrame(left_panel)
@@ -64,8 +81,7 @@ class LoginView(QWidget):
 
         overlay.setStyleSheet("""
             background-color: rgba(0, 0, 0, 90);
-            border-top-left-radius: 30px;
-            border-bottom-left-radius: 30px;
+            border-radius: 30px;
         """)
 
         # ===== ĐƯA ẢNH RA SAU =====
@@ -89,9 +105,13 @@ class LoginView(QWidget):
         left_layout.addSpacing(20)
 
         # Tiêu đề chính
-        title_large = QLabel("Chăm sóc sức khỏe\ndễ dàng hơn mỗi ngày")
+        title_large = QLabel("Chăm sóc sức khỏe\ndễ dàng hơn\nmỗi ngày")
+        title_large.setFixedWidth(440)
+        title_large.setMinimumHeight(165)
+        title_large.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        title_large.setWordWrap(True)
         title_large.setStyleSheet("""
-            font-size: 44px;
+            font-size: 42px;
             font-weight: 900;
             color: white;
             line-height: 1.2;

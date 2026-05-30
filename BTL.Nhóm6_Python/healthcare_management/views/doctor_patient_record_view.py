@@ -39,7 +39,7 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
 
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(14)
+        root.setSpacing(8)
         root.addWidget(page_title("Hồ sơ bệnh nhân", "Trang chủ  >  Hồ sơ bệnh nhân  >  Chi tiết hồ sơ"))
         root.addWidget(self._build_patient_selector())
         root.addWidget(self._build_profile_card())
@@ -51,8 +51,8 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
     def _build_patient_selector(self):
         wrapper = card()
         layout = QtWidgets.QHBoxLayout(wrapper)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(8)
 
         label = QtWidgets.QLabel("Bệnh nhân")
         label.setStyleSheet("font-size: 14px; font-weight: 900; color: #101828;")
@@ -60,8 +60,8 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
         self.patient_search.setPlaceholderText("Tìm theo tên, SĐT, mã BN...")
         self.patient_search.setStyleSheet(input_style())
         self.patient_combo = QtWidgets.QComboBox()
-        self.patient_combo.setMinimumWidth(320)
-        self.patient_combo.setMinimumHeight(42)
+        self.patient_combo.setMinimumWidth(220)
+        self.patient_combo.setMinimumHeight(34)
         self.patient_combo.setStyleSheet(input_style())
         self.patient_combo.currentIndexChanged.connect(self._select_patient_from_combo)
         self.patient_search.textChanged.connect(self._filter_patient_options)
@@ -77,8 +77,8 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
     def _build_profile_card(self):
         wrapper = card()
         layout = QtWidgets.QHBoxLayout(wrapper)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         self.profile_avatar_box = QtWidgets.QWidget()
         self.profile_avatar_layout = QtWidgets.QVBoxLayout(self.profile_avatar_box)
         self.profile_avatar_layout.setContentsMargins(0, 0, 0, 0)
@@ -86,7 +86,7 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
 
         info = QtWidgets.QVBoxLayout()
         self.title_label = QtWidgets.QLabel("Hồ sơ bệnh nhân")
-        self.title_label.setStyleSheet("font-size: 22px; font-weight: 900; color: #101828;")
+        self.title_label.setStyleSheet("font-size: 19px; font-weight: 900; color: #101828;")
         self.summary_label = QtWidgets.QLabel("Chọn bệnh nhân để xem hồ sơ.")
         self.summary_label.setWordWrap(True)
         self.summary_label.setStyleSheet("color: #475467; font-size: 13px;")
@@ -108,14 +108,14 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setStyleSheet(
             "QTabWidget::pane { border: 1px solid #EAECF0; border-radius: 14px; background: white; }"
-            "QTabBar::tab { background: white; color: #667085; padding: 10px 14px; font-weight: 800; }"
+            "QTabBar::tab { background: white; color: #667085; padding: 8px 10px; font-weight: 800; }"
             "QTabBar::tab:selected { color: #16B364; border-bottom: 2px solid #16B364; }"
         )
 
         history_page = QtWidgets.QWidget()
         history_layout = QtWidgets.QHBoxLayout(history_page)
-        history_layout.setContentsMargins(14, 14, 14, 14)
-        history_layout.setSpacing(14)
+        history_layout.setContentsMargins(10, 10, 10, 10)
+        history_layout.setSpacing(10)
         history_layout.addWidget(self._build_visit_sidebar(), 3)
         history_layout.addWidget(self._build_visit_detail(), 4)
         history_layout.addWidget(self._build_summary_sidebar(), 2)
@@ -157,8 +157,8 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
     def _build_visit_detail(self):
         wrapper = card()
         layout = QtWidgets.QVBoxLayout(wrapper)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
         self.visit_detail_title = QtWidgets.QLabel("Chi tiết lần khám")
         self.visit_detail_title.setStyleSheet("font-size: 18px; font-weight: 900; color: #101828;")
         self.visit_detail_body = QtWidgets.QLabel("Chọn một lần khám để xem chi tiết.")
@@ -172,8 +172,8 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
     def _build_summary_sidebar(self):
         wrapper = card()
         layout = QtWidgets.QVBoxLayout(wrapper)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
         title = QtWidgets.QLabel("Tóm tắt hồ sơ")
         title.setStyleSheet("font-size: 16px; font-weight: 900; color: #101828;")
         self.metric_label = QtWidgets.QLabel("Tổng số lần khám: 0\nTổng đơn thuốc: 0\nTổng lịch hẹn: 0")
@@ -366,7 +366,7 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
             item = self.profile_avatar_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        self.profile_avatar_layout.addWidget(avatar(patient_name, 64))
+        self.profile_avatar_layout.addWidget(avatar(patient_name, 54))
         self.title_label.setText(patient_name)
         self.summary_label.setText(
             f"{patient_name}\n"
@@ -424,7 +424,7 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
                 f"{row.get('doctor_name') or 'Chưa rõ bác sĩ'} - {service}\n"
                 f"{row.get('diagnosis') or 'Chưa có chẩn đoán'}"
             )
-            btn.setMinimumHeight(92)
+            btn.setMinimumHeight(58)
             btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             border = "#16B364" if is_selected else "#EAECF0"
             background = "#ECFDF3" if is_selected else "white"
@@ -548,6 +548,8 @@ class DoctorPatientRecordView(QtWidgets.QWidget):
             return False
 
         target = parent.content_stack.widget(index) if hasattr(parent, "content_stack") and parent.content_stack.count() > index else None
+        if isinstance(target, QtWidgets.QScrollArea):
+            target = target.widget()
         if appointment_id and hasattr(target, "set_appointment"):
             target.set_appointment(appointment_id)
         if record_id and hasattr(target, "set_record"):

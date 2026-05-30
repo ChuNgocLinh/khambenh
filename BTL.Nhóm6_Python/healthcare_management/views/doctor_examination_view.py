@@ -14,25 +14,36 @@ class DoctorExaminationView(QtWidgets.QWidget):
         self.current_record = None
         self.setStyleSheet(f"background: {PAGE_BG};")
 
-        root = QtWidgets.QVBoxLayout(self)
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        content = QtWidgets.QWidget()
+        content.setStyleSheet(f"background: {PAGE_BG};")
+        root = QtWidgets.QVBoxLayout(content)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(14)
+        root.setSpacing(8)
         root.addWidget(page_title("Khám bệnh", "Trang chủ  >  Khám bệnh  >  Thông tin khám"))
         root.addWidget(self._build_step_progress())
         root.addWidget(self._build_patient_summary())
 
         body = QtWidgets.QHBoxLayout()
-        body.setSpacing(16)
-        body.addWidget(self._build_form_card(), 7)
-        body.addWidget(self._build_context_sidebar(), 3)
+        body.setSpacing(10)
+        body.addWidget(self._build_form_card(), 8)
+        body.addWidget(self._build_context_sidebar(), 2)
         root.addLayout(body, 1)
         root.addWidget(self._build_footer_actions())
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
         self.load_appointments()
 
     def _build_step_progress(self):
         wrapper = card()
         layout = QtWidgets.QHBoxLayout(wrapper)
-        layout.setContentsMargins(18, 14, 18, 14)
+        layout.setContentsMargins(12, 8, 12, 8)
         steps = ["1. Thông tin khám", "2. Chẩn đoán - Kết luận", "3. Chỉ định - Kê đơn", "4. Hoàn tất"]
         for idx, text in enumerate(steps):
             active = idx == 0
@@ -47,15 +58,15 @@ class DoctorExaminationView(QtWidgets.QWidget):
     def _build_patient_summary(self):
         wrapper = card()
         layout = QtWidgets.QHBoxLayout(wrapper)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         self.patient_avatar_holder = QtWidgets.QWidget()
         self.patient_avatar_layout = QtWidgets.QVBoxLayout(self.patient_avatar_holder)
         self.patient_avatar_layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.patient_avatar_holder)
         info = QtWidgets.QVBoxLayout()
         self.patient_name_label = QtWidgets.QLabel("Chọn lịch hẹn để bắt đầu khám")
-        self.patient_name_label.setStyleSheet("font-size: 20px; font-weight: 900; color: #101828;")
+        self.patient_name_label.setStyleSheet("font-size: 18px; font-weight: 900; color: #101828;")
         self.patient_meta_label = QtWidgets.QLabel("")
         self.patient_meta_label.setStyleSheet("color: #667085; font-size: 13px;")
         self.status_label = QtWidgets.QLabel("Chọn lịch hẹn để bắt đầu khám.")
@@ -65,8 +76,8 @@ class DoctorExaminationView(QtWidgets.QWidget):
         info.addWidget(self.status_label)
         layout.addLayout(info, 1)
         self.appointment_combo = QtWidgets.QComboBox()
-        self.appointment_combo.setMinimumHeight(44)
-        self.appointment_combo.setMinimumWidth(360)
+        self.appointment_combo.setMinimumHeight(34)
+        self.appointment_combo.setMinimumWidth(240)
         self.appointment_combo.setStyleSheet(input_style())
         self.appointment_combo.currentIndexChanged.connect(self._load_selected_context)
         layout.addWidget(self.appointment_combo)
@@ -75,19 +86,19 @@ class DoctorExaminationView(QtWidgets.QWidget):
     def _build_form_card(self):
         wrapper = card()
         layout = QtWidgets.QVBoxLayout(wrapper)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         layout.addWidget(self._section_title("Triệu chứng - Hỏi bệnh"))
-        self.reason_input = self._text_input(64)
-        self.symptoms_input = self._text_input(80)
-        self.history_input = self._text_input(58)
+        self.reason_input = self._text_input(46)
+        self.symptoms_input = self._text_input(46)
+        self.history_input = self._text_input(44)
         layout.addLayout(self._form_row([("Lý do khám", self.reason_input), ("Triệu chứng", self.symptoms_input)]))
         layout.addLayout(self._form_row([("Tiền sử bệnh / dị ứng", self.history_input)]))
 
         layout.addWidget(self._section_title("Khám lâm sàng"))
         vitals = QtWidgets.QGridLayout()
-        vitals.setHorizontalSpacing(10)
-        vitals.setVerticalSpacing(10)
+        vitals.setHorizontalSpacing(8)
+        vitals.setVerticalSpacing(6)
         self.pulse_input = self._line_input("Mạch")
         self.bp_input = self._line_input("Huyết áp")
         self.temp_input = self._line_input("Nhiệt độ")
@@ -106,13 +117,13 @@ class DoctorExaminationView(QtWidgets.QWidget):
         ):
             vitals.addWidget(self._field(label, widget), idx // 3, idx % 3)
         layout.addLayout(vitals)
-        self.clinical_input = self._text_input(78)
+        self.clinical_input = self._text_input(46)
         layout.addLayout(self._form_row([("Kết quả khám", self.clinical_input)]))
 
         layout.addWidget(self._section_title("Chẩn đoán sơ bộ"))
-        self.diagnosis_input = self._text_input(78)
-        self.treatment_input = self._text_input(78)
-        self.notes_input = self._text_input(64)
+        self.diagnosis_input = self._text_input(46)
+        self.treatment_input = self._text_input(46)
+        self.notes_input = self._text_input(44)
         layout.addLayout(self._form_row([("Chẩn đoán", self.diagnosis_input), ("Hướng điều trị", self.treatment_input)]))
         layout.addLayout(self._form_row([("Ghi chú", self.notes_input)]))
         return wrapper
@@ -121,16 +132,16 @@ class DoctorExaminationView(QtWidgets.QWidget):
         wrapper = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(14)
+        layout.setSpacing(8)
         self.quick_info = QtWidgets.QLabel("Nhóm máu: Chưa cập nhật\nNghề nghiệp: Chưa cập nhật\nBHYT: Chưa cập nhật")
         self.history_label = QtWidgets.QLabel("Chưa có lịch sử khám được chọn.")
         self.lab_label = QtWidgets.QLabel("Kết quả cận lâm sàng: Chưa cập nhật")
         for title, label in [("Thông tin nhanh", self.quick_info), ("Lịch sử khám", self.history_label), ("Kết quả cận lâm sàng", self.lab_label)]:
             panel = card()
             panel_layout = QtWidgets.QVBoxLayout(panel)
-            panel_layout.setContentsMargins(16, 16, 16, 16)
+            panel_layout.setContentsMargins(10, 10, 10, 10)
             head = QtWidgets.QLabel(title)
-            head.setStyleSheet("font-size: 16px; font-weight: 900; color: #101828;")
+            head.setStyleSheet("font-size: 15px; font-weight: 900; color: #101828;")
             label.setWordWrap(True)
             label.setStyleSheet("color: #475467; font-size: 13px;")
             panel_layout.addWidget(head)
@@ -142,7 +153,7 @@ class DoctorExaminationView(QtWidgets.QWidget):
     def _build_footer_actions(self):
         wrapper = card()
         layout = QtWidgets.QHBoxLayout(wrapper)
-        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setContentsMargins(12, 6, 12, 6)
         self.cancel_btn = button("Hủy khám", "danger")
         self.save_draft_btn = button("Lưu tạm", "outline")
         self.finalize_btn = button("Hoàn tất khám")
@@ -158,19 +169,20 @@ class DoctorExaminationView(QtWidgets.QWidget):
 
     def _section_title(self, text):
         label = QtWidgets.QLabel(text)
-        label.setStyleSheet("font-size: 18px; font-weight: 900; color: #101828; margin-top: 4px;")
+        label.setStyleSheet("font-size: 16px; font-weight: 900; color: #101828; margin-top: 2px;")
         return label
 
     def _line_input(self, placeholder=""):
         widget = QtWidgets.QLineEdit()
         widget.setPlaceholderText(placeholder)
-        widget.setMinimumHeight(42)
+        widget.setFixedHeight(32)
         widget.setStyleSheet(input_style())
         return widget
 
     def _text_input(self, height):
         widget = QtWidgets.QTextEdit()
-        widget.setMinimumHeight(height)
+        widget.setFixedHeight(height)
+        widget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
         widget.setStyleSheet(input_style())
         return widget
 
@@ -178,7 +190,7 @@ class DoctorExaminationView(QtWidgets.QWidget):
         wrapper = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
+        layout.setSpacing(4)
         text = QtWidgets.QLabel(label)
         text.setStyleSheet("font-size: 12px; color: #667085; font-weight: 800;")
         layout.addWidget(text)
@@ -187,7 +199,7 @@ class DoctorExaminationView(QtWidgets.QWidget):
 
     def _form_row(self, fields):
         row = QtWidgets.QHBoxLayout()
-        row.setSpacing(12)
+        row.setSpacing(8)
         for label, widget in fields:
             row.addWidget(self._field(label, widget), 1)
         return row
